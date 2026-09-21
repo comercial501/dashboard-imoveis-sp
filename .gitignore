@@ -1,0 +1,16 @@
+# segredos
+.env
+
+# cache local do pipeline (baixado de novo pelo itbi_source.py / Action —
+# não precisa ir pro git; os .xlsx de ITBI sozinhos passam de 100MB)
+data/
+
+# fontes manuais antigas (fluxo Perl descontinuado — ver README). Ficam no
+# disco local como referência, mas são grandes demais (100MB+) pra git.
+dados-prefeitura/
+dados-usenonstop/
+dashboard.html
+
+__pycache__/
+*.pyc
+.DS_Store

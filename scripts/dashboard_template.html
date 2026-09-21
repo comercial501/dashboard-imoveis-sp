@@ -1,0 +1,2102 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Dashboard de Investimento em Mídia — Imóveis SP</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-blue:    #2a78d6;
+    --series-blue-lt: #86b6ef;
+    --series-blue-dk: #1c5cab;
+    --series-orange:  #eb6834;
+    --status-good:    #0ca30c;
+    --status-warning: #fab219;
+    --status-serious: #ec835a;
+    --status-critical:#d03b3b;
+    --card-shadow: 0 1px 2px rgba(11,11,11,0.06), 0 1px 1px rgba(11,11,11,0.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-blue:    #3987e5;
+      --series-blue-lt: #6da7ec;
+      --series-blue-dk: #184f95;
+      --series-orange:  #d95926;
+      --card-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 1px 1px rgba(0,0,0,0.3);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page-plane:     #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-blue:    #3987e5;
+    --series-blue-lt: #6da7ec;
+    --series-blue-dk: #184f95;
+    --series-orange:  #d95926;
+    --card-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 1px 1px rgba(0,0,0,0.3);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--page-plane);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.4;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  header.top { margin-bottom: 24px; }
+  header.top h1 { font-size: 22px; margin: 0 0 4px; }
+  header.top p.sub { color: var(--text-secondary); margin: 0; font-size: 14px; }
+  header.top p.meta { color: var(--text-muted); margin: 6px 0 0; font-size: 12px; }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 12px; margin-bottom: 28px; }
+  .kpi-tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; box-shadow: var(--card-shadow); }
+  .kpi-tile .label { font-size: 12px; color: var(--text-secondary); }
+  .kpi-tile .value { font-size: 24px; font-weight: 600; margin-top: 4px; }
+
+  section.panel {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 22px 24px;
+    margin-bottom: 24px;
+    box-shadow: var(--card-shadow);
+  }
+  section.panel h2 { font-size: 16px; margin: 0 0 2px; display:flex; align-items:center; gap:8px; }
+  section.panel h2 .num { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background: var(--series-blue); color:#fff; font-size:12px; font-weight:700; flex: none; }
+  section.panel p.desc { color: var(--text-secondary); font-size: 13px; margin: 4px 0 16px; max-width: 780px; }
+  section.panel .caveat { color: var(--text-muted); font-size: 11.5px; margin-top: 10px; border-top: 1px solid var(--gridline); padding-top: 8px; }
+
+  .scrollbox { max-height: 640px; overflow-y: auto; border: 1px solid var(--gridline); border-radius: 8px; }
+  .scrollbox-x { overflow-x: auto; }
+
+  /* Panel 1: ranking bars */
+  .rank-row { display: grid; grid-template-columns: 26px 168px 1fr 60px 140px; align-items: center; gap: 10px; padding: 5px 10px; border-bottom: 1px solid var(--gridline); cursor: default; }
+  .rank-row:last-child { border-bottom: none; }
+  .rank-row:hover { background: color-mix(in srgb, var(--series-blue) 6%, transparent); }
+  .rank-idx { color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+  .rank-name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rank-bar-track { position: relative; height: 18px; background: var(--gridline); border-radius: 4px; overflow: hidden; }
+  .rank-bar-fill { position: absolute; left:0; top:0; bottom:0; background: var(--series-blue); border-radius: 4px 0 0 4px; }
+  .rank-score { font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; color: var(--text-secondary); }
+  .badges { display:flex; gap:4px; flex-wrap: wrap; }
+  .badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 999px; white-space: nowrap; display:inline-flex; align-items:center; gap:3px; }
+  .badge.good { background: color-mix(in srgb, var(--status-good) 16%, transparent); color: var(--status-good); }
+  .badge.warn { background: color-mix(in srgb, var(--status-serious) 20%, transparent); color: #b5502b; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .badge.warn { color: var(--status-serious); } }
+  :root[data-theme="dark"] .badge.warn { color: var(--status-serious); }
+
+  table.datatable { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  table.datatable th { text-align: left; font-weight: 600; color: var(--text-secondary); font-size: 11.5px; text-transform: uppercase; letter-spacing: .02em; padding: 8px 10px; border-bottom: 1px solid var(--baseline); position: sticky; top:0; background: var(--surface-1); }
+  table.datatable td { padding: 7px 10px; border-bottom: 1px solid var(--gridline); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.datatable tbody tr:hover { background: color-mix(in srgb, var(--series-blue) 6%, transparent); }
+  table.datatable td.name, table.datatable th.name { font-variant-numeric: normal; white-space: normal; }
+
+  .meter { position: relative; width: 90px; height: 8px; background: color-mix(in srgb, var(--series-blue) 18%, var(--gridline)); border-radius: 4px; overflow:hidden; display:inline-block; vertical-align: middle; }
+  .meter > i { position:absolute; left:0; top:0; bottom:0; background: var(--series-blue); }
+  .meter.alt { background: color-mix(in srgb, var(--series-orange) 18%, var(--gridline)); }
+  .meter.alt > i { background: var(--series-orange); }
+  tr.prontidao-row:hover, table.datatable tbody tr.prontidao-row:hover { background: color-mix(in srgb, var(--series-orange) 6%, transparent); }
+
+  .chip { font-size: 10.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; display:inline-flex; align-items:center; gap:4px; }
+  .chip.good { background: color-mix(in srgb, var(--status-good) 16%, transparent); color: var(--status-good); }
+  .chip.warn { background: color-mix(in srgb, var(--status-serious) 20%, transparent); }
+  .chip.warn span { color: var(--status-serious); }
+  .chip.neutral { background: var(--gridline); color: var(--text-secondary); }
+  .chip.good span { color: var(--status-good); }
+  .chip svg { width:10px; height:10px; }
+
+  .rel-tag { font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 999px; white-space: nowrap; display:inline-block; }
+  .rel-tag.individual { color: var(--text-muted); }
+  .rel-tag.regional { background: color-mix(in srgb, var(--series-blue) 16%, transparent); color: var(--series-blue); cursor: help; }
+  .rel-tag.insufficient { background: color-mix(in srgb, var(--status-serious) 18%, transparent); color: #b5502b; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rel-tag.insufficient { color: var(--status-serious); } }
+  :root[data-theme="dark"] .rel-tag.insufficient { color: var(--status-serious); }
+
+  /* Dumbbell */
+  .dumbbell-row { display: grid; grid-template-columns: 150px 1fr 130px; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid var(--gridline); }
+  .dumbbell-row:last-child{border-bottom:none;}
+  .dumbbell-row:hover { background: color-mix(in srgb, var(--series-blue) 6%, transparent); }
+  .dumbbell-track { position: relative; height: 20px; }
+  .dumbbell-line { position:absolute; height:2px; background: var(--baseline); top:9px; }
+  .dumbbell-dot { position:absolute; width:10px; height:10px; border-radius:50%; top:5px; margin-left:-5px; box-shadow: 0 0 0 2px var(--surface-1); }
+  .dumbbell-dot.paid { background: var(--series-blue-lt); }
+  .dumbbell-dot.ask { background: var(--series-blue-dk); }
+  .dumbbell-gap { font-size: 11.5px; text-align:right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+
+  .legend-row { display:flex; gap:16px; align-items:center; margin-bottom: 10px; font-size: 12px; color: var(--text-secondary); }
+  .legend-item { display:flex; align-items:center; gap:6px; }
+  .legend-dot { width:9px; height:9px; border-radius:50%; }
+
+  /* Panel 5 map */
+  #mapSvgWrap { position: relative; width: 100%; }
+  #mapSvg { width: 100%; height: auto; display:block; overflow: visible; }
+  .map-dot { cursor: pointer; }
+  .map-dot:hover { stroke: var(--text-primary); stroke-width: 1.5; }
+  .map-label { font-size: 9px; fill: var(--text-secondary); pointer-events: none; }
+
+  /* Tooltip */
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 50;
+    background: var(--text-primary); color: var(--surface-1);
+    font-size: 12px; padding: 8px 10px; border-radius: 6px; max-width: 240px;
+    opacity: 0; transform: translateY(4px); transition: opacity .08s ease;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  }
+  #tooltip.show { opacity: 1; }
+  #tooltip .t-title { font-weight: 700; margin-bottom: 3px; }
+  #tooltip .t-row { display:flex; justify-content: space-between; gap: 14px; }
+  #tooltip .t-row .v { font-weight: 700; }
+
+  details.tablewrap { margin-top: 10px; }
+  details.tablewrap summary { cursor: pointer; font-size: 12.5px; color: var(--series-blue); font-weight: 600; }
+
+  .ver-completa-btn {
+    display: block; width: 100%; text-align: center; background: none; border: none;
+    border-top: 1px solid var(--gridline); padding: 10px; margin-top: 2px;
+    color: var(--series-blue); font-size: 12.5px; font-weight: 600; cursor: pointer;
+    font-family: inherit;
+  }
+  .ver-completa-btn:hover { background: color-mix(in srgb, var(--series-blue) 6%, transparent); }
+
+  .filter-row { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 4px; }
+  .filter-col { flex: 1 1 260px; min-width: 220px; }
+  .filter-col-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .filter-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .02em; }
+  .filter-actions { display: flex; gap: 10px; }
+  .filter-link-btn { background: none; border: none; padding: 0; color: var(--series-blue); font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .filter-link-btn:hover { text-decoration: underline; }
+  .filter-search { width: 100%; box-sizing: border-box; padding: 6px 10px; margin-bottom: 6px; border: 1px solid var(--gridline); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); font-size: 12.5px; font-family: inherit; }
+  .filter-checklist { max-height: 180px; overflow-y: auto; border: 1px solid var(--gridline); border-radius: 8px; padding: 6px 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 2px 10px; }
+  .filter-checklist label { display: flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 2px 0; cursor: pointer; }
+  .filter-checklist input[type="checkbox"] { margin: 0; }
+  .filter-checklist .no-match { grid-column: 1 / -1; color: var(--text-muted); font-size: 12px; padding: 6px 0; }
+  .filter-price-inputs { display: flex; align-items: center; gap: 8px; }
+  .filter-price-inputs input { width: 120px; box-sizing: border-box; padding: 6px 10px; border: 1px solid var(--gridline); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); font-size: 12.5px; font-family: inherit; }
+  .filter-price-inputs span { color: var(--text-muted); font-size: 12px; }
+  .filter-status { margin-top: 10px; font-size: 12px; color: var(--text-secondary); }
+
+  details.bairro-group { border: 1px solid var(--gridline); border-radius: 8px; margin-bottom: 8px; }
+  details.bairro-group summary {
+    cursor: pointer; padding: 10px 14px; font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; list-style: none;
+  }
+  details.bairro-group summary::-webkit-details-marker { display: none; }
+  details.bairro-group summary::before { content: '▸'; color: var(--text-muted); margin-right: 8px; font-size: 11px; }
+  details.bairro-group[open] summary::before { content: '▾'; }
+  details.bairro-group summary .count { font-weight: 400; color: var(--text-secondary); font-size: 12px; }
+  details.bairro-group summary .empty-note { font-weight: 400; color: var(--text-muted); font-size: 12px; }
+  details.bairro-group .datatable { border-top: 1px solid var(--gridline); }
+
+  footer.foot { color: var(--text-muted); font-size: 11.5px; text-align:center; margin-top: 32px; }
+
+  /* ---- Botão de exportação e resumo para impressão/PDF ---- */
+  .filter-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .pdf-export-btn {
+    background: var(--series-blue); color: #fff; border: none; border-radius: 7px;
+    padding: 9px 16px; font-size: 12.5px; font-weight: 600; font-family: inherit;
+    cursor: pointer; white-space: nowrap;
+  }
+  .pdf-export-btn:hover { background: var(--series-blue-dk); }
+
+  .print-summary { display: none; }
+  .print-summary h1 { font-size: 18px; margin: 0 0 6px; }
+  .print-summary p.ps-meta { font-size: 11px; color: #444; margin: 0 0 4px; }
+  .print-summary p.ps-filter { font-size: 11px; color: #333; margin: 10px 0 16px; padding: 7px 10px; background: #f2f2ef; border: 1px solid #ccc; border-radius: 6px; }
+  .print-summary h2.ps-section { font-size: 13.5px; margin: 20px 0 8px; padding-top: 12px; border-top: 1px solid #ccc; }
+  .print-summary h2.ps-section:first-of-type { border-top: none; padding-top: 0; }
+  .print-summary p.ps-note { font-size: 10.5px; color: #666; margin: 0 0 8px; }
+  .print-summary table { width: 100%; border-collapse: collapse; margin-bottom: 4px; table-layout: fixed; }
+  .print-summary th, .print-summary td {
+    border: 1px solid #ccc; padding: 4px 6px; font-size: 10px; text-align: left;
+    vertical-align: top; word-break: break-word; overflow-wrap: break-word;
+  }
+  .print-summary th { background: #f0f0ec; font-weight: 600; }
+  .print-summary td.num, .print-summary th.num { text-align: right; white-space: nowrap; }
+  .print-summary tr { break-inside: avoid; page-break-inside: avoid; }
+  .print-summary thead { display: table-header-group; }
+  .print-summary .ps-empty { font-size: 11px; color: #777; font-style: italic; margin: 0 0 8px; }
+  .print-summary footer.ps-foot { font-size: 10px; color: #777; margin-top: 20px; text-align: center; }
+
+  @media print {
+    body.printing-summary > .wrap,
+    body.printing-summary > #tooltip { display: none !important; }
+    body.printing-summary .print-summary { display: block !important; }
+    body.printing-summary { background: #fff; color: #000; }
+    @page { margin: 14mm 12mm; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>Onde investir em mídia paga — Imóveis SP</h1>
+    <p class="sub">Cruzamento de vendas reais (ITBI / Prefeitura, 2024–2026) com o estoque atual de anúncios (Usenonstop) para os bairros da carteira.</p>
+    <p class="meta" id="metaLine"></p>
+  </header>
+
+  <div class="kpi-row" id="kpiRow"></div>
+
+  <section class="panel" id="filterPanel">
+    <div class="filter-panel-head">
+      <h2 style="margin-bottom:4px;">Filtros</h2>
+      <button type="button" id="exportPdfBtn" class="pdf-export-btn">Exportar Resumo em PDF</button>
+    </div>
+    <p class="desc">Selecione um ou mais bairros e/ou uma faixa de preço — todos os 10 painéis abaixo recalculam automaticamente (médias, medianas, scores e rankings refeitos só com os dados que passam pelo filtro, não apenas a lista final escondida). Sem nada selecionado, a dashboard mostra todos os 47 bairros, sem corte de preço.</p>
+    <div class="filter-row">
+      <div class="filter-col">
+        <div class="filter-col-head">
+          <label class="filter-label">Bairros (<span id="bairroSelCount">todos</span>)</label>
+          <div class="filter-actions">
+            <button type="button" class="filter-link-btn" id="bairroSelectAll">Selecionar todos</button>
+            <button type="button" class="filter-link-btn" id="bairroClear">Limpar</button>
+          </div>
+        </div>
+        <input type="text" id="bairroSearch" class="filter-search" placeholder="Buscar bairro...">
+        <div id="bairroCheckList" class="filter-checklist"></div>
+      </div>
+      <div class="filter-col">
+        <label class="filter-label">Faixa de preço (R$)</label>
+        <div class="filter-price-inputs" style="margin-top:6px;">
+          <input type="number" id="priceMinInput" placeholder="Mínimo" min="0" step="10000">
+          <span>até</span>
+          <input type="number" id="priceMaxInput" placeholder="Máximo" min="0" step="10000">
+        </div>
+        <p class="caveat" style="margin-top:8px;">O mesmo intervalo é aplicado tanto ao valor pago (Prefeitura) quanto ao pedido (Usenonstop).</p>
+        <button type="button" id="clearFiltersBtn" class="filter-link-btn">Limpar todos os filtros</button>
+      </div>
+    </div>
+    <p class="filter-status" id="filterStatus"></p>
+  </section>
+
+  <section class="panel">
+    <h2><span class="num">1</span>Ranking de Oportunidade</h2>
+    <p class="desc">Bairros ordenados por um score que combina <strong>volume de vendas em 2025</strong> (liquidez do mercado) com a <strong>tendência de crescimento</strong> (2024→2025 e jan-jun/2025→jan-jun/2026). Quanto mais alto o score, maior a prioridade de verba agora.</p>
+    <div class="scrollbox" id="rankingBox"></div>
+    <p class="caveat">Score = média dos z-scores de volume e tendência, normalizada de 0 a 100. Crescimentos percentuais extremos vindos de bairros com poucas transações em 2024 são limitados a ±100% só para o cálculo do score (o valor real aparece no detalhe ao passar o mouse), para não distorcer o ranking dos demais bairros.</p>
+  </section>
+
+  <section class="panel" id="prontidaoPanel">
+    <h2><span class="num">2</span>Prontidão para Campanha por Bairro</h2>
+    <p class="desc">Diferente do Ranking de Oportunidade (que mede só liquidez e tendência de vendas), este painel responde: <strong>esse bairro tem estoque, preço coerente e histórico de giro reais pra sustentar uma campanha agora?</strong> Combina 6 sinais já calculados nos outros painéis: liquidez/tendência (15%), estoque compatível com o perfil vencedor (20%), alinhamento de preço pedido vs. pago (15%), captação ativa (15%), qualidade dos imóveis prioritários disponíveis (25%) e concentração de achados de valor (10%).</p>
+    <div class="scrollbox" id="prontidaoBox"></div>
+    <p class="caveat">Cada fator é normalizado de 0 a 100 antes de combinar (contagens brutas via z-score, mesmo método do score do Painel 1; preço e concentração de achados já são percentuais/transformações diretas). Bairro sem dado suficiente pra calcular algum fator recebe nota neutra (50) nesse fator, não penalizada — mesma regra do Perfil Vencedor (Mudança 1). O botão "Ver 10 melhores imóveis" reaproveita exatamente a pontuação do Painel 8 (Imóveis Prioritários), sem critério novo.</p>
+  </section>
+
+  <section class="panel">
+    <h2><span class="num">3</span>Perfil Vencedor por Bairro</h2>
+    <p class="desc">Para cada bairro: a faixa de <strong>metragem construída</strong> que mais vendeu de fato (Prefeitura), a faixa de preço associada, e o dormitório/vagas mais comuns no estoque atual da Usenonstop dentro dessa faixa — esse é o combo a priorizar no criativo do anúncio.</p>
+    <div class="scrollbox scrollbox-x" id="profileBox"></div>
+    <p class="caveat">A base da Prefeitura não registra dormitórios/vagas — esses dois campos vêm do estoque atual da Usenonstop filtrado pela faixa de metragem que realmente vendeu. Quando a amostra do estoque compatível é pequena, o bairro é marcado como "amostra baixa".</p>
+  </section>
+
+  <section class="panel">
+    <h2><span class="num">4</span>Estoque × Demanda</h2>
+    <p class="desc">Quantos anúncios ativos hoje na Usenonstop se encaixam no perfil vencedor do bairro, comparado ao volume de vendas de 2025. <span class="chip good"><span>●</span>Oportunidade</span> = pouco estoque compatível para uma demanda relevante. <span class="chip warn"><span>●</span>Alerta</span> = o preço pedido no bairro está bem descolado do que de fato se pagou.</p>
+    <div class="scrollbox scrollbox-x" id="stockBox"></div>
+  </section>
+
+  <section class="panel">
+    <h2><span class="num">5</span>Faixa de Preço que Converte</h2>
+    <p class="desc">Preço mediano <strong>realmente pago</strong> em 2025 (Prefeitura) vs. preço mediano <strong>pedido</strong> nos anúncios ativos (Usenonstop), por bairro. Ordenado pela maior diferença.</p>
+    <div class="legend-row">
+      <div class="legend-item"><span class="legend-dot" style="background:var(--series-blue-lt)"></span>Preço pago (mediana 2025, ITBI)</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--series-blue-dk)"></span>Preço pedido hoje (Usenonstop)</div>
+    </div>
+    <div class="scrollbox" id="priceBox"></div>
+    <p class="caveat">Parte da diferença pode refletir mix de tipologia diferente entre o que foi transacionado e o que está anunciado hoje (ex: estoque atual com unidades maiores/mais novas), não necessariamente sobrepreço puro.</p>
+  </section>
+
+  <section class="panel" id="mapPanel">
+    <h2><span class="num">6</span>Mapa de Oportunidade</h2>
+    <p class="desc">Cada bolha é um bairro, posicionado no centróide real (média das coordenadas corrigidas dos imóveis da Usenonstop naquele bairro). Cor = score do Ranking (painel 1); tamanho = volume de vendas em 2025.</p>
+    <div id="mapSvgWrap"></div>
+    <p class="caveat">Não é um mapa com os limites oficiais do bairro (exigiria uma fonte externa de polígonos) — é um mapa de bolhas posicionado por coordenada real, então a disposição espacial é geograficamente fiel mesmo sem desenhar fronteiras. Bairros sem imóveis geolocalizáveis no estoque atual não aparecem aqui.</p>
+  </section>
+
+  <section class="panel" id="captacaoPanel">
+    <h2><span class="num">7</span>Captação Ativa Estratégica</h2>
+    <p class="desc">TO-DO semanal de prospecção: prédios pra visitar (imobiliárias locais, síndicos, proprietários), agrupados por bairro. <strong>Quem entra na lista</strong> (vale para qualquer um dos 47 bairros): endereços com 2 ou mais vendas de revenda genuína registradas na Prefeitura entre 2024–2026 (excluindo prováveis lançamentos de incorporadora e endereços com preço incoerente) e <strong>sem nenhuma unidade à venda hoje</strong> na Usenonstop — se já tem anúncio ativo, não precisa prospecção, é só contatar pelo anúncio. Quando um bairro tem menos de 5 desses endereços, a lista relaxa e inclui endereços com uma única venda histórica, marcados <span class="chip neutral">Endereço único</span> (menor confiança de giro repetido). <strong>Quem sobe pro topo:</strong> bairros com a badge <span class="chip warn"><span>●</span>Prioridade Máxima</span> — onde a escassez de estoque (Painel 3) não é só daquele prédio, é do bairro inteiro (0–2 imóveis no perfil vencedor à venda hoje, com 10+ vendas em 2025 de demanda comprovada). Essa badge de bairro nunca decide quem aparece na lista, só a ordem.</p>
+    <div id="captacaoBox"></div>
+    <p class="caveat">"Provável lançamento" = 5 ou mais vendas no mesmo endereço dentro de uma janela de 6 meses (assinatura de registro em lote de incorporadora). Endereços descartados por preço incoerente (menor valor abaixo de R$30.000 ou razão máx/mín acima de 20x) também ficam de fora — normalmente são transferências que não são venda de mercado (partilha, herança) ou um cadastro genérico da Prefeitura. Total: <span id="captacaoMeta"></span>. <strong>Como usar como checklist semanal:</strong> priorize os bairros com a badge Prioridade Máxima, distribua os endereços listados entre os corretores do time de captação, e monte a meta da semana com base na quantidade de endereços por bairro (ex: um bairro com 30 endereços suporta uma meta maior que um com 5).</p>
+  </section>
+
+  <section class="panel" id="prioritariosPanel">
+    <h2><span class="num">8</span>Imóveis Prioritários para Campanha</h2>
+    <p class="desc">Cada anúncio ativo hoje na Usenonstop, pontuado individualmente (0–100): 35% liquidez de revenda do bairro, 30% alinhamento do preço pedido com a mediana paga, 25% aderência ao perfil vencedor do bairro, 10% bônus se o prédio tem histórico de giro comprovado (mesmo critério de 2+ vendas do Painel 7, Captação Ativa Estratégica). Ordenado do imóvel mais prioritário para investir verba.</p>
+    <div class="scrollbox" id="prioritariosBox"></div>
+    <p class="caveat">Descontos acima de 30% sobre a mediana paga no bairro entram numa zona de cautela (a nota de preço passa a cair, não a subir) — um preço longe demais do histórico é mais sinal de possível problema (documentação, estado, venda urgente) do que pechincha garantida; o resumo avisa quando isso acontece. Quando o Perfil Vencedor do bairro é uma estimativa regional (Mudança 1), a aderência a esse perfil pesa só a metade na nota.</p>
+  </section>
+
+  <section class="panel" id="porBairroPanel">
+    <h2><span class="num">9</span>Imóveis por Bairro/Região</h2>
+    <p class="desc">Os mesmos imóveis pontuados do Painel 8, agora agrupados por bairro — base pronta para montar carrosséis temáticos ("apartamentos à venda em [bairro]"). Bairros na mesma ordem do Ranking de Oportunidade (Painel 1); dentro de cada um, os imóveis do melhor para o pior.</p>
+    <div id="porBairroBox"></div>
+  </section>
+
+  <section class="panel" id="valorOportunidadePanel">
+    <h2><span class="num">10</span>Valor de Oportunidade</h2>
+    <p class="desc">Imóveis anunciados <strong>20% ou mais abaixo</strong> da mediana realmente paga em 2025 no bairro — um achado que pode virar argumento no próprio anúncio. Bairros com menos de 10 vendas em 2025 ficam de fora (mediana pouco confiável). <span class="chip warn"><span>●</span>Desconto grande</span> = mais de 30% abaixo do histórico — confirme documentação/estado do imóvel antes de usar como argumento.</p>
+    <h3 style="font-size:13px;margin:16px 0 8px;">Por imóvel</h3>
+    <div class="scrollbox" id="valorOportImoveisBox"></div>
+    <h3 style="font-size:13px;margin:20px 0 8px;">Por bairro</h3>
+    <div class="scrollbox" id="valorOportBairroBox"></div>
+    <p class="caveat">Desconto = 1 − (preço pedido ÷ mediana paga em 2025 no bairro). "% do estoque" no quadro por bairro é sobre o total de anúncios daquele bairro nos seus 47 bairros-alvo (mesma base do Painel 8), não sobre o total de anúncios da cidade toda.</p>
+  </section>
+
+  <details class="tablewrap">
+    <summary>Ver tabela completa com todos os campos (47 bairros)</summary>
+    <div class="scrollbox scrollbox-x" style="margin-top:10px;" id="fullTableBox"></div>
+  </details>
+
+  <footer class="foot">Gerado a partir de dados-prefeitura (ITBI 2024–2026) e dados-usenonstop/imoveis.xlsx · <span id="genAt"></span></footer>
+</div>
+
+<div id="printSummary" class="print-summary"></div>
+
+<div id="tooltip"></div>
+
+<script>
+const RAW = __DASHBOARD_RAW_JSON__;
+</script>
+<script>
+(function () {
+  'use strict';
+
+  const fmtInt = n => (n === null || n === undefined) ? '—' : n.toLocaleString('pt-BR');
+  const fmtMoney = n => (n === null || n === undefined) ? '—' :
+    (n >= 1000000 ? 'R$ ' + (n/1000000).toLocaleString('pt-BR', {maximumFractionDigits:2}) + 'M'
+     : 'R$ ' + Math.round(n).toLocaleString('pt-BR'));
+  const fmtPct = (n, digits) => (n === null || n === undefined) ? '—' : (n*100).toLocaleString('pt-BR', {maximumFractionDigits: digits===undefined?0:digits, signDisplay:'always'}) + '%';
+  const fmtM2 = n => (n === null || n === undefined) ? '—' : Math.round(n) + 'm²';
+
+  const tooltip = document.getElementById('tooltip');
+  function showTip(evt, rows, title) {
+    tooltip.innerHTML = '';
+    const t = document.createElement('div');
+    t.className = 't-title';
+    t.textContent = title;
+    tooltip.appendChild(t);
+    rows.forEach(([label, value]) => {
+      const r = document.createElement('div');
+      r.className = 't-row';
+      const l = document.createElement('span');
+      l.textContent = label;
+      const v = document.createElement('span');
+      v.className = 'v';
+      v.textContent = value;
+      r.appendChild(l); r.appendChild(v);
+      tooltip.appendChild(r);
+    });
+    tooltip.classList.add('show');
+    moveTip(evt);
+  }
+  function moveTip(evt) {
+    const pad = 14;
+    let x = evt.clientX + pad;
+    let y = evt.clientY + pad;
+    const rect = tooltip.getBoundingClientRect();
+    if (x + rect.width > window.innerWidth - 8) x = evt.clientX - rect.width - pad;
+    if (y + rect.height > window.innerHeight - 8) y = evt.clientY - rect.height - pad;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+  }
+  function hideTip() { tooltip.classList.remove('show'); }
+
+  // Mudança 6: renders only the first `initial` items into `rowContainer`
+  // (a <tbody> or a plain list div) via buildFn, then — only if there's more
+  // — appends a "Ver lista completa" button into `buttonMount` that builds
+  // the rest on demand (lazy: the hidden rows never touch the DOM until
+  // clicked) and removes itself. One mechanism reused by every panel.
+  function renderWithPagination(rowContainer, buttonMount, items, buildFn, initial) {
+    initial = initial || 10;
+    items.slice(0, initial).forEach(it => rowContainer.appendChild(buildFn(it)));
+    if (items.length > initial) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ver-completa-btn';
+      btn.textContent = 'Ver lista completa (' + items.length.toLocaleString('pt-BR') + ')';
+      btn.addEventListener('click', () => {
+        items.slice(initial).forEach(it => rowContainer.appendChild(buildFn(it)));
+        btn.remove();
+      });
+      buttonMount.appendChild(btn);
+    }
+  }
+
+  // ===========================================================================
+  // Mudança 9: client-side recompute engine. Full port of build_data.pl's
+  // methodology (Mudanças 1, 2, 3, 5) so the bairro/price filter can recompute
+  // every panel from the raw records instead of just hiding rows of an
+  // already-aggregated result. Verified against the Perl aggregate with
+  // scripts/verify_raw.pl — keep this in sync with build_data.pl if the
+  // methodology ever changes there.
+  // ===========================================================================
+
+  const C = RAW.constants;
+  const BAIRROS = RAW.bairros;
+  const ADDR_DISPLAY = RAW.addr_display;
+
+  const round1 = v => Math.round(v * 10) / 10;
+  const round3 = v => Math.round(v * 1000) / 1000;
+  const max0 = v => v < 0 ? 0 : v;
+
+  function meanJS(arr) {
+    if (!arr.length) return null;
+    let s = 0; for (const v of arr) s += v;
+    return s / arr.length;
+  }
+  function medianJS(arr) {
+    if (!arr.length) return null;
+    const v = arr.slice().sort((a,b)=>a-b);
+    const n = v.length;
+    return n % 2 ? v[(n-1)/2] : (v[n/2-1] + v[n/2]) / 2;
+  }
+  function percentileJS(p, arr) {
+    if (!arr.length) return null;
+    const v = arr.slice().sort((a,b)=>a-b);
+    const idx = p/100 * (v.length - 1);
+    const lo = Math.floor(idx), frac = idx - lo;
+    const hi = lo+1 < v.length ? lo+1 : lo;
+    return v[lo] + (v[hi]-v[lo])*frac;
+  }
+  function modeOf(arr) {
+    if (!arr.length) return null;
+    const c = new Map();
+    for (const v of arr) c.set(v, (c.get(v)||0)+1);
+    let best = null, bestCount = -1;
+    for (const [v, cnt] of c) {
+      if (best === null || cnt > bestCount || (cnt === bestCount && v < best)) { best = v; bestCount = cnt; }
+    }
+    return best;
+  }
+  function dedupCapExactArea(pairs, maxPer) {
+    const seen = new Map();
+    const out = [];
+    for (const p of pairs) {
+      const key = p.area.toFixed(2);
+      const c = (seen.get(key)||0) + 1;
+      seen.set(key, c);
+      if (c <= maxPer) out.push(p);
+    }
+    return out;
+  }
+  function modeBucketFromPairs(rawPairs, width, maxPerExact) {
+    const pairs = dedupCapExactArea(rawPairs, maxPerExact);
+    if (!pairs.length) return { lo: null, hi: null, valores: [] };
+    const counts = new Map();
+    for (const p of pairs) {
+      const b = Math.floor(p.area / width);
+      counts.set(b, (counts.get(b)||0)+1);
+    }
+    let bestB = null, bestCount = -1;
+    for (const [b, cnt] of counts) {
+      if (bestB === null || cnt > bestCount || (cnt === bestCount && b < bestB)) { bestB = b; bestCount = cnt; }
+    }
+    const lo = bestB * width, hi = (bestB+1) * width;
+    const valores = pairs.filter(p => p.area >= lo && p.area < hi).map(p => p.valor);
+    return { lo, hi, valores };
+  }
+  function zscoreMap(valsObj) {
+    const nums = Object.values(valsObj).filter(v => v !== null && v !== undefined);
+    const z = {};
+    if (nums.length < 2) { for (const k in valsObj) z[k] = 0; return z; }
+    const m = meanJS(nums);
+    const variance = meanJS(nums.map(v => (v-m)**2));
+    const sd = Math.sqrt(variance) || 1;
+    for (const k in valsObj) {
+      const v = valsObj[k];
+      z[k] = (v !== null && v !== undefined) ? (v - m) / sd : -2;
+    }
+    return z;
+  }
+  function normalize0to100(rawObj) {
+    const z = zscoreMap(rawObj);
+    const vals = Object.values(z);
+    const mn = percentileJS(0, vals), mx = percentileJS(100, vals);
+    const range = (mx - mn) || 1;
+    const out = {};
+    for (const k in z) out[k] = ((z[k] - mn) / range) * 100;
+    return out;
+  }
+  function excelSerialToYMD(serial) {
+    const ms = (C.excel_epoch_unix + Math.trunc(serial) * 86400) * 1000;
+    const d = new Date(ms);
+    return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
+  }
+  function haversineKm(lat1, lon1, lat2, lon2) {
+    const R = 6371, rad = Math.PI/180;
+    const dlat = (lat2-lat1)*rad, dlon = (lon2-lon1)*rad;
+    const a = Math.sin(dlat/2)**2 + Math.cos(lat1*rad)*Math.cos(lat2*rad)*Math.sin(dlon/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+  function nearestNeighbors(bairro, baseMap, targets, maxKm, count) {
+    const c0 = baseMap[bairro].centroid;
+    if (!c0) return [];
+    const dists = [];
+    for (const other of targets) {
+      if (other === bairro) continue;
+      const c1 = baseMap[other].centroid;
+      if (!c1) continue;
+      const d = haversineKm(c0[0], c0[1], c1[0], c1[1]);
+      if (d <= maxKm) dists.push([other, d]);
+    }
+    dists.sort((a,b) => a[1]-b[1]);
+    return dists.slice(0, count);
+  }
+  function reliabilityConfidence(rel) {
+    if (rel === 'individual') return 1.0;
+    if (rel === 'regional') return 0.5;
+    return 0.0;
+  }
+  function priceAlignmentScore(valor, mediana) {
+    if (mediana === null || mediana === undefined || mediana <= 0 || valor === null || valor === undefined) {
+      return { score: 50, zone: 'sem_referencia', ratio: null };
+    }
+    const ratio = valor / mediana;
+    if (ratio > 1.0) return { score: max0(100 - (ratio-1)*100), zone: 'acima', ratio };
+    if (ratio >= 0.7) return { score: 100, zone: 'normal', ratio };
+    const s = 100 - (0.7-ratio)*200;
+    return { score: s < 30 ? 30 : s, zone: 'cautela', ratio };
+  }
+  function addressIsPriceIncoherent(valores, minValor, maxRatio) {
+    if (valores.length < 2) return false;
+    const s = valores.slice().sort((a,b)=>a-b);
+    const vmin = s[0], vmax = s[s.length-1];
+    if (vmin < minValor) return true;
+    if (vmin > 0 && (vmax/vmin) > maxRatio) return true;
+    return false;
+  }
+  function addressIsLaunch(days, minCount, windowDays) {
+    if (days.length < minCount) return false;
+    const d = days.slice().sort((a,b)=>a-b);
+    for (let i=0;i<d.length;i++) {
+      let cnt = 1;
+      for (let j=i+1;j<d.length;j++) {
+        if (d[j]-d[i] > windowDays) break;
+        cnt++;
+      }
+      if (cnt >= minCount) return true;
+    }
+    return false;
+  }
+  function coordIsValidSp(lat, lon) {
+    if (lat===null||lat===undefined||lon===null||lon===undefined) return false;
+    return lat >= -24.2 && lat <= -23.0 && lon >= -47.0 && lon <= -46.2;
+  }
+
+  // filter = { bairros: Set<string>|null, priceMin: number|null, priceMax: number|null }
+  function computeAll(filter) {
+    const selBairros = (filter.bairros && filter.bairros.size) ? filter.bairros : null;
+    const pMin = filter.priceMin, pMax = filter.priceMax;
+    const hasPriceFilter = pMin !== null || pMax !== null;
+    const priceOk = v => {
+      if (v === null || v === undefined) return false;
+      if (pMin !== null && v < pMin) return false;
+      if (pMax !== null && v > pMax) return false;
+      return true;
+    };
+    // Bairros fora do filtro continuam disponíveis como doadores de vizinhança
+    // (Mudança 1) -- por isso o filtro de PREÇO se aplica aqui, sobre todos os
+    // 47 bairros, e o filtro de BAIRRO só entra depois, restringindo quais
+    // bairros geram linha nos painéis e entram no cálculo de z-score (para não
+    // diluir o ranking com 46 "bairros fantasma" zerados).
+    const scopeBairros = selBairros ? BAIRROS.filter(b => selBairros.has(b)) : BAIRROS;
+
+    const itbiFiltered = [];
+    for (const rec of RAW.itbi) {
+      const [bairroIdx, sheetYear, day, valor, area, addrIdx] = rec;
+      if (hasPriceFilter && !priceOk(valor)) continue;
+      itbiFiltered.push({ bairro: BAIRROS[bairroIdx], sheetYear, day, valor, area, addrIdx });
+    }
+    const usnFiltered = [];
+    for (const rec of RAW.usenonstop) {
+      const [bairroIdx, addrIdx, endereco, valor, area, quartos, vagas, lat, lon, situacaoCode, codigo, link] = rec;
+      if (hasPriceFilter && !priceOk(valor)) continue;
+      usnFiltered.push({ bairro: BAIRROS[bairroIdx], addrIdx, endereco, valor, area, quartos, vagas, lat, lon, situacaoCode, codigo, link });
+    }
+
+    const itbiByBairroYear = {}, itbiPairs = {}, itbiMonthCount = {}, usnByBairro = {};
+    for (const b of BAIRROS) {
+      itbiByBairroYear[b] = { 2024:{count:0,valores:[]}, 2025:{count:0,valores:[]}, 2026:{count:0,valores:[]} };
+      itbiPairs[b] = { 2024:[], 2025:[], 2026:[] };
+      itbiMonthCount[b] = {};
+      usnByBairro[b] = [];
+    }
+    for (const r of itbiFiltered) {
+      const yb = itbiByBairroYear[r.bairro][r.sheetYear];
+      if (yb) { yb.count++; yb.valores.push(r.valor); }
+      if (r.area !== null && r.area !== undefined) {
+        const pb = itbiPairs[r.bairro][r.sheetYear];
+        if (pb) pb.push({ area: r.area, valor: r.valor });
+      }
+      if (r.day !== null && r.day !== undefined) {
+        const { year, month } = excelSerialToYMD(r.day);
+        const key = year + '-' + String(month).padStart(2,'0');
+        itbiMonthCount[r.bairro][key] = (itbiMonthCount[r.bairro][key]||0) + 1;
+      }
+    }
+    for (const r of usnFiltered) usnByBairro[r.bairro].push(r);
+
+    // ---- 5) per-bairro base stats ----
+    const base = {};
+    for (const bairro of BAIRROS) {
+      const yearly = {};
+      for (const year of [2024,2025,2026]) {
+        const y = itbiByBairroYear[bairro][year];
+        yearly[year] = { count: y.count, avg_valor: meanJS(y.valores), median_valor: medianJS(y.valores) };
+      }
+      let growth_24_25 = null;
+      if (yearly[2024].count > 0) growth_24_25 = (yearly[2025].count - yearly[2024].count) / yearly[2024].count;
+      let h1_2025 = 0, h1_2026 = 0;
+      for (let m=1;m<=6;m++) {
+        h1_2025 += itbiMonthCount[bairro]['2025-'+String(m).padStart(2,'0')] || 0;
+        h1_2026 += itbiMonthCount[bairro]['2026-'+String(m).padStart(2,'0')] || 0;
+      }
+      let growth_h1 = null;
+      if (h1_2025 > 0) growth_h1 = (h1_2026 - h1_2025) / h1_2025;
+      const growths = [growth_24_25, growth_h1].filter(v => v !== null);
+      const trend_pct = growths.length ? meanJS(growths) : null;
+      let trend_pct_for_score = trend_pct;
+      if (trend_pct !== null) {
+        if (trend_pct > C.trend_cap) trend_pct_for_score = C.trend_cap;
+        else if (trend_pct < -C.trend_cap) trend_pct_for_score = -C.trend_cap;
+      }
+
+      const allPairs = [...itbiPairs[bairro][2024], ...itbiPairs[bairro][2025], ...itbiPairs[bairro][2026]];
+      const { lo: areaLo, hi: areaHi, valores: valoresInBand } = modeBucketFromPairs(allPairs, C.area_bucket_width, C.max_per_exact_area);
+      const price_p25 = percentileJS(25, valoresInBand);
+      const price_p75 = percentileJS(75, valoresInBand);
+      const price_median_band = medianJS(valoresInBand);
+
+      const listings = usnByBairro[bairro];
+      const matching = areaLo !== null ? listings.filter(u => u.area !== null && u.area !== undefined && u.area >= areaLo && u.area < areaHi) : [];
+      const profile_quartos = modeOf(matching.map(u=>u.quartos).filter(v=>v!==null && v!==undefined));
+      const profile_vagas = modeOf(matching.map(u=>u.vagas).filter(v=>v!==null && v!==undefined));
+
+      const askingValores = listings.map(u=>u.valor).filter(v=>v!==null && v!==undefined);
+      const asking_median = medianJS(askingValores);
+
+      const validCoords = listings.filter(u => coordIsValidSp(u.lat,u.lon));
+      const centroid_lat = validCoords.length ? meanJS(validCoords.map(u=>u.lat)) : null;
+      const centroid_lon = validCoords.length ? meanJS(validCoords.map(u=>u.lon)) : null;
+
+      base[bairro] = {
+        yearly, growth_24_25, growth_h1, trend_pct, trend_pct_for_score,
+        volume_2025: yearly[2025].count,
+        area_band: areaLo !== null ? [areaLo, areaHi] : null,
+        price_band: price_p25 !== null ? [price_p25, price_p75] : null,
+        price_band_median: price_median_band,
+        profile_quartos, profile_vagas, profile_sample_size: matching.length,
+        stock_total: listings.length,
+        stock_matching_profile: matching.length,
+        asking_median_valor: asking_median,
+        paid_median_valor_2025: yearly[2025].median_valor,
+        centroid: centroid_lat !== null ? [centroid_lat, centroid_lon] : null,
+      };
+    }
+
+    // ---- 5b) Mudança 1: regional fallback for thin samples (only for bairros
+    // in scope -- neighbor *donors* stay reachable via the full BAIRROS list
+    // inside nearestNeighbors, which reads centroid/pairs straight from base{}
+    // and itbiPairs{}, both already populated for all 47 above) ----
+    for (const bairro of scopeBairros) {
+      const b = base[bairro];
+      const ownPairs = [...itbiPairs[bairro][2024], ...itbiPairs[bairro][2025], ...itbiPairs[bairro][2026]];
+      b.area_band_reliability = ownPairs.length >= C.reliability_threshold ? 'individual' : 'insufficient';
+      b.area_band_neighbors = [];
+
+      if (ownPairs.length < C.reliability_threshold) {
+        const neighbors = nearestNeighbors(bairro, base, BAIRROS, C.neighbor_max_km, C.neighbor_count);
+        if (neighbors.length) {
+          let pooled = ownPairs.slice();
+          const nbInfo = [];
+          for (const [nbName, dist] of neighbors) {
+            const nbPairs = [...itbiPairs[nbName][2024], ...itbiPairs[nbName][2025], ...itbiPairs[nbName][2026]];
+            pooled = pooled.concat(nbPairs);
+            nbInfo.push({ bairro: nbName, distancia_km: Math.round(dist*100)/100, n_pares: nbPairs.length });
+          }
+          const { lo, hi, valores } = modeBucketFromPairs(pooled, C.area_bucket_width, C.max_per_exact_area);
+          if (lo !== null && valores.length) {
+            b.area_band = [lo, hi];
+            b.price_band = [percentileJS(25,valores), percentileJS(75,valores)];
+            b.price_band_median = medianJS(valores);
+            b.area_band_reliability = 'regional';
+            b.area_band_neighbors = nbInfo;
+          }
+        }
+      }
+
+      if (b.area_band) {
+        const [lo, hi] = b.area_band;
+        const ownMatching = usnByBairro[bairro].filter(u => u.area !== null && u.area !== undefined && u.area >= lo && u.area < hi);
+        b.profile_sample_size = ownMatching.length;
+        b.stock_matching_profile = ownMatching.length;
+        b.profile_quartos = modeOf(ownMatching.map(u=>u.quartos).filter(v=>v!==null && v!==undefined));
+        b.profile_vagas = modeOf(ownMatching.map(u=>u.vagas).filter(v=>v!==null && v!==undefined));
+        // Kept so Painel 3 can list the exact imóveis behind "Estoque no perfil"
+        // (same area-only match used for the count above, not the pontuados
+        // Imóveis Prioritários list, which additionally drops listings with no
+        // valid preço -- see conversation notes on why these must stay in sync).
+        b.matching_listings = ownMatching;
+      }
+
+      b.profile_reliability = (b.profile_sample_size||0) >= C.reliability_threshold ? 'individual' : 'insufficient';
+      b.profile_neighbors = [];
+      b.profile_pool_sample_size = b.profile_sample_size;
+
+      if ((b.profile_sample_size||0) < C.reliability_threshold && b.area_band) {
+        const neighbors = nearestNeighbors(bairro, base, BAIRROS, C.neighbor_max_km, C.neighbor_count);
+        if (neighbors.length) {
+          const [lo, hi] = b.area_band;
+          let pool = usnByBairro[bairro].filter(u => u.area !== null && u.area !== undefined && u.area >= lo && u.area < hi);
+          const nbInfo = [];
+          for (const [nbName, dist] of neighbors) {
+            const nbListings = usnByBairro[nbName].filter(u => u.area !== null && u.area !== undefined && u.area >= lo && u.area < hi);
+            pool = pool.concat(nbListings);
+            nbInfo.push({ bairro: nbName, distancia_km: Math.round(dist*100)/100, n_imoveis: nbListings.length });
+          }
+          if (pool.length >= 2) {
+            b.profile_quartos = modeOf(pool.map(u=>u.quartos).filter(v=>v!==null && v!==undefined));
+            b.profile_vagas = modeOf(pool.map(u=>u.vagas).filter(v=>v!==null && v!==undefined));
+            b.profile_pool_sample_size = pool.length;
+            b.profile_reliability = 'regional';
+            b.profile_neighbors = nbInfo;
+          }
+        }
+      }
+    }
+
+    // ---- 5c) Mudança 2: Captação Ativa + detecção de lançamento ----
+    const itbiAddrGroups = new Map();
+    for (const r of itbiFiltered) {
+      if (r.addrIdx === null || r.addrIdx === undefined) continue;
+      if (!itbiAddrGroups.has(r.addrIdx)) itbiAddrGroups.set(r.addrIdx, { bairro: r.bairro, recs: [] });
+      // área sujeita ao mesmo AREA_CAP do perfil vencedor (mesmo problema de
+      // qualidade de dado -- área do prédio inteiro em vez da unidade)
+      const addrArea = (r.area !== null && r.area !== undefined && r.area > 0 && r.area <= C.area_cap) ? r.area : null;
+      itbiAddrGroups.get(r.addrIdx).recs.push({ day: r.day, valor: r.valor, year: r.sheetYear, area: addrArea });
+    }
+    const usnAddrGroups = new Map();
+    for (const r of usnFiltered) {
+      if (r.addrIdx === null || r.addrIdx === undefined) continue;
+      if (!usnAddrGroups.has(r.addrIdx)) usnAddrGroups.set(r.addrIdx, []);
+      usnAddrGroups.get(r.addrIdx).push(r);
+    }
+
+    const liquidez = {};
+    for (const b of BAIRROS) liquidez[b] = { 2024:{total:0,revenda:0}, 2025:{total:0,revenda:0}, 2026:{total:0,revenda:0} };
+    for (const group of itbiAddrGroups.values()) {
+      for (const r of group.recs) liquidez[group.bairro][r.year].total++;
+    }
+
+    const captacaoAtiva = [];
+    let nAddrDiscarded = 0, nAddrLaunch = 0;
+    for (const [addrIdx, group] of itbiAddrGroups) {
+      if (selBairros && !selBairros.has(group.bairro)) continue; // neighbor-donor bairros don't get their own Captação Ativa rows
+      const recs = group.recs;
+      if (recs.length < 2) continue;
+      const valores = recs.map(r=>r.valor);
+      if (addressIsPriceIncoherent(valores, C.addr_min_valor, C.addr_max_ratio)) { nAddrDiscarded++; continue; }
+      const days = recs.map(r=>r.day).filter(d => d !== null && d !== undefined);
+      if (addressIsLaunch(days, C.launch_min_count, C.launch_window_days)) { nAddrLaunch++; continue; }
+      for (const r of recs) liquidez[group.bairro][r.year].revenda++;
+
+      const sortedValores = valores.slice().sort((a,b)=>a-b);
+      const areas = recs.map(r=>r.area).filter(a => a !== null && a !== undefined).sort((a,b)=>a-b);
+      const usnMatches = usnAddrGroups.get(addrIdx) || [];
+      const usnRevenda = usnMatches.filter(u => u.situacaoCode !== 3 && u.situacaoCode !== 4); // LANCAMENTO=3, CONSTRUCAO=4
+      captacaoAtiva.push({
+        bairro: group.bairro, addrIdx, endereco: ADDR_DISPLAY[addrIdx],
+        n_vendas: recs.length,
+        preco_min: sortedValores[0], preco_max: sortedValores[sortedValores.length-1],
+        preco_medio: meanJS(valores),
+        area_min: areas.length ? areas[0] : null, area_max: areas.length ? areas[areas.length-1] : null,
+        tem_unidade_a_venda_hoje: usnRevenda.length > 0,
+        unidades_a_venda_hoje: usnRevenda.map(u => ({ codigo: u.codigo, valor: u.valor, link: u.link })),
+      });
+    }
+    // Endereços de venda única -- nunca podem ser lançamento nem incoerentes
+    // (uma única transação é, por definição, orgânica). Alimentam a
+    // liquidez de revenda automaticamente e servem de fallback ("endereço
+    // único") pra Captação Ativa Estratégica quando um bairro tem poucos
+    // prédios com giro repetido.
+    const captacaoUnico = [];
+    for (const [addrIdx, group] of itbiAddrGroups) {
+      if (selBairros && !selBairros.has(group.bairro)) continue;
+      if (group.recs.length !== 1) continue;
+      const r = group.recs[0];
+      liquidez[group.bairro][r.year].revenda++;
+      const usnMatches = usnAddrGroups.get(addrIdx) || [];
+      const usnRevenda = usnMatches.filter(u => u.situacaoCode !== 3 && u.situacaoCode !== 4);
+      captacaoUnico.push({
+        bairro: group.bairro, addrIdx, endereco: ADDR_DISPLAY[addrIdx],
+        n_vendas: 1,
+        preco_min: r.valor, preco_max: r.valor, preco_medio: r.valor,
+        area_min: r.area, area_max: r.area,
+        tem_unidade_a_venda_hoje: usnRevenda.length > 0,
+      });
+    }
+    captacaoAtiva.sort((a,b) => {
+      if (a.bairro !== b.bairro) return a.bairro < b.bairro ? -1 : 1;
+      if (b.n_vendas !== a.n_vendas) return b.n_vendas - a.n_vendas;
+      return a.endereco < b.endereco ? -1 : (a.endereco > b.endereco ? 1 : 0);
+    });
+    for (const b of BAIRROS) {
+      base[b].liquidez_total_2025 = liquidez[b][2025].total;
+      base[b].liquidez_revenda_2025 = liquidez[b][2025].revenda;
+    }
+
+    // ---- 6) cross-bairro scoring (Painel 1) + Estoque x Demanda flags ----
+    // From here on, everything is scoped to scopeBairros: with a bairro filter
+    // active, z-scores/percentiles/thresholds must reflect only the bairros
+    // being looked at, not get diluted by 46 zeroed-out "phantom" bairros that
+    // just aren't part of the current view.
+    const volForZ = {}, trendForZ = {};
+    for (const b of scopeBairros) { volForZ[b] = base[b].volume_2025; trendForZ[b] = base[b].trend_pct_for_score; }
+    const volZ = zscoreMap(volForZ), trendZ = zscoreMap(trendForZ);
+    const combined = {};
+    for (const b of scopeBairros) combined[b] = (volZ[b] + trendZ[b]) / 2;
+    const cvals = Object.values(combined);
+    const cmin = percentileJS(0, cvals), cmax = percentileJS(100, cvals);
+    const crange = (cmax - cmin) || 1;
+
+    const ratios = [];
+    for (const b of scopeBairros) {
+      const d = base[b].volume_2025 || 0, s = base[b].stock_matching_profile || 0;
+      ratios.push(d > 0 ? s/d : (s>0 ? 999 : 0));
+    }
+    const sortedRatios = ratios.slice().sort((a,b)=>a-b);
+    const lowTercileThreshold = sortedRatios[Math.floor(sortedRatios.length/3)] ?? 0;
+
+    const final = {};
+    for (const b of scopeBairros) {
+      const score = ((combined[b]-cmin)/crange) * 100;
+      const demand = base[b].volume_2025 || 0;
+      const stockMatch = base[b].stock_matching_profile || 0;
+      const ratio = demand > 0 ? stockMatch/demand : (stockMatch>0 ? 999 : 0);
+      const paid = base[b].paid_median_valor_2025, asking = base[b].asking_median_valor;
+      const priceGapPct = (paid!==null && asking!==null && paid>0) ? ((asking-paid)/paid)*100 : null;
+      const flagOportunidade = (ratio <= lowTercileThreshold) && demand > 0;
+      const flagAlerta = priceGapPct !== null && Math.abs(priceGapPct) >= 20;
+      final[b] = Object.assign({}, base[b], {
+        score: round1(score),
+        stock_demand_ratio: round3(ratio),
+        price_gap_pct: priceGapPct !== null ? round1(priceGapPct) : null,
+        flag_oportunidade: flagOportunidade,
+        flag_alerta: flagAlerta,
+      });
+    }
+
+    // ---- 6b) Mudança 3(a): score_revenda ----
+    const revendaForZ = {};
+    for (const b of scopeBairros) revendaForZ[b] = base[b].liquidez_revenda_2025;
+    const revendaZ = zscoreMap(revendaForZ);
+    const combinedRevenda = {};
+    for (const b of scopeBairros) combinedRevenda[b] = (revendaZ[b] + trendZ[b]) / 2;
+    const rvals = Object.values(combinedRevenda);
+    const rmin = percentileJS(0, rvals), rmax = percentileJS(100, rvals);
+    const rrange = (rmax-rmin) || 1;
+    for (const b of scopeBairros) final[b].score_revenda = round1(((combinedRevenda[b]-rmin)/rrange)*100);
+
+    // ---- 6c) Mudança 3: pontuação por imóvel ----
+    const inCaptacaoAtiva = new Set(captacaoAtiva.map(c => c.addrIdx));
+    const imoveisPrioritarios = [];
+    for (const bairro of scopeBairros) {
+      const x = final[bairro];
+      const listings = usnByBairro[bairro];
+      const areaConf = reliabilityConfidence(x.area_band_reliability);
+      const profileConf = reliabilityConfidence(x.profile_reliability);
+      const lo = x.area_band ? x.area_band[0] : null, hi = x.area_band ? x.area_band[1] : null;
+
+      for (const u of listings) {
+        if (u.valor === null || u.valor === undefined || u.valor <= 0) continue;
+        const pa = priceAlignmentScore(u.valor, x.paid_median_valor_2025);
+
+        let areaRaw = 50;
+        if (lo !== null && u.area !== null && u.area !== undefined) {
+          if (u.area >= lo && u.area < hi) areaRaw = 100;
+          else {
+            const bandWidth = hi - lo;
+            const dist = u.area < lo ? lo - u.area : u.area - hi;
+            areaRaw = max0(100 - (dist/bandWidth)*100);
+          }
+        }
+        const areaScore = 50 + (areaRaw-50)*areaConf;
+
+        let quartosRaw = 50;
+        if (x.profile_quartos !== null && x.profile_quartos !== undefined && u.quartos !== null && u.quartos !== undefined) {
+          const diff = Math.abs(u.quartos - x.profile_quartos);
+          quartosRaw = diff === 0 ? 100 : (diff === 1 ? 50 : 0);
+        }
+        const quartosScore = 50 + (quartosRaw-50)*profileConf;
+
+        let vagasRaw = 50;
+        if (x.profile_vagas !== null && x.profile_vagas !== undefined && u.vagas !== null && u.vagas !== undefined) {
+          const diff = Math.abs(u.vagas - x.profile_vagas);
+          vagasRaw = diff === 0 ? 100 : (diff === 1 ? 50 : 0);
+        }
+        const vagasScore = 50 + (vagasRaw-50)*profileConf;
+
+        const aderencia = meanJS([areaScore, quartosScore, vagasScore]);
+        const temCaptacao = u.addrIdx !== null && u.addrIdx !== undefined && inCaptacaoAtiva.has(u.addrIdx);
+        const finalScore = 0.35*x.score_revenda + 0.30*pa.score + 0.25*aderencia + 0.10*(temCaptacao?100:0);
+
+        const frases = [];
+        if (pa.zone === 'cautela') frases.push('Preço ' + Math.round((1-pa.ratio)*100) + '% abaixo do histórico do bairro — vale checar antes de anunciar');
+        else if (pa.zone === 'acima' && pa.score < 60) frases.push('Preço ' + Math.round((pa.ratio-1)*100) + '% acima do que o bairro historicamente pagou');
+        else if (pa.zone === 'normal' && pa.ratio !== null && pa.ratio < 0.97) frases.push('Preço ' + Math.round((1-pa.ratio)*100) + '% abaixo da mediana paga no bairro');
+        if (aderencia >= 80) frases.push('Bate com o perfil vencedor do bairro' + (profileConf < 1 ? ' (estimativa regional)' : ''));
+        if (x.score_revenda >= 70) frases.push('Bairro com liquidez de revenda alta');
+        if (temCaptacao) frases.push('Prédio com histórico de giro comprovado');
+
+        imoveisPrioritarios.push({
+          bairro, endereco: u.endereco, codigo: u.codigo, link: u.link,
+          valor: u.valor, area: u.area, quartos: u.quartos, vagas: u.vagas,
+          score_bairro_revenda: round1(x.score_revenda),
+          price_alignment: round1(pa.score),
+          profile_adherence: round1(aderencia),
+          tem_captacao_ativa: temCaptacao,
+          area_band_reliability: x.area_band_reliability,
+          profile_reliability: x.profile_reliability,
+          final_score: round1(finalScore),
+          resumo: frases.slice(0,2).join(' · '),
+        });
+      }
+    }
+    imoveisPrioritarios.sort((a,b) => b.final_score - a.final_score);
+
+    // ---- 6d) Mudança 5: Valor de Oportunidade ----
+    const valorOportImoveis = [];
+    for (const r of imoveisPrioritarios) {
+      const bx = final[r.bairro];
+      if ((bx.yearly[2025].count||0) < C.valor_oportunidade_min_vendas_2025) continue;
+      const mediana = bx.paid_median_valor_2025;
+      if (mediana === null || mediana <= 0) continue;
+      const desconto = 1 - (r.valor / mediana);
+      if (desconto < C.valor_oportunidade_min_desconto) continue;
+      valorOportImoveis.push({
+        bairro: r.bairro, endereco: r.endereco, codigo: r.codigo, link: r.link,
+        valor: r.valor, mediana_paga_bairro: mediana,
+        desconto_pct: round1(desconto*100),
+        atencao: desconto >= C.valor_oportunidade_atencao_desconto,
+      });
+    }
+    valorOportImoveis.sort((a,b) => b.desconto_pct - a.desconto_pct);
+
+    const achadosByBairro = {}, stockByBairroElegivel = {};
+    for (const r of imoveisPrioritarios) {
+      const bx = final[r.bairro];
+      if ((bx.yearly[2025].count||0) < C.valor_oportunidade_min_vendas_2025) continue;
+      stockByBairroElegivel[r.bairro] = (stockByBairroElegivel[r.bairro]||0) + 1;
+    }
+    for (const r of valorOportImoveis) achadosByBairro[r.bairro] = (achadosByBairro[r.bairro]||0) + 1;
+    let valorOportPorBairro = [];
+    for (const b in stockByBairroElegivel) {
+      const n = achadosByBairro[b] || 0;
+      if (n <= 0) continue;
+      valorOportPorBairro.push({ bairro: b, n_achados: n, estoque_total: stockByBairroElegivel[b], pct_do_estoque: round1(100*n/stockByBairroElegivel[b]) });
+    }
+    valorOportPorBairro.sort((a,b) => b.n_achados - a.n_achados || (a.bairro < b.bairro ? -1 : (a.bairro>b.bairro?1:0)));
+
+    const ranking = scopeBairros.slice().sort((a,b) => final[b].score - final[a].score);
+
+    // ---- 6e) "Prontidão para Campanha por Bairro" ----
+    // Combina 6 sinais já calculados nos outros painéis (liquidez/tendência,
+    // estoque compatível, alinhamento de preço, captação ativa, imóveis
+    // prioritários, concentração de achados de valor) num único score de
+    // "esse bairro tem munição real pra campanha agora?", distinto da
+    // pergunta de liquidez pura do Painel 1. Pesos e normalização aprovados
+    // pelo usuário; dado faltante vira nota neutra (50), nunca 0, seguindo a
+    // mesma regra de não penalizar por gap de dado usada desde a Mudança 1.
+    const captacaoCountByBairro = {};
+    for (const c of captacaoAtiva) captacaoCountByBairro[c.bairro] = (captacaoCountByBairro[c.bairro]||0) + 1;
+
+    const f2Raw = {}, f4Raw = {};
+    for (const b of scopeBairros) {
+      f2Raw[b] = base[b].stock_matching_profile || 0;
+      f4Raw[b] = captacaoCountByBairro[b] || 0;
+    }
+    const f2Norm = normalize0to100(f2Raw);
+    const f4Norm = normalize0to100(f4Raw);
+
+    const imoveisByBairroForProntidao = {};
+    for (const r of imoveisPrioritarios) {
+      (imoveisByBairroForProntidao[r.bairro] || (imoveisByBairroForProntidao[r.bairro] = [])).push(r); // já vem ordenado desc
+    }
+
+    for (const b of scopeBairros) {
+      const x = final[b];
+      const f1 = x.score;
+      const f2 = f2Norm[b];
+
+      const gap = x.price_gap_pct;
+      const f3 = (gap === null || gap === undefined) ? 50 : Math.max(0, 100 - Math.abs(gap)*2);
+
+      const f4 = f4Norm[b];
+
+      const list = imoveisByBairroForProntidao[b] || [];
+      const top10 = list.slice(0, 10);
+      const n = top10.length;
+      const meanTop10 = n ? meanJS(top10.map(r => r.final_score)) : 0;
+      const coverage = Math.min(1, n/10);
+      const f5 = meanTop10 * coverage;
+
+      const vendas2025 = (x.yearly[2025] && x.yearly[2025].count) || 0;
+      let f6;
+      if (vendas2025 < C.valor_oportunidade_min_vendas_2025) {
+        f6 = 50; // dado insuficiente pra medir concentração de achados -> neutro
+      } else {
+        const estoqueEleg = stockByBairroElegivel[b] || 0;
+        f6 = estoqueEleg === 0 ? 0 : 100 * (achadosByBairro[b]||0) / estoqueEleg;
+      }
+
+      x.prontidao_campanha = round1(0.15*f1 + 0.20*f2 + 0.15*f3 + 0.15*f4 + 0.25*f5 + 0.10*f6);
+      x.prontidao_top_imoveis = top10;
+    }
+
+    const prontidaoRanking = scopeBairros.slice().sort((a,b) => final[b].prontidao_campanha - final[a].prontidao_campanha);
+
+    // ---- 7) Mudança 11: escassez macro de bairro ("Prioridade Máxima" na
+    // Captação Ativa Estratégica, Mudança 12) + Índice de Saturação de
+    // Oferta (badge nos Painéis 1 e 2) — porto exato do bloco equivalente em
+    // build_data.pl (ver comentários lá para o raciocínio completo) ----
+    for (const b of scopeBairros) {
+      const vol = final[b].volume_2025 || 0;
+      const smp = final[b].stock_matching_profile || 0;
+      final[b].flag_prioridade_maxima = (smp <= C.captacao_estrategica_max_stock_match && vol >= C.valor_oportunidade_min_vendas_2025);
+    }
+
+    const stotalRatios = [];
+    for (const b of scopeBairros) {
+      const d = final[b].volume_2025 || 0, s = final[b].stock_total || 0;
+      stotalRatios.push(d > 0 ? s/d : (s>0 ? 999 : 0));
+    }
+    const sortedStotalRatios = stotalRatios.slice().sort((a,b)=>a-b);
+    const highTercileThreshold = sortedStotalRatios[Math.floor(2*sortedStotalRatios.length/3)] ?? 0;
+    for (const b of scopeBairros) {
+      const d = final[b].volume_2025 || 0, s = final[b].stock_total || 0;
+      const ratio = d > 0 ? s/d : (s>0 ? 999 : 0);
+      final[b].stock_total_demand_ratio = round3(ratio);
+      final[b].flag_saturacao_alta = ratio >= highTercileThreshold;
+    }
+
+    // ---- 8) Mudança 12: Captação Ativa Estratégica (fusão dos antigos
+    // Painel 7 + Painel 11) — porto exato do bloco equivalente em
+    // build_data.pl (ver comentários lá para o raciocínio completo) ----
+    const estrategicaByBairro = {};
+    for (const c of captacaoAtiva) {
+      if (c.tem_unidade_a_venda_hoje) continue;
+      (estrategicaByBairro[c.bairro] || (estrategicaByBairro[c.bairro] = [])).push({
+        endereco: c.endereco, n_vendas: c.n_vendas,
+        preco_min: c.preco_min, preco_max: c.preco_max,
+        area_min: c.area_min, area_max: c.area_max,
+        unico: false,
+      });
+    }
+    for (const b of scopeBairros) {
+      const n = (estrategicaByBairro[b] || []).length;
+      if (n >= C.captacao_estrategica_min_enderecos) continue;
+      for (const c of captacaoUnico) {
+        if (c.bairro !== b || c.tem_unidade_a_venda_hoje) continue;
+        (estrategicaByBairro[b] || (estrategicaByBairro[b] = [])).push({
+          endereco: c.endereco, n_vendas: c.n_vendas,
+          preco_min: c.preco_min, preco_max: c.preco_max,
+          area_min: c.area_min, area_max: c.area_max,
+          unico: true,
+        });
+      }
+    }
+    const captacaoEstrategica = [];
+    for (const b of scopeBairros) {
+      const enderecos = (estrategicaByBairro[b] || []).slice();
+      if (!enderecos.length) continue;
+      enderecos.sort((a,b2) => b2.n_vendas - a.n_vendas || (a.endereco < b2.endereco ? -1 : (a.endereco > b2.endereco ? 1 : 0)));
+      captacaoEstrategica.push({
+        bairro: b,
+        flag_prioridade_maxima: final[b].flag_prioridade_maxima,
+        perfil: {
+          area_band: final[b].area_band, price_band: final[b].price_band,
+          profile_quartos: final[b].profile_quartos, profile_vagas: final[b].profile_vagas,
+          profile_reliability: final[b].profile_reliability,
+        },
+        enderecos,
+      });
+    }
+    captacaoEstrategica.sort((a,b) => {
+      if (a.flag_prioridade_maxima !== b.flag_prioridade_maxima) return a.flag_prioridade_maxima ? -1 : 1;
+      const dv = (final[b.bairro].volume_2025||0) - (final[a.bairro].volume_2025||0);
+      if (dv !== 0) return dv;
+      return a.bairro < b.bairro ? -1 : (a.bairro > b.bairro ? 1 : 0);
+    });
+
+    return {
+      meta: {
+        total_itbi_rows_matched: itbiFiltered.filter(r => !selBairros || selBairros.has(r.bairro)).length,
+        usn_rows_matched: usnFiltered.filter(r => !selBairros || selBairros.has(r.bairro)).length,
+        enderecos_lancamento: nAddrLaunch,
+        enderecos_descartados_preco: nAddrDiscarded,
+      },
+      ranking,
+      prontidao_ranking: prontidaoRanking,
+      bairros: final,
+      captacao_ativa: captacaoAtiva,
+      imoveis_prioritarios: imoveisPrioritarios,
+      valor_oportunidade: { imoveis: valorOportImoveis, por_bairro: valorOportPorBairro },
+      captacao_estrategica: captacaoEstrategica,
+    };
+  }
+
+  // ===========================================================================
+  // Rendering — callable repeatedly (initial load + every filter change).
+  // ===========================================================================
+
+  function renderDashboard(data) {
+  const bairros = data.bairros;
+  const ranking = data.ranking;
+
+  // ---- Header meta / KPIs ----
+  document.getElementById('metaLine').textContent =
+    'Gerado em ' + RAW.generated_at + ' · ' + data.meta.total_itbi_rows_matched.toLocaleString('pt-BR') +
+    ' transações residenciais dentro do filtro atual (de ' + RAW.itbi.length.toLocaleString('pt-BR') + ' no total nos 47 bairros) · ' +
+    data.meta.usn_rows_matched.toLocaleString('pt-BR') + ' anúncios ativos considerados';
+  document.getElementById('genAt').textContent = RAW.generated_at;
+
+  const totalVol2025 = ranking.reduce((s,b) => s + (bairros[b].volume_2025||0), 0);
+  const totalStock = ranking.reduce((s,b) => s + (bairros[b].stock_total||0), 0);
+  const topBairro = ranking[0];
+  const kpis = [
+    ['Bairros analisados', ranking.length],
+    ['Vendas residenciais em 2025', fmtInt(totalVol2025)],
+    ['Anúncios ativos no radar', fmtInt(totalStock)],
+    ['Bairro no topo do ranking', topBairro],
+  ];
+  const kpiRow = document.getElementById('kpiRow');
+  kpiRow.replaceChildren();
+  kpis.forEach(([label, value]) => {
+    const div = document.createElement('div');
+    div.className = 'kpi-tile';
+    const l = document.createElement('div'); l.className='label'; l.textContent = label;
+    const v = document.createElement('div'); v.className='value'; v.textContent = value;
+    div.appendChild(l); div.appendChild(v);
+    kpiRow.appendChild(div);
+  });
+
+  // ---- Panel 1: ranking ----
+  const rankingBox = document.getElementById('rankingBox');
+  rankingBox.replaceChildren();
+  const rankingListEl = document.createElement('div');
+  const rankingBtnMount = document.createElement('div');
+  rankingBox.appendChild(rankingListEl);
+  rankingBox.appendChild(rankingBtnMount);
+  const maxScore = Math.max(...ranking.map(b => bairros[b].score));
+  function buildRankRow(item) {
+    const { b, i } = item;
+    const x = bairros[b];
+    const row = document.createElement('div');
+    row.className = 'rank-row';
+
+    const idx = document.createElement('div'); idx.className='rank-idx'; idx.textContent = (i+1) + '.';
+    const name = document.createElement('div'); name.className='rank-name'; name.textContent = b;
+
+    const trackWrap = document.createElement('div');
+    const track = document.createElement('div'); track.className='rank-bar-track';
+    const fill = document.createElement('div'); fill.className='rank-bar-fill';
+    fill.style.width = Math.max(2, (x.score / maxScore) * 100) + '%';
+    track.appendChild(fill);
+    const badges = document.createElement('div'); badges.className='badges';
+    if (x.flag_oportunidade) { const bd=document.createElement('span'); bd.className='badge good'; bd.textContent='Oportunidade'; badges.appendChild(bd); }
+    if (x.flag_alerta) { const bd=document.createElement('span'); bd.className='badge warn'; bd.textContent='Alerta preço'; badges.appendChild(bd); }
+    if (x.flag_saturacao_alta) { const bd=document.createElement('span'); bd.className='badge warn'; bd.textContent='Saturação Alta'; badges.appendChild(bd); }
+    trackWrap.appendChild(track);
+
+    const score = document.createElement('div'); score.className='rank-score'; score.textContent = x.score.toFixed(1);
+
+    row.appendChild(idx); row.appendChild(name); row.appendChild(trackWrap); row.appendChild(score);
+    if (badges.childNodes.length) row.appendChild(badges);
+    else row.appendChild(document.createElement('div'));
+
+    row.addEventListener('pointermove', (e) => showTip(e, [
+      ['Score', x.score.toFixed(1)],
+      ['Vendas 2025', fmtInt(x.volume_2025)],
+      ['Tendência (real)', fmtPct(x.trend_pct, 0)],
+      ['Estoque ativo', fmtInt(x.stock_total)],
+      ['Estoque total ÷ demanda', x.stock_total_demand_ratio.toFixed(2)],
+      ['Gap de preço', x.price_gap_pct===null||x.price_gap_pct===undefined?'—':fmtPct(x.price_gap_pct/100,0)],
+    ], b));
+    row.addEventListener('pointerleave', hideTip);
+    return row;
+  }
+  renderWithPagination(rankingListEl, rankingBtnMount, ranking.map((b, i) => ({ b, i })), buildRankRow, 10);
+
+  // ---- Panel 2: prontidão para campanha por bairro ----
+  const prontidaoRanking = data.prontidao_ranking;
+  const painel1RankOf = {};
+  ranking.forEach((b, i) => { painel1RankOf[b] = i + 1; });
+  const prontidaoBox = document.getElementById('prontidaoBox');
+  prontidaoBox.replaceChildren();
+  {
+    const table = document.createElement('table'); table.className = 'datatable';
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th class="name">Bairro</th><th>Prontidão</th><th>Ranking de Oportunidade</th><th>Melhores imóveis</th></tr>';
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+    prontidaoBox.appendChild(table);
+
+    const maxProntidao = Math.max(...prontidaoRanking.map(b => bairros[b].prontidao_campanha)) || 1;
+
+    function buildProntidaoImovelRow(r) {
+      const tr = document.createElement('tr');
+      const tdE = document.createElement('td'); tdE.className='name'; tdE.textContent = r.endereco || '—';
+      const tdP = document.createElement('td'); tdP.textContent = fmtMoney(r.valor);
+      const tdD = document.createElement('td'); tdD.textContent = (r.quartos ?? '—') + '/' + (r.vagas ?? '—') + '/' + (r.area ? Math.round(r.area)+'m²' : '—');
+      const tdS = document.createElement('td'); tdS.textContent = r.final_score.toFixed(1);
+      const tdA = document.createElement('td');
+      if (r.link) {
+        const a = document.createElement('a'); a.href = r.link; a.target='_blank'; a.rel='noopener noreferrer';
+        a.textContent = r.codigo || 'ver anúncio'; a.style.color = 'var(--series-blue)';
+        tdA.appendChild(a);
+      } else {
+        tdA.textContent = r.codigo || '—';
+      }
+      tr.appendChild(tdE); tr.appendChild(tdP); tr.appendChild(tdD); tr.appendChild(tdS); tr.appendChild(tdA);
+      return tr;
+    }
+
+    function buildProntidaoRow(b) {
+      const x = bairros[b];
+      const tr = document.createElement('tr');
+      tr.className = 'prontidao-row';
+      const tdName = document.createElement('td'); tdName.className='name'; tdName.textContent = b;
+      if (x.flag_saturacao_alta) {
+        const bd = document.createElement('span'); bd.className = 'badge warn'; bd.style.marginLeft = '6px';
+        bd.textContent = 'Saturação Alta';
+        tdName.appendChild(bd);
+      }
+
+      const tdScore = document.createElement('td');
+      const meter = document.createElement('span'); meter.className='meter alt';
+      const fillEl = document.createElement('i'); fillEl.style.width = Math.max(2, (x.prontidao_campanha / maxProntidao) * 100) + '%';
+      meter.appendChild(fillEl);
+      tdScore.appendChild(meter);
+      const scoreTxt = document.createElement('span'); scoreTxt.style.marginLeft='6px'; scoreTxt.style.fontSize='11px'; scoreTxt.style.color='var(--text-muted)';
+      scoreTxt.textContent = x.prontidao_campanha.toFixed(1);
+      tdScore.appendChild(scoreTxt);
+
+      const tdRankP1 = document.createElement('td');
+      tdRankP1.textContent = '#' + (painel1RankOf[b] || '—');
+      tdRankP1.style.color = 'var(--text-muted)'; tdRankP1.style.fontSize = '11.5px';
+
+      const tdDetail = document.createElement('td');
+      const imoveis = x.prontidao_top_imoveis || [];
+      if (imoveis.length) {
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'filter-link-btn';
+        const labelDefault = 'Ver ' + imoveis.length + ' melhores imóveis';
+        btn.textContent = labelDefault;
+        let detailRow = null;
+        btn.addEventListener('click', () => {
+          if (detailRow) { detailRow.remove(); detailRow = null; btn.textContent = labelDefault; return; }
+          detailRow = document.createElement('tr');
+          const td = document.createElement('td'); td.colSpan = 4; td.style.padding = '10px';
+          const inner = document.createElement('div'); inner.className = 'scrollbox'; inner.style.maxHeight = '300px';
+          const t2 = document.createElement('table'); t2.className = 'datatable';
+          t2.innerHTML = '<thead><tr><th class="name">Endereço</th><th>Preço</th><th>Dorm/Vg/m²</th><th>Pontuação</th><th>Anúncio</th></tr></thead>';
+          const tb2 = document.createElement('tbody');
+          imoveis.forEach(r => tb2.appendChild(buildProntidaoImovelRow(r)));
+          t2.appendChild(tb2);
+          inner.appendChild(t2);
+          td.appendChild(inner);
+          detailRow.appendChild(td);
+          tr.after(detailRow);
+          btn.textContent = 'Ocultar lista';
+        });
+        tdDetail.appendChild(btn);
+      } else {
+        tdDetail.textContent = '—';
+      }
+
+      tr.appendChild(tdName); tr.appendChild(tdScore); tr.appendChild(tdRankP1); tr.appendChild(tdDetail);
+      return tr;
+    }
+    renderWithPagination(tbody, prontidaoBox, prontidaoRanking, buildProntidaoRow, 10);
+  }
+
+  // ---- Panel 3: perfil vencedor ----
+  const RELIABILITY_LABEL = { individual: 'Confiável', regional: 'Estimativa regional', insufficient: 'Dado insuficiente' };
+  function neighborTipRows(neighbors, countKey) {
+    return neighbors.map(n => [n.bairro + ' (' + n.distancia_km.toFixed(1) + 'km)', fmtInt(n[countKey]) + ' imóveis']);
+  }
+  const profileBox = document.getElementById('profileBox');
+  profileBox.replaceChildren();
+  {
+    const table = document.createElement('table'); table.className='datatable';
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th class="name">Bairro</th><th>Metragem que vende</th><th>Faixa de preço</th><th>Dormitórios</th><th>Vagas</th><th>Amostra</th><th>Confiabilidade</th></tr>';
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+    profileBox.appendChild(table);
+    function buildProfileRow(b) {
+      const x = bairros[b];
+      const tr = document.createElement('tr');
+      const tdName = document.createElement('td'); tdName.className='name'; tdName.textContent = b;
+      const tdArea = document.createElement('td'); tdArea.textContent = x.area_band ? (fmtM2(x.area_band[0]) + '–' + fmtM2(x.area_band[1])) : '—';
+      if (x.area_band_reliability === 'regional') tdArea.title = 'Faixa de metragem estimada com dados de bairros vizinhos (amostra própria muito baixa)';
+      const tdPrice = document.createElement('td'); tdPrice.textContent = x.price_band ? (fmtMoney(x.price_band[0]) + ' – ' + fmtMoney(x.price_band[1])) : '—';
+      const tdQ = document.createElement('td'); tdQ.textContent = x.profile_quartos !== null && x.profile_quartos !== undefined ? x.profile_quartos : '—';
+      const tdV = document.createElement('td'); tdV.textContent = x.profile_vagas !== null && x.profile_vagas !== undefined ? x.profile_vagas : '—';
+      const tdS = document.createElement('td');
+      tdS.textContent = x.profile_reliability === 'regional'
+        ? (x.profile_sample_size + ' local + ' + (x.profile_pool_sample_size - x.profile_sample_size) + ' vizinhos')
+        : fmtInt(x.profile_sample_size) + ' imóveis';
+      const tdRel = document.createElement('td');
+      const tag = document.createElement('span');
+      tag.className = 'rel-tag ' + x.profile_reliability;
+      tag.textContent = RELIABILITY_LABEL[x.profile_reliability];
+      if (x.profile_reliability === 'regional' && x.profile_neighbors.length) {
+        tag.addEventListener('pointermove', (e) => showTip(e, neighborTipRows(x.profile_neighbors, 'n_imoveis'), 'Vizinhos usados (dormitórios/vagas)'));
+        tag.addEventListener('pointerleave', hideTip);
+      }
+      tdRel.appendChild(tag);
+      tr.appendChild(tdName); tr.appendChild(tdArea); tr.appendChild(tdPrice); tr.appendChild(tdQ); tr.appendChild(tdV); tr.appendChild(tdS); tr.appendChild(tdRel);
+      return tr;
+    }
+    renderWithPagination(tbody, profileBox, ranking, buildProfileRow, 10);
+  }
+
+  // ---- Panel 4: estoque x demanda ----
+  const stockBox = document.getElementById('stockBox');
+  stockBox.replaceChildren();
+  {
+    const table = document.createElement('table'); table.className='datatable';
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th class="name">Bairro</th><th>Demanda 2025</th><th>Estoque total</th><th>Estoque no perfil</th><th>Cobertura</th><th>Sinal</th><th>Detalhes</th></tr>';
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+    stockBox.appendChild(table);
+    const maxRatio = Math.max(...ranking.map(b => Math.min(bairros[b].stock_demand_ratio, 1)));
+
+    function buildStockImovelRow(u) {
+      const tr = document.createElement('tr');
+      const tdE = document.createElement('td'); tdE.className='name'; tdE.textContent = u.endereco || '—';
+      const tdP = document.createElement('td'); tdP.textContent = fmtMoney(u.valor);
+      const tdD = document.createElement('td'); tdD.textContent = (u.quartos ?? '—') + '/' + (u.vagas ?? '—') + '/' + (u.area ? Math.round(u.area)+'m²' : '—');
+      const tdA = document.createElement('td');
+      if (u.link) {
+        const a = document.createElement('a'); a.href = u.link; a.target='_blank'; a.rel='noopener noreferrer';
+        a.textContent = u.codigo || 'ver anúncio'; a.style.color = 'var(--series-blue)';
+        tdA.appendChild(a);
+      } else {
+        tdA.textContent = u.codigo || '—';
+      }
+      tr.appendChild(tdE); tr.appendChild(tdP); tr.appendChild(tdD); tr.appendChild(tdA);
+      return tr;
+    }
+
+    function buildStockRow(b) {
+      const x = bairros[b];
+      const tr = document.createElement('tr');
+      const tdName = document.createElement('td'); tdName.className='name'; tdName.textContent = b;
+      const tdDem = document.createElement('td'); tdDem.textContent = fmtInt(x.volume_2025);
+      const tdStock = document.createElement('td'); tdStock.textContent = fmtInt(x.stock_total);
+      const tdMatch = document.createElement('td'); tdMatch.textContent = fmtInt(x.stock_matching_profile);
+      if (x.area_band_reliability === 'regional') tdMatch.title = 'Calculado sobre uma faixa de metragem estimada com bairros vizinhos (amostra própria da Prefeitura muito baixa)';
+      const tdRatio = document.createElement('td');
+      const meter = document.createElement('span'); meter.className='meter';
+      const i = document.createElement('i'); i.style.width = Math.min(100, (x.stock_demand_ratio / (maxRatio||1)) * 100) + '%';
+      meter.appendChild(i);
+      tdRatio.appendChild(meter);
+      const ratioTxt = document.createElement('span'); ratioTxt.style.marginLeft='6px'; ratioTxt.style.fontSize='11px'; ratioTxt.style.color='var(--text-muted)';
+      ratioTxt.textContent = x.stock_demand_ratio.toFixed(3);
+      tdRatio.appendChild(ratioTxt);
+      const tdFlag = document.createElement('td');
+      if (x.flag_oportunidade) {
+        const c = document.createElement('span'); c.className='chip good'; c.innerHTML='<span>●</span>'; c.append('Oportunidade');
+        tdFlag.appendChild(c);
+      } else if (x.flag_alerta) {
+        const c = document.createElement('span'); c.className='chip warn'; c.innerHTML='<span>●</span>'; c.append('Alerta preço');
+        tdFlag.appendChild(c);
+      } else {
+        const c = document.createElement('span'); c.className='chip neutral'; c.textContent='Neutro';
+        tdFlag.appendChild(c);
+      }
+      const tdDetail = document.createElement('td');
+      const matching = x.matching_listings || [];
+      if (matching.length) {
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'filter-link-btn';
+        btn.textContent = 'Ver lista completa';
+        let detailRow = null;
+        btn.addEventListener('click', () => {
+          if (detailRow) { detailRow.remove(); detailRow = null; btn.textContent = 'Ver lista completa'; return; }
+          detailRow = document.createElement('tr');
+          const td = document.createElement('td'); td.colSpan = 7; td.style.padding = '10px';
+          const inner = document.createElement('div'); inner.className = 'scrollbox'; inner.style.maxHeight = '300px';
+          const t2 = document.createElement('table'); t2.className = 'datatable';
+          t2.innerHTML = '<thead><tr><th class="name">Endereço</th><th>Preço</th><th>Dorm/Vg/m²</th><th>Anúncio</th></tr></thead>';
+          const tb2 = document.createElement('tbody');
+          matching.forEach(u => tb2.appendChild(buildStockImovelRow(u)));
+          t2.appendChild(tb2);
+          inner.appendChild(t2);
+          td.appendChild(inner);
+          detailRow.appendChild(td);
+          tr.after(detailRow);
+          btn.textContent = 'Ocultar lista';
+        });
+        tdDetail.appendChild(btn);
+      } else {
+        tdDetail.textContent = '—';
+      }
+      tr.appendChild(tdName); tr.appendChild(tdDem); tr.appendChild(tdStock); tr.appendChild(tdMatch); tr.appendChild(tdRatio); tr.appendChild(tdFlag); tr.appendChild(tdDetail);
+      return tr;
+    }
+    renderWithPagination(tbody, stockBox, ranking, buildStockRow, 10);
+  }
+
+  // ---- Panel 5: dumbbell preço pago vs pedido ----
+  const priceBox = document.getElementById('priceBox');
+  priceBox.replaceChildren();
+  {
+    const withGap = ranking.filter(b => bairros[b].price_gap_pct !== null && bairros[b].price_gap_pct !== undefined);
+    withGap.sort((a,c) => Math.abs(bairros[c].price_gap_pct) - Math.abs(bairros[a].price_gap_pct));
+    const allVals = [];
+    withGap.forEach(b => { const x = bairros[b]; allVals.push(x.paid_median_valor_2025, x.asking_median_valor); });
+    const maxVal = Math.max(...allVals.filter(v => v !== null && v !== undefined));
+    const priceListEl = document.createElement('div');
+    const priceBtnMount = document.createElement('div');
+    priceBox.appendChild(priceListEl);
+    priceBox.appendChild(priceBtnMount);
+    function buildPriceRow(b) {
+      const x = bairros[b];
+      const row = document.createElement('div'); row.className = 'dumbbell-row';
+      const name = document.createElement('div'); name.textContent = b; name.style.fontSize='12.5px'; name.style.overflow='hidden'; name.style.textOverflow='ellipsis'; name.style.whiteSpace='nowrap';
+      const track = document.createElement('div'); track.className='dumbbell-track';
+      const p1 = (x.paid_median_valor_2025 / maxVal) * 100;
+      const p2 = (x.asking_median_valor / maxVal) * 100;
+      const line = document.createElement('div'); line.className='dumbbell-line';
+      line.style.left = Math.min(p1,p2) + '%'; line.style.width = Math.abs(p2-p1) + '%';
+      const dotPaid = document.createElement('div'); dotPaid.className='dumbbell-dot paid'; dotPaid.style.left = p1 + '%';
+      const dotAsk = document.createElement('div'); dotAsk.className='dumbbell-dot ask'; dotAsk.style.left = p2 + '%';
+      track.appendChild(line); track.appendChild(dotPaid); track.appendChild(dotAsk);
+      const gap = document.createElement('div'); gap.className='dumbbell-gap';
+      gap.textContent = fmtPct(x.price_gap_pct/100, 0) + ' vs pago';
+      row.appendChild(name); row.appendChild(track); row.appendChild(gap);
+      row.addEventListener('pointermove', (e) => showTip(e, [
+        ['Pago (mediana 2025)', fmtMoney(x.paid_median_valor_2025)],
+        ['Pedido hoje', fmtMoney(x.asking_median_valor)],
+        ['Diferença', fmtPct(x.price_gap_pct/100,0)],
+      ], b));
+      row.addEventListener('pointerleave', hideTip);
+      return row;
+    }
+    renderWithPagination(priceListEl, priceBtnMount, withGap, buildPriceRow, 10);
+  }
+
+  // ---- Panel 6: bubble map ----
+  {
+    const withCoord = ranking.filter(b => bairros[b].centroid);
+    const wrap = document.getElementById('mapSvgWrap');
+    wrap.replaceChildren();
+    if (withCoord.length < 3) {
+      wrap.textContent = 'Poucos bairros com coordenadas válidas para montar o mapa.';
+    } else {
+      const W = 900, H = 620, PAD = 40;
+      const lats = withCoord.map(b => bairros[b].centroid[0]);
+      const lons = withCoord.map(b => bairros[b].centroid[1]);
+      const latMin = Math.min(...lats), latMax = Math.max(...lats);
+      const lonMin = Math.min(...lons), lonMax = Math.max(...lons);
+      const sx = lon => PAD + ( (lon - lonMin) / (lonMax - lonMin || 1) ) * (W - 2*PAD);
+      const sy = lat => H - PAD - ( (lat - latMin) / (latMax - latMin || 1) ) * (H - 2*PAD); // invert: north up
+
+      const scores = withCoord.map(b => bairros[b].score);
+      const minScore = Math.min(...scores), maxScoreM = Math.max(...scores);
+      const vols = withCoord.map(b => bairros[b].volume_2025);
+      const maxVol = Math.max(...vols);
+
+      function scoreColor(s) {
+        const t = (s - minScore) / ((maxScoreM - minScore) || 1);
+        // sequential blue ramp, light -> dark (steps from palette.md)
+        const ramp = ['#cde2fb','#9ec5f4','#5598e7','#2a78d6','#1c5cab','#0d366b'];
+        const idx = Math.min(ramp.length - 1, Math.floor(t * ramp.length));
+        return ramp[idx];
+      }
+
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(svgNS, 'svg');
+      svg.setAttribute('id','mapSvg');
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+      // top-score labels only (avoid clutter)
+      const topLabelSet = new Set(ranking.slice(0, 12));
+
+      withCoord.forEach(b => {
+        const x = bairros[b];
+        const cx = sx(x.centroid[1]), cy = sy(x.centroid[0]);
+        const r = 5 + Math.sqrt(x.volume_2025 / maxVol) * 18;
+        const circle = document.createElementNS(svgNS, 'circle');
+        circle.setAttribute('cx', cx); circle.setAttribute('cy', cy); circle.setAttribute('r', r);
+        circle.setAttribute('fill', scoreColor(x.score));
+        circle.setAttribute('fill-opacity', '0.85');
+        circle.setAttribute('stroke', 'var(--surface-1)');
+        circle.setAttribute('stroke-width', '1.5');
+        circle.classList.add('map-dot');
+        circle.addEventListener('pointermove', (e) => showTip(e, [
+          ['Score', x.score.toFixed(1)],
+          ['Vendas 2025', fmtInt(x.volume_2025)],
+          ['Estoque ativo', fmtInt(x.stock_total)],
+        ], b));
+        circle.addEventListener('pointerleave', hideTip);
+        svg.appendChild(circle);
+
+        if (topLabelSet.has(b)) {
+          const label = document.createElementNS(svgNS, 'text');
+          const nearRightEdge = cx > W - 110;
+          label.setAttribute('x', nearRightEdge ? cx - r - 4 : cx + r + 4);
+          label.setAttribute('y', cy + 3);
+          if (nearRightEdge) label.setAttribute('text-anchor', 'end');
+          label.setAttribute('class', 'map-label');
+          label.textContent = b;
+          svg.appendChild(label);
+        }
+      });
+
+      wrap.appendChild(svg);
+    }
+  }
+
+  // ---- Panel 7: Captação Ativa Estratégica (fusão dos antigos Painel 7 +
+  // Painel 11) ----
+  const captacaoBox = document.getElementById('captacaoBox');
+  captacaoBox.replaceChildren();
+  {
+    const groups = data.captacao_estrategica || [];
+    const totalEnderecos = groups.reduce((s,g) => s + g.enderecos.length, 0);
+    const nPrioridade = groups.filter(g => g.flag_prioridade_maxima).length;
+    document.getElementById('captacaoMeta').textContent =
+      totalEnderecos.toLocaleString('pt-BR') + ' endereços em ' + groups.length.toLocaleString('pt-BR') + ' bairros (' +
+      nPrioridade.toLocaleString('pt-BR') + ' com Prioridade Máxima) — ' +
+      data.meta.enderecos_lancamento.toLocaleString('pt-BR') + ' descartados por parecerem lançamento, ' +
+      data.meta.enderecos_descartados_preco.toLocaleString('pt-BR') + ' por preço incoerente';
+
+    function fmtFaixaArea(lo, hi) {
+      if (lo === null || lo === undefined || hi === null || hi === undefined) return '—';
+      return lo === hi ? fmtM2(lo) : fmtM2(lo) + '–' + fmtM2(hi);
+    }
+    function fmtFaixaPreco(lo, hi) {
+      return lo === hi ? fmtMoney(lo) : fmtMoney(lo) + ' – ' + fmtMoney(hi);
+    }
+    function buildEnderecoRow(r) {
+      const tr = document.createElement('tr');
+      const tdE = document.createElement('td'); tdE.className = 'name'; tdE.textContent = r.endereco;
+      const tdN = document.createElement('td'); tdN.textContent = fmtInt(r.n_vendas);
+      const tdP = document.createElement('td'); tdP.textContent = fmtFaixaPreco(r.preco_min, r.preco_max);
+      const tdA = document.createElement('td'); tdA.textContent = fmtFaixaArea(r.area_min, r.area_max);
+      const tdU = document.createElement('td');
+      if (r.unico) { const c = document.createElement('span'); c.className = 'chip neutral'; c.textContent = 'Endereço único'; tdU.appendChild(c); }
+      tr.appendChild(tdE); tr.appendChild(tdN); tr.appendChild(tdP); tr.appendChild(tdA); tr.appendChild(tdU);
+      return tr;
+    }
+
+    groups.forEach(g => {
+      const det = document.createElement('details');
+      det.className = 'bairro-group';
+      const summary = document.createElement('summary');
+      const label = document.createElement('span'); label.textContent = g.bairro;
+      summary.appendChild(label);
+      if (g.flag_prioridade_maxima) {
+        const bd = document.createElement('span'); bd.className = 'badge warn'; bd.style.marginLeft = '6px';
+        bd.textContent = 'Prioridade Máxima';
+        summary.appendChild(bd);
+      }
+      const count = document.createElement('span'); count.className = 'count';
+      count.textContent = g.enderecos.length + (g.enderecos.length === 1 ? ' endereço' : ' endereços');
+      summary.appendChild(count);
+      det.appendChild(summary);
+
+      const inner = document.createElement('div'); inner.style.padding = '10px 14px';
+
+      const perfilLine = document.createElement('div');
+      perfilLine.style.cssText = 'font-size:12px;color:var(--text-secondary);margin-bottom:10px;';
+      const p = g.perfil;
+      const areaTxt = p.area_band ? (fmtM2(p.area_band[0]) + '–' + fmtM2(p.area_band[1])) : '—';
+      const qTxt = p.profile_quartos ?? '—', vTxt = p.profile_vagas ?? '—';
+      perfilLine.append('Perfil vencedor do bairro: ' + areaTxt + ' · ' + qTxt + ' dormitórios · ' + vTxt + ' vagas — o que procurar ao visitar');
+      const relTag = document.createElement('span'); relTag.className = 'rel-tag ' + p.profile_reliability; relTag.style.marginLeft = '8px';
+      relTag.textContent = RELIABILITY_LABEL[p.profile_reliability];
+      perfilLine.appendChild(relTag);
+      inner.appendChild(perfilLine);
+
+      const tableWrap = document.createElement('div'); tableWrap.className = 'scrollbox'; tableWrap.style.border = 'none';
+      const table = document.createElement('table'); table.className = 'datatable';
+      table.innerHTML = '<thead><tr><th class="name">Endereço</th><th>Vendas</th><th>Faixa de preço</th><th>Faixa de metragem</th><th></th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      g.enderecos.forEach(r => tbody.appendChild(buildEnderecoRow(r)));
+      table.appendChild(tbody);
+      tableWrap.appendChild(table);
+      inner.appendChild(tableWrap);
+
+      det.appendChild(inner);
+      captacaoBox.appendChild(det);
+    });
+  }
+
+  // ---- Panel 8: Imóveis Prioritários para Campanha ----
+  function buildImovelRow(r, opts) {
+    opts = opts || {};
+    const tr = document.createElement('tr');
+    const tdScore = document.createElement('td'); tdScore.textContent = r.final_score.toFixed(1);
+    tdScore.addEventListener('pointermove', (e) => showTip(e, [
+      ['Bairro (liquidez revenda)', r.score_bairro_revenda.toFixed(1)],
+      ['Alinhamento de preço', r.price_alignment.toFixed(1)],
+      ['Aderência ao perfil', r.profile_adherence.toFixed(1)],
+      ['Bônus captação ativa', r.tem_captacao_ativa ? '+10' : '+0'],
+    ], 'Composição do score'));
+    tdScore.addEventListener('pointerleave', hideTip);
+    const tdE = document.createElement('td'); tdE.className='name'; tdE.textContent = r.endereco || '—';
+    tr.appendChild(tdScore); tr.appendChild(tdE);
+    if (!opts.skipBairro) {
+      const tdB = document.createElement('td'); tdB.className='name'; tdB.textContent = r.bairro;
+      tr.appendChild(tdB);
+    }
+    const tdP = document.createElement('td'); tdP.textContent = fmtMoney(r.valor);
+    const tdD = document.createElement('td'); tdD.textContent = (r.quartos ?? '—') + '/' + (r.vagas ?? '—') + '/' + (r.area ? Math.round(r.area)+'m²' : '—');
+    const tdR = document.createElement('td'); tdR.className='name'; tdR.textContent = r.resumo || '—';
+    const tdA = document.createElement('td');
+    if (r.link) {
+      const a = document.createElement('a'); a.href = r.link; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.textContent = r.codigo || 'ver anúncio'; a.style.color = 'var(--series-blue)';
+      tdA.appendChild(a);
+    } else {
+      tdA.textContent = r.codigo || '—';
+    }
+    tr.appendChild(tdP); tr.appendChild(tdD); tr.appendChild(tdR); tr.appendChild(tdA);
+    return tr;
+  }
+
+  function buildImovelTable(container, rows, opts) {
+    opts = opts || {};
+    const table = document.createElement('table'); table.className = 'datatable';
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th>Score</th><th class="name">Endereço</th>' +
+      (opts.skipBairro ? '' : '<th class="name">Bairro</th>') +
+      '<th>Preço</th><th>Dorm/Vg/m²</th><th class="name">Por quê</th><th>Anúncio</th></tr>';
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+    container.appendChild(table);
+    renderWithPagination(tbody, container, rows, (r) => buildImovelRow(r, opts), opts.initial || 10);
+    return table;
+  }
+
+  const prioritariosBox = document.getElementById('prioritariosBox');
+  prioritariosBox.replaceChildren();
+  buildImovelTable(prioritariosBox, data.imoveis_prioritarios || []);
+
+  // ---- Panel 9: Imóveis por Bairro/Região ----
+  const porBairroBox = document.getElementById('porBairroBox');
+  porBairroBox.replaceChildren();
+  {
+    const byBairro = {};
+    (data.imoveis_prioritarios || []).forEach(r => {
+      (byBairro[r.bairro] = byBairro[r.bairro] || []).push(r);
+    });
+    ranking.forEach(b => {
+      const list = byBairro[b] || []; // já vem ordenado por final_score (herdado do array global)
+      const det = document.createElement('details');
+      det.className = 'bairro-group';
+      const summary = document.createElement('summary');
+      const label = document.createElement('span'); label.textContent = b;
+      summary.appendChild(label);
+      if (list.length) {
+        const count = document.createElement('span'); count.className = 'count';
+        count.textContent = list.length + (list.length === 1 ? ' imóvel' : ' imóveis');
+        summary.appendChild(count);
+      } else {
+        const empty = document.createElement('span'); empty.className = 'empty-note';
+        empty.textContent = 'Nenhum imóvel ativo hoje';
+        summary.appendChild(empty);
+      }
+      det.appendChild(summary);
+      if (list.length) {
+        const inner = document.createElement('div'); inner.className = 'scrollbox';
+        inner.style.border = 'none';
+        det.appendChild(inner);
+        buildImovelTable(inner, list, { skipBairro: true });
+      }
+      porBairroBox.appendChild(det);
+    });
+  }
+
+  // ---- Panel 10: Valor de Oportunidade ----
+  {
+    const vo = data.valor_oportunidade || { imoveis: [], por_bairro: [] };
+
+    const imoveisBox = document.getElementById('valorOportImoveisBox');
+    imoveisBox.replaceChildren();
+    const t1 = document.createElement('table'); t1.className = 'datatable';
+    t1.innerHTML = '<thead><tr><th class="name">Endereço</th><th class="name">Bairro</th><th>Preço pedido</th><th>Mediana paga (bairro)</th><th>Desconto</th><th></th></tr></thead>';
+    const tb1 = document.createElement('tbody');
+    t1.appendChild(tb1);
+    imoveisBox.appendChild(t1);
+    function buildOportRow(r) {
+      const tr = document.createElement('tr');
+      const tdE = document.createElement('td'); tdE.className='name'; tdE.textContent = r.endereco || '—';
+      const tdB = document.createElement('td'); tdB.className='name'; tdB.textContent = r.bairro;
+      const tdP = document.createElement('td'); tdP.textContent = fmtMoney(r.valor);
+      const tdM = document.createElement('td'); tdM.textContent = fmtMoney(r.mediana_paga_bairro);
+      const tdD = document.createElement('td'); tdD.textContent = '−' + r.desconto_pct.toFixed(0) + '%';
+      const tdA = document.createElement('td');
+      if (r.atencao) { const c = document.createElement('span'); c.className='badge warn'; c.textContent='Desconto grande'; tdA.appendChild(c); }
+      if (r.link) {
+        const a = document.createElement('a'); a.href = r.link; a.target='_blank'; a.rel='noopener noreferrer';
+        a.textContent = ' ' + (r.codigo || 'ver anúncio'); a.style.color = 'var(--series-blue)'; a.style.marginLeft='6px'; a.style.fontSize='11px';
+        tdA.appendChild(a);
+      }
+      tr.appendChild(tdE); tr.appendChild(tdB); tr.appendChild(tdP); tr.appendChild(tdM); tr.appendChild(tdD); tr.appendChild(tdA);
+      return tr;
+    }
+    renderWithPagination(tb1, imoveisBox, vo.imoveis, buildOportRow, 10);
+
+    const bairroBox = document.getElementById('valorOportBairroBox');
+    bairroBox.replaceChildren();
+    const t2 = document.createElement('table'); t2.className = 'datatable';
+    t2.innerHTML = '<thead><tr><th class="name">Bairro</th><th>Achados (20%+ desconto)</th><th>Estoque elegível</th><th>% do estoque</th></tr></thead>';
+    const tb2 = document.createElement('tbody');
+    t2.appendChild(tb2);
+    bairroBox.appendChild(t2);
+    function buildOportBairroRow(r) {
+      const tr = document.createElement('tr');
+      const tdB = document.createElement('td'); tdB.className='name'; tdB.textContent = r.bairro;
+      const tdN = document.createElement('td'); tdN.textContent = fmtInt(r.n_achados);
+      const tdS = document.createElement('td'); tdS.textContent = fmtInt(r.estoque_total);
+      const tdP = document.createElement('td'); tdP.textContent = r.pct_do_estoque.toFixed(0) + '%';
+      tr.appendChild(tdB); tr.appendChild(tdN); tr.appendChild(tdS); tr.appendChild(tdP);
+      return tr;
+    }
+    renderWithPagination(tb2, bairroBox, vo.por_bairro, buildOportBairroRow, 10);
+  }
+
+  // ---- Full data table (accessibility fallback) ----
+  const fullTableBox = document.getElementById('fullTableBox');
+  fullTableBox.replaceChildren();
+  {
+    const table = document.createElement('table'); table.className='datatable';
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr>' + ['Bairro','Score','Vendas 2024','Vendas 2025','Vendas 2026 (parcial)','Liquidez total 2025','Liquidez revenda 2025','Tendência','Metragem','Confiab. metragem','Faixa preço','Dormitórios','Vagas','Confiab. perfil','Estoque total','Estoque no perfil','Preço pago 2025','Preço pedido hoje','Gap preço','Oportunidade','Alerta','Saturação Alta','Prioridade Máxima (Captação)'].map(h=>`<th>${h}</th>`).join('') + '</tr>';
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    ranking.forEach(b => {
+      const x = bairros[b];
+      const tr = document.createElement('tr');
+      const cells = [
+        b, x.score.toFixed(1),
+        fmtInt(x.yearly['2024'].count), fmtInt(x.yearly['2025'].count), fmtInt(x.yearly['2026'].count),
+        fmtInt(x.liquidez_total_2025), fmtInt(x.liquidez_revenda_2025),
+        fmtPct(x.trend_pct,0),
+        x.area_band ? (fmtM2(x.area_band[0])+'–'+fmtM2(x.area_band[1])) : '—',
+        RELIABILITY_LABEL[x.area_band_reliability],
+        x.price_band ? (fmtMoney(x.price_band[0])+' – '+fmtMoney(x.price_band[1])) : '—',
+        x.profile_quartos ?? '—', x.profile_vagas ?? '—',
+        RELIABILITY_LABEL[x.profile_reliability],
+        fmtInt(x.stock_total), fmtInt(x.stock_matching_profile),
+        fmtMoney(x.paid_median_valor_2025), fmtMoney(x.asking_median_valor),
+        x.price_gap_pct===null||x.price_gap_pct===undefined ? '—' : fmtPct(x.price_gap_pct/100,0),
+        x.flag_oportunidade ? 'Sim' : 'Não', x.flag_alerta ? 'Sim' : 'Não',
+        x.flag_saturacao_alta ? 'Sim' : 'Não',
+        x.flag_prioridade_maxima ? 'Sim' : 'Não',
+      ];
+      cells.forEach((c,ci) => { const td = document.createElement('td'); if(ci===0) td.className='name'; td.textContent = c; tr.appendChild(td); });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    fullTableBox.appendChild(table);
+  }
+
+  } // end renderDashboard
+
+  // ===========================================================================
+  // Filter UI wiring — bairro multi-select + price range. No selection / no
+  // bounds reproduces the unfiltered view exactly (computeAll treats an empty
+  // bairro Set as "no restriction").
+  // ===========================================================================
+
+  const bairroCheckListEl = document.getElementById('bairroCheckList');
+  const bairroSearchEl = document.getElementById('bairroSearch');
+  const bairroSelCountEl = document.getElementById('bairroSelCount');
+  const priceMinEl = document.getElementById('priceMinInput');
+  const priceMaxEl = document.getElementById('priceMaxInput');
+  const filterStatusEl = document.getElementById('filterStatus');
+  const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+  const exportPdfBtn = document.getElementById('exportPdfBtn');
+  const printSummaryEl = document.getElementById('printSummary');
+
+  const selectedBairros = new Set();
+  let lastData = null;
+  let lastFilterState = null;
+
+  function renderBairroChecklist(filterText) {
+    bairroCheckListEl.replaceChildren();
+    const term = (filterText || '').trim().toLowerCase();
+    const matches = BAIRROS.filter(b => !term || b.toLowerCase().includes(term));
+    if (!matches.length) {
+      const p = document.createElement('div'); p.className = 'no-match'; p.textContent = 'Nenhum bairro encontrado.';
+      bairroCheckListEl.appendChild(p);
+      return;
+    }
+    matches.forEach(b => {
+      const label = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = selectedBairros.has(b);
+      cb.addEventListener('change', () => {
+        if (cb.checked) selectedBairros.add(b); else selectedBairros.delete(b);
+        updateBairroSelCount();
+        applyFilters();
+      });
+      const span = document.createElement('span'); span.textContent = b;
+      label.appendChild(cb); label.appendChild(span);
+      bairroCheckListEl.appendChild(label);
+    });
+  }
+
+  function updateBairroSelCount() {
+    bairroSelCountEl.textContent = selectedBairros.size ? (selectedBairros.size + ' selecionados') : 'todos';
+  }
+
+  bairroSearchEl.addEventListener('input', () => renderBairroChecklist(bairroSearchEl.value));
+
+  document.getElementById('bairroSelectAll').addEventListener('click', () => {
+    BAIRROS.forEach(b => selectedBairros.add(b));
+    renderBairroChecklist(bairroSearchEl.value);
+    updateBairroSelCount();
+    applyFilters();
+  });
+  document.getElementById('bairroClear').addEventListener('click', () => {
+    selectedBairros.clear();
+    renderBairroChecklist(bairroSearchEl.value);
+    updateBairroSelCount();
+    applyFilters();
+  });
+
+  let priceDebounceTimer = null;
+  function onPriceInput() {
+    clearTimeout(priceDebounceTimer);
+    priceDebounceTimer = setTimeout(applyFilters, 220);
+  }
+  priceMinEl.addEventListener('input', onPriceInput);
+  priceMaxEl.addEventListener('input', onPriceInput);
+
+  clearFiltersBtn.addEventListener('click', () => {
+    selectedBairros.clear();
+    priceMinEl.value = '';
+    priceMaxEl.value = '';
+    bairroSearchEl.value = '';
+    renderBairroChecklist('');
+    updateBairroSelCount();
+    applyFilters();
+  });
+
+  function parsePriceInput(el) {
+    const raw = el.value;
+    if (raw === '' || raw === null || isNaN(raw)) return null;
+    return Number(raw);
+  }
+
+  function readFilter() {
+    return { bairros: selectedBairros, priceMin: parsePriceInput(priceMinEl), priceMax: parsePriceInput(priceMaxEl) };
+  }
+
+  function applyFilters() {
+    const filter = readFilter();
+    const active = selectedBairros.size > 0 || filter.priceMin !== null || filter.priceMax !== null;
+    filterStatusEl.textContent = active ? 'Filtro ativo — todos os painéis foram recalculados só com os dados que passam pelo filtro.' : '';
+    lastFilterState = { bairros: Array.from(selectedBairros).sort(), priceMin: filter.priceMin, priceMax: filter.priceMax, active };
+    lastData = computeAll(filter);
+    renderDashboard(lastData);
+  }
+
+  renderBairroChecklist('');
+  updateBairroSelCount();
+  applyFilters();
+
+  // ===========================================================================
+  // Exportar Resumo em PDF — monta uma versão enxuta (só os Top N de 4 painéis,
+  // sem mapa/tabelas completas/estoque x demanda/captação) num container à
+  // parte (#printSummary), reflete o filtro de bairro/preço ativo no momento do
+  // clique (reusa lastData/lastFilterState, já recalculados pelo applyFilters
+  // mais recente) e dispara a caixa de impressão nativa. O CSS @media print
+  // (classe body.printing-summary) esconde o resto da página só durante a
+  // impressão, então a tela normal não muda em nada.
+  // ===========================================================================
+
+  function psFilterDescription(fs) {
+    if (!fs.active) return 'Nenhum filtro aplicado — base completa (47 bairros).';
+    const parts = [];
+    if (fs.bairros.length) parts.push('Bairros (' + fs.bairros.length + '): ' + fs.bairros.join(', '));
+    if (fs.priceMin !== null || fs.priceMax !== null) {
+      const min = fs.priceMin !== null ? fmtMoney(fs.priceMin) : 'sem mínimo';
+      const max = fs.priceMax !== null ? fmtMoney(fs.priceMax) : 'sem máximo';
+      parts.push('Faixa de preço: ' + min + ' até ' + max);
+    }
+    return parts.join(' · ');
+  }
+
+  function psSectionTitle(text) {
+    const h2 = document.createElement('h2'); h2.className = 'ps-section'; h2.textContent = text;
+    return h2;
+  }
+
+  function psTable(headers, numericCols, rows) {
+    if (!rows.length) {
+      const p = document.createElement('p'); p.className = 'ps-empty';
+      p.textContent = 'Sem dados para o filtro atual.';
+      return p;
+    }
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    headers.forEach((h, i) => {
+      const th = document.createElement('th');
+      if (numericCols.has(i)) th.className = 'num';
+      th.textContent = h;
+      trh.appendChild(th);
+    });
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    rows.forEach(cells => {
+      const tr = document.createElement('tr');
+      cells.forEach((c, i) => {
+        const td = document.createElement('td');
+        if (numericCols.has(i)) td.className = 'num';
+        td.textContent = c;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function buildPrintSummary() {
+    const data = lastData;
+    const fs = lastFilterState;
+    printSummaryEl.replaceChildren();
+
+    const h1 = document.createElement('h1');
+    h1.textContent = 'Resumo — Onde investir em mídia paga (Imóveis SP)';
+    printSummaryEl.appendChild(h1);
+
+    const metaP = document.createElement('p'); metaP.className = 'ps-meta';
+    metaP.textContent = 'Dados gerados em: ' + RAW.generated_at + '  ·  Resumo exportado em: ' + new Date().toLocaleString('pt-BR');
+    printSummaryEl.appendChild(metaP);
+
+    const filterP = document.createElement('p'); filterP.className = 'ps-filter';
+    filterP.textContent = 'Filtro aplicado neste resumo: ' + psFilterDescription(fs);
+    printSummaryEl.appendChild(filterP);
+
+    // ---- Painel 1: Ranking de Oportunidade — Top 10 ----
+    printSummaryEl.appendChild(psSectionTitle('Painel 1 — Ranking de Oportunidade (Top 10)'));
+    const rankRows = data.ranking.slice(0, 10).map((b, i) => {
+      const x = data.bairros[b];
+      return [String(i + 1), b, x.score.toFixed(1), fmtInt(x.volume_2025), fmtPct(x.trend_pct, 0)];
+    });
+    printSummaryEl.appendChild(psTable(['#', 'Bairro', 'Score', 'Vendas 2025', 'Tendência'], new Set([0,2,3,4]), rankRows));
+    if (fs.bairros.length === 1) {
+      const note = document.createElement('p'); note.className = 'ps-note';
+      note.textContent = 'Score de Ranking não comparável com filtro de bairro único — use a Prontidão para Campanha como referência principal neste caso.';
+      printSummaryEl.appendChild(note);
+    }
+
+    // ---- Painel 2: Prontidão para Campanha por Bairro — Top 10 ----
+    const painel1RankOf = {};
+    data.ranking.forEach((b, i) => { painel1RankOf[b] = i + 1; });
+    printSummaryEl.appendChild(psSectionTitle('Painel 2 — Prontidão para Campanha por Bairro (Top 10)'));
+    const prontRows = data.prontidao_ranking.slice(0, 10).map((b, i) => {
+      const x = data.bairros[b];
+      return [String(i + 1), b, x.prontidao_campanha.toFixed(1), '#' + painel1RankOf[b]];
+    });
+    printSummaryEl.appendChild(psTable(['#', 'Bairro', 'Prontidão', 'Ranking Oportunidade'], new Set([0,2,3]), prontRows));
+
+    // ---- Painel 8: Imóveis Prioritários para Campanha — Top 15 ----
+    printSummaryEl.appendChild(psSectionTitle('Painel 8 — Imóveis Prioritários para Campanha (Top 15)'));
+    const imovRows = (data.imoveis_prioritarios || []).slice(0, 15).map(r => [
+      r.endereco || '—',
+      r.bairro,
+      fmtMoney(r.valor),
+      (r.quartos ?? '—') + '/' + (r.vagas ?? '—') + '/' + (r.area ? Math.round(r.area) + 'm²' : '—'),
+      r.final_score.toFixed(1),
+      r.codigo || '—',
+    ]);
+    printSummaryEl.appendChild(psTable(
+      ['Endereço', 'Bairro', 'Preço', 'Dorm/Vg/m²', 'Pontuação', 'Código'],
+      new Set([2,3,4]),
+      imovRows
+    ));
+
+    // ---- Painel 10: Valor de Oportunidade — Top 10 ----
+    printSummaryEl.appendChild(psSectionTitle('Painel 10 — Valor de Oportunidade (Top 10)'));
+    const vo = data.valor_oportunidade || { imoveis: [] };
+    const voRows = vo.imoveis.slice(0, 10).map(r => [
+      r.endereco || '—',
+      r.bairro,
+      fmtMoney(r.valor),
+      fmtMoney(r.mediana_paga_bairro),
+      '−' + r.desconto_pct.toFixed(0) + '%',
+    ]);
+    printSummaryEl.appendChild(psTable(
+      ['Endereço', 'Bairro', 'Preço pedido', 'Mediana paga (bairro)', 'Desconto'],
+      new Set([2,3,4]),
+      voRows
+    ));
+
+    const foot = document.createElement('footer'); foot.className = 'ps-foot';
+    foot.textContent = 'Resumo gerado a partir da dashboard "Onde investir em mídia paga — Imóveis SP". Não inclui mapa, tabelas completas nem os painéis de Estoque × Demanda e Captação Ativa Estratégica — abra a dashboard completa para o detalhe.';
+    printSummaryEl.appendChild(foot);
+  }
+
+  function exportSummaryPdf() {
+    if (!lastData || !lastFilterState) return;
+    buildPrintSummary();
+    document.body.classList.add('printing-summary');
+    window.print();
+  }
+
+  exportPdfBtn.addEventListener('click', exportSummaryPdf);
+  window.addEventListener('afterprint', () => {
+    document.body.classList.remove('printing-summary');
+  });
+
+})();
+</script>
+</body>
+</html>

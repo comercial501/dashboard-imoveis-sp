@@ -1,0 +1,51 @@
+name: Atualizar dados do dashboard
+
+on:
+  schedule:
+    # 08:00 horário de São Paulo. O cron do GitHub Actions só entende UTC,
+    # e o Brasil não tem mais horário de verão desde 2019, então
+    # America/Sao_Paulo é fixo em UTC-3 o ano todo -> 08:00 BRT = 11:00 UTC.
+    - cron: "0 11 * * *"
+  workflow_dispatch: {} # permite rodar manualmente pela aba Actions
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache dos .xlsx de ITBI (evita rebaixar ~100MB todo dia)
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/itbi_raw
+            data/itbi_state.json
+          key: itbi-raw-${{ github.run_id }}
+          restore-keys: |
+            itbi-raw-
+
+      - name: Rodar build_data.py
+        env:
+          NONSTOP_TOKEN: ${{ secrets.NONSTOP_TOKEN }}
+        run: python3 scripts/build_data.py
+
+      - name: Commitar site/data.json se mudou
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add site/data.json
+          if git diff --cached --quiet; then
+            echo "Sem mudanças em site/data.json."
+          else
+            git commit -m "chore: atualizar data.json ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+            git push
+          fi

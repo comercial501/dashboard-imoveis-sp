@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Torre de Controle — Imóveis SP</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 110 110'%3E%3Ccircle cx='55' cy='55' r='52' fill='none' stroke='%23C9A84C' stroke-width='4'/%3E%3Crect x='40' y='18' width='11' height='72' rx='1.5' fill='%23fff'/%3E%3Cpath d='M 51 18 L 66 18 C 80 18 80 50 66 50 L 51 50 Z' fill='%23fff'/%3E%3Cpath d='M 57 26 L 63 26 C 71 26 71 42 63 42 L 57 42 Z' fill='%23090909'/%3E%3Crect x='51' y='70' width='12' height='8' fill='%23C9A84C'/%3E%3Crect x='51' y='82' width='8' height='8' fill='%23C9A84C'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="brand-bar"></div>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 110 110" width="38" height="38" aria-hidden="true">
+        <circle cx="55" cy="55" r="52" fill="none" stroke="#C9A84C" stroke-width="2.5"/>
+        <rect x="40" y="18" width="11" height="72" rx="1.5" fill="#ffffff"/>
+        <path d="M 51 18 L 66 18 C 80 18 80 50 66 50 L 51 50 Z" fill="#ffffff"/>
+        <path d="M 57 26 L 63 26 C 71 26 71 42 63 42 L 57 42 Z" fill="#090909"/>
+        <rect x="51" y="70" width="12" height="8" fill="#C9A84C"/>
+        <rect x="51" y="82" width="8" height="8" fill="#C9A84C"/>
+      </svg>
+      <div class="brand-text">
+        <div class="brand-name">Topio Imóveis</div>
+        <div class="brand-role">Investimento Imobiliário · SP</div>
+      </div>
+    </div>
+
+    <nav class="tabs" id="tabs"></nav>
+
+    <div class="sidebar-foot">
+      <div id="fontes-foot">ITBI (Prefeitura) · nonStop</div>
+      <div class="handle-mini">47 bairros da carteira</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="app">
+
+      <header class="app-header">
+        <div>
+          <h1>Torre de Controle</h1>
+          <div class="handle">Investimento Imobiliário · São Paulo</div>
+        </div>
+        <div class="updated" id="updated-at"></div>
+      </header>
+
+      <!-- Visão Geral -->
+      <div class="panel" data-panel="visao-geral">
+        <section class="card">
+          <h2>Onde anunciar agora</h2>
+          <div class="card-sub">Os 10 bairros no topo do Ranking de Oportunidade (liquidez de vendas + tendência de crescimento).</div>
+          <div id="visao-ranking"></div>
+        </section>
+        <section class="card">
+          <h2>Resumo da carteira</h2>
+          <div class="card-sub" id="visao-sub"></div>
+          <div class="grid cols-4" id="visao-tiles"></div>
+        </section>
+        <section class="card">
+          <h2>Alertas</h2>
+          <div class="card-sub">Bairros com gap de preço pedido × pago acima de 20 pontos percentuais, em qualquer direção.</div>
+          <div id="visao-alertas"></div>
+        </section>
+      </div>
+
+      <!-- Painel 1 — Ranking de Oportunidade -->
+      <div class="panel" data-panel="ranking">
+        <section class="card">
+          <h2>Ranking de Oportunidade</h2>
+          <div class="card-sub">Score 0–100: 50% liquidez de vendas residenciais no ano corrente fechado + 50% tendência de crescimento (ano cheio anterior × ano cheio, e 1º semestre ano corrente × ano anterior), normalizado entre os 47 bairros.</div>
+          <div id="ranking-table"></div>
+        </section>
+      </div>
+
+      <!-- Painel 2 — Prontidão para Campanha -->
+      <div class="panel" data-panel="prontidao">
+        <section class="card">
+          <h2>Prontidão para Campanha por Bairro</h2>
+          <div class="card-sub">Combina 6 sinais: liquidez/tendência (15%), estoque compatível com o perfil vencedor (20%), alinhamento de preço (15%), captação ativa (15%), qualidade × cobertura dos imóveis prioritários (25%), concentração de achados de valor (10%). Responde: esse bairro tem munição real pra campanha agora?</div>
+          <div id="prontidao-table"></div>
+        </section>
+      </div>
+
+      <!-- Painel 3 — Perfil por Bairro -->
+      <div class="panel" data-panel="perfil">
+        <section class="card">
+          <h2>Perfil por Bairro</h2>
+          <div class="card-sub">Metragem/preço/dormitórios/vagas que mais vendeu, estoque compatível e faixa de preço que converte. Escolha um bairro.</div>
+          <select id="perfil-select" class="bairro-select"></select>
+          <div id="perfil-content" style="margin-top:16px"></div>
+        </section>
+      </div>
+
+      <!-- Painel 6 — Mapa -->
+      <div class="panel" data-panel="mapa">
+        <section class="card">
+          <h2>Mapa de Oportunidade</h2>
+          <div class="card-sub">Bolha = bairro (raio ∝ √volume de vendas); cor = score do Ranking de Oportunidade (mais escuro = maior score).</div>
+          <div id="mapa-content"></div>
+        </section>
+      </div>
+
+      <!-- Painel 7 — Captação Ativa Estratégica -->
+      <div class="panel" data-panel="captacao">
+        <section class="card">
+          <h2>Captação Ativa Estratégica</h2>
+          <div class="card-sub">Pauta semanal de prospecção: endereços com giro repetido de revenda (2+ vendas orgânicas em 3 anos, excluindo lançamentos e preços incoerentes) que hoje não têm nenhuma unidade anunciada. Badge "Prioridade Máxima" = bairro com escassez real no perfil vencedor (≤2 imóveis à venda) e demanda comprovada (10+ vendas no ano).</div>
+          <div id="captacao-list"></div>
+        </section>
+      </div>
+
+      <!-- Painel 8 — Imóveis Prioritários -->
+      <div class="panel" data-panel="prioritarios">
+        <section class="card">
+          <h2>Imóveis Prioritários para Campanha</h2>
+          <div class="card-sub">Pontuação por imóvel: 35% liquidez de revenda do bairro + 30% alinhamento de preço + 25% aderência ao perfil vencedor + 10% bônus de captação ativa (endereço com histórico de giro).</div>
+          <div id="prioritarios-table"></div>
+        </section>
+      </div>
+
+      <!-- Painel 9 — Por Bairro/Região -->
+      <div class="panel" data-panel="por-bairro">
+        <section class="card">
+          <h2>Imóveis por Bairro/Região</h2>
+          <div class="card-sub">Os mesmos imóveis pontuados do painel anterior, agrupados por bairro — base para carrosséis "apartamentos à venda em [bairro]".</div>
+          <select id="porbairro-select" class="bairro-select"></select>
+          <div id="porbairro-content" style="margin-top:16px"></div>
+        </section>
+      </div>
+
+      <!-- Painel 10 — Valor de Oportunidade -->
+      <div class="panel" data-panel="valor-oportunidade">
+        <section class="card">
+          <h2>Valor de Oportunidade</h2>
+          <div class="card-sub">Imóveis anunciados 20%+ abaixo da mediana paga no bairro (só em bairros com 10+ vendas no ano corrente fechado — mediana confiável). Badge "Atenção" = 30%+ de desconto, vale checar antes de anunciar.</div>
+          <div id="valor-oportunidade-table"></div>
+        </section>
+        <section class="card">
+          <h2>Concentração por bairro</h2>
+          <div id="valor-oportunidade-bairros"></div>
+        </section>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
