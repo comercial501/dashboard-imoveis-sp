@@ -49,38 +49,37 @@
         <div class="updated" id="updated-at"></div>
       </header>
 
-      <section class="card" id="filtros-card">
-        <div class="filtros-head">
-          <div>
-            <h2>Filtros</h2>
-            <div class="card-sub" style="margin-bottom:0">Selecione um ou mais bairros e/ou uma faixa de preço — todos os painéis abaixo recalculam automaticamente (médias, medianas, scores e rankings refeitos só com os dados que passam pelo filtro, não apenas a lista final escondida). Sem nada selecionado, a dashboard mostra todos os 47 bairros, sem corte de preço.</div>
-          </div>
-        </div>
-        <div class="filtros-grid">
-          <div class="filtros-bairros">
-            <div class="filtros-subhead">
-              <span>Bairros (<span id="filtro-bairro-count">todos</span>)</span>
-              <span><a href="#" id="filtro-selecionar-todos">Selecionar todos</a> · <a href="#" id="filtro-limpar-bairros">Limpar</a></span>
-            </div>
-            <input type="text" id="filtro-busca-bairro" class="filtro-input" placeholder="Buscar bairro...">
-            <div id="filtro-bairro-list" class="filtro-bairro-list"></div>
-          </div>
-          <div class="filtros-preco">
-            <div class="filtros-subhead"><span>Faixa de preço (R$)</span></div>
-            <div class="filtro-preco-row">
-              <input type="number" id="filtro-preco-min" class="filtro-input" placeholder="Mínimo">
-              <span class="muted">até</span>
-              <input type="number" id="filtro-preco-max" class="filtro-input" placeholder="Máximo">
-            </div>
-            <div class="small muted" style="margin-top:8px">O mesmo intervalo é aplicado tanto ao valor pago (Prefeitura) quanto ao pedido (nonStop).</div>
-            <a href="#" id="filtro-limpar-tudo" style="display:inline-block; margin-top:14px">Limpar todos os filtros</a>
-            <div class="small muted" id="filtro-status" style="margin-top:10px"></div>
-          </div>
-        </div>
-      </section>
-
       <!-- Visão Geral -->
       <div class="panel" data-panel="visao-geral">
+        <section class="card" id="filtros-card">
+          <div class="filtros-head">
+            <div>
+              <h2>Filtros</h2>
+              <div class="card-sub" style="margin-bottom:0">Selecione um ou mais bairros e/ou uma faixa de preço — todas as outras visões da dashboard recalculam automaticamente (médias, medianas, scores e rankings refeitos só com os dados que passam pelo filtro, não apenas a lista final escondida). Sem nada selecionado, a dashboard mostra todos os 47 bairros, sem corte de preço.</div>
+            </div>
+          </div>
+          <div class="filtros-grid">
+            <div class="filtros-bairros">
+              <div class="filtros-subhead">
+                <span>Bairros (<span id="filtro-bairro-count">todos</span>)</span>
+                <span><a href="#" id="filtro-selecionar-todos">Selecionar todos</a> · <a href="#" id="filtro-limpar-bairros">Limpar</a></span>
+              </div>
+              <input type="text" id="filtro-busca-bairro" class="filtro-input" placeholder="Buscar bairro...">
+              <div id="filtro-bairro-list" class="filtro-bairro-list"></div>
+            </div>
+            <div class="filtros-preco">
+              <div class="filtros-subhead"><span>Faixa de preço (R$)</span></div>
+              <div class="filtro-preco-row">
+                <input type="number" id="filtro-preco-min" class="filtro-input" placeholder="Mínimo">
+                <span class="muted">até</span>
+                <input type="number" id="filtro-preco-max" class="filtro-input" placeholder="Máximo">
+              </div>
+              <div class="small muted" style="margin-top:8px">O mesmo intervalo é aplicado tanto ao valor pago (Prefeitura) quanto ao pedido (nonStop).</div>
+              <a href="#" id="filtro-limpar-tudo" style="display:inline-block; margin-top:14px">Limpar todos os filtros</a>
+              <div class="small muted" id="filtro-status" style="margin-top:10px"></div>
+            </div>
+          </div>
+        </section>
         <section class="card">
           <h2>Onde anunciar agora</h2>
           <div class="card-sub">Os 10 bairros no topo do Ranking de Oportunidade (liquidez de vendas + tendência de crescimento).</div>
