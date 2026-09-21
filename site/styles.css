@@ -314,18 +314,20 @@ svg.map-svg { width: 100%; height: auto; display: block; }
 /* -------------------------------------------------------------------- */
 /* Responsive                                                            */
 /* -------------------------------------------------------------------- */
+/* A navegação fica sempre na barra lateral esquerda, vertical, em
+   qualquer largura de tela — sem alternar pra abas horizontais no topo
+   em telas estreitas. */
 @media (max-width: 900px) {
-  .app-shell { flex-direction: column; }
-  .sidebar {
-    width: 100%; height: auto; position: relative; top: 0;
-    flex-direction: row; align-items: center; gap: 16px; padding: 14px 16px; overflow-x: auto;
-  }
-  .brand { margin-bottom: 0; }
-  .sidebar-foot { display: none; }
-  nav.tabs { flex-direction: row; flex: none; }
-  nav.tabs button { border-left: none; border-bottom: 3px solid transparent; border-radius: 6px 6px 0 0; white-space: nowrap; }
-  nav.tabs button.active { border-bottom-color: var(--gold); }
+  .sidebar { width: 190px; padding: 18px 10px; }
+  nav.tabs button { font-size: 12.5px; padding: 9px 10px; }
   .app { padding: 20px 16px 60px; }
   .imovel-row { flex-direction: column; }
   .bar-row { grid-template-columns: 110px 1fr 70px; }
+}
+
+@media (max-width: 560px) {
+  .sidebar { width: 150px; padding: 14px 8px; }
+  .sidebar-foot { display: none; }
+  nav.tabs button { font-size: 11.5px; padding: 8px; }
+  .brand-text { display: none; }
 }

@@ -142,6 +142,38 @@ def build_raw_payload(itbi_records, usn_records, years):
     }
 
 
+def _get_search_interest():
+    """Interesse de busca no Google por bairro (opcional — ver
+    keyword_client.py). Sinal PROSPECTIVO de demanda (gente pesquisando
+    hoje), complementar à liquidez do ITBI (retrospectiva). Classificação
+    Alto/Médio/Baixo é sempre por tercil contra os 47 bairros inteiros —
+    de propósito não recalcula por filtro de bairro/preço na tela (com um
+    filtro reduzindo pra poucos bairros, tercil perderia sentido), então
+    "Alto" sempre quer dizer "alto pra São Paulo inteira", uma referência
+    estável."""
+    import keyword_client
+
+    data = keyword_client.get_search_interest_cached(TARGETS)
+    if not data:
+        return None
+
+    values = sorted(v["avg_monthly_searches"] for v in data.values())
+    n = len(values)
+    low_cut = values[n // 3]
+    high_cut = values[(2 * n) // 3]
+
+    for b, v in data.items():
+        s = v["avg_monthly_searches"]
+        v["nivel"] = "alto" if s > high_cut else ("baixo" if s <= low_cut else "medio")
+    return data
+
+
+def _attach_search_interest(bairros_out, search_interest):
+    for b, entry in bairros_out.items():
+        if b in search_interest:
+            entry["search_interest"] = search_interest[b]
+
+
 def main():
     _load_dotenv()
     t_start = time.time()
@@ -160,8 +192,13 @@ def main():
     usn_records, usn_meta = _get_usn_records()
     print(f"[build] estoque: {len(usn_records)} anúncios válidos")
 
+    search_interest = _get_search_interest()
+
     result = engine.compute(itbi_records, usn_records, years)
     print(f"[build] motor de cálculo concluído ({time.time() - t_start:.1f}s total)")
+
+    if search_interest:
+        _attach_search_interest(result["bairros"], search_interest)
 
     data = {
         "generated_at": datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S %Y UTC"),
@@ -176,6 +213,7 @@ def main():
     print(f"[build] {OUT} escrito ({OUT.stat().st_size:,} bytes)")
 
     raw = build_raw_payload(itbi_records, usn_records, years)
+    raw["search_interest"] = search_interest or {}
     OUT_RAW.write_text(json.dumps(raw, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"[build] {OUT_RAW} escrito ({OUT_RAW.stat().st_size:,} bytes)")
 

@@ -643,6 +643,10 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   const bairrosFinal = {};
   scope.forEach((b) => {
     const { _matching_listings, ...rest } = bairrosOut[b];
+    // Interesse de busca não é recalculado por filtro (é um sinal externo,
+    // classificado por tercil contra os 47 bairros inteiros — ver
+    // build_data.py._get_search_interest) — só repassa se existir.
+    if (raw.search_interest && raw.search_interest[b]) rest.search_interest = raw.search_interest[b];
     bairrosFinal[b] = rest;
   });
   const captacaoAtivaFinal = captacaoAtiva.filter((c) => scopeSet.has(c.bairro));

@@ -58,6 +58,21 @@ function reliabilityTag(rel) {
   return el("span", { class: `reliability-tag ${rel}` }, label);
 }
 
+// Interesse de busca no Google (Keyword Planner) — sinal PROSPECTIVO de
+// demanda (gente pesquisando agora), complementar à liquidez do ITBI
+// (retrospectiva, só vendas já fechadas). Classificação Alto/Médio/Baixo é
+// por tercil contra os 47 bairros inteiros — só informativo, não entra em
+// nenhum score ainda (ver scripts/build_data.py e README).
+function searchInterestBadge(b) {
+  const si = b.search_interest;
+  if (!si) return null;
+  const cfg = { alto: ["Busca: Alto", "gold"], medio: ["Busca: Médio", "neutral"], baixo: ["Busca: Baixo", "neutral"] }[si.nivel];
+  if (!cfg) return null;
+  const el_ = badge(cfg[0], cfg[1]);
+  el_.title = `~${fmtInt(si.avg_monthly_searches)} buscas/mês (média de ${si.meses_com_dado} meses)`;
+  return el_;
+}
+
 // ---------------------------------------------------------------------------
 // Tabela ordenável genérica
 // ---------------------------------------------------------------------------
@@ -458,6 +473,8 @@ function renderRanking() {
           if (r.flag_oportunidade) wrap.appendChild(badge("Oportunidade", "gold"));
           if (r.flag_saturacao_alta) wrap.appendChild(badge("Saturação", "warning"));
           if (r.flag_alerta) wrap.appendChild(badge("Alerta preço", "critical"));
+          const si = searchInterestBadge(r);
+          if (si) wrap.appendChild(si);
           return wrap;
         },
       },
@@ -481,7 +498,7 @@ function renderProntidao() {
     const row = el("div", { class: "rank-row" + (i < 3 ? " top3" : ""), style: "cursor:pointer" });
     row.appendChild(el("div", { class: "rank-num" }, String(i + 1)));
     const body = el("div", { class: "rank-body" });
-    const nameLine = el("div", { class: "rank-name" }, [name, b.flag_prioridade_maxima ? badge("Prioridade Máxima", "gold") : null]);
+    const nameLine = el("div", { class: "rank-name" }, [name, b.flag_prioridade_maxima ? badge("Prioridade Máxima", "gold") : null, searchInterestBadge(b)]);
     body.appendChild(nameLine);
     body.appendChild(el("div", { class: "rank-meta" }, `Ranking de Oportunidade: score ${fmtInt(b.score)} · estoque no perfil ${fmtInt(b.stock_matching_profile)} · toque para ver os 10 melhores imóveis`));
     row.appendChild(body);
@@ -670,7 +687,7 @@ function renderCaptacao() {
   DATA.captacao_estrategica.forEach((g) => {
     const details = el("details", { class: "captacao-group" });
     const summary = el("summary", {}, [
-      el("span", {}, [g.bairro, g.flag_prioridade_maxima ? badge("Prioridade Máxima", "gold") : null]),
+      el("span", {}, [g.bairro, g.flag_prioridade_maxima ? badge("Prioridade Máxima", "gold") : null, searchInterestBadge(DATA.bairros[g.bairro])]),
       el("span", { class: "n" }, `${g.enderecos.length} endereço${g.enderecos.length === 1 ? "" : "s"}`),
     ]);
     details.appendChild(summary);

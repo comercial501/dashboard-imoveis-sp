@@ -1,0 +1,8 @@
+# Única parte do pipeline que precisa de dependência externa (o resto é
+# stdlib puro, de propósito — ver README). A API do Google Ads não tem uma
+# alternativa REST simples o bastante pra valer reimplementar na mão.
+google-ads==32.0.0
+
+# Só usado localmente, uma vez, pra gerar o refresh token (ver
+# scripts/generate_refresh_token.py) — não roda no pipeline diário.
+google-auth-oauthlib==1.3.1

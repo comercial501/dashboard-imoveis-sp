@@ -86,6 +86,51 @@ contar uma unidade em lançamento como "já anunciada hoje" quando na
 verdade não deveria bloquear a prospecção daquele endereço). Ver comentário
 no topo de `nonstop_client.py`.
 
+### Interesse de busca no Google (Keyword Planner) — opcional
+
+`keyword_client.py` busca, via `GenerateKeywordHistoricalMetrics` da API do
+Google Ads, o volume de busca de 3 variantes de palavra-chave por bairro
+("apartamento à venda X", "apartamento X", "imóveis X"), geo-segmentado em
+São Paulo. É um sinal **prospectivo** de demanda (gente pesquisando agora),
+complementar à liquidez do ITBI, que é puramente **retrospectiva** (só
+vendas já fechadas) — por isso aparece como selo informativo ("Busca:
+Alto/Médio/Baixo") no Ranking de Oportunidade e na Prontidão para Campanha,
+sem entrar na fórmula de nenhum score ainda.
+
+**Janela de 3 meses, não 1**: decisão de compra de imóvel tem ciclo de
+semanas a meses, então um pico de busca de 30 dias é mais ruído do que
+sinal; os outros sinais da dashboard já operam em escala de semestre/ano, e
+o próprio Keyword Planner só atualiza o volume em base mensal (média móvel
+de 12 meses) — não existe granularidade diária pra explorar mesmo rodando
+o pipeline todo dia.
+
+**Limitação de geolocalização**: o Google não segmenta volume de busca por
+bairro, só por cidade — a segmentação por bairro depende inteiramente do
+nome dele estar no termo pesquisado, um proxy razoável mas imperfeito.
+
+**Classificação Alto/Médio/Baixo**: tercil contra os 47 bairros inteiros,
+recalculado a cada busca — **não** muda com os filtros de bairro/preço da
+tela (um tercil sobre 2-3 bairros filtrados não teria sentido estatístico).
+
+**Cadência**: mensal, não diária — `data/keyword_state.json` guarda a
+última busca; `build_data.py` só chama a API de novo se o cache tiver mais
+de 25 dias.
+
+**Setup** (opcional — sem isso, a dashboard funciona normalmente, só sem o
+selo):
+1. No [Google Cloud Console](https://console.cloud.google.com/), no seu
+   projeto: ative a "Google Ads API", crie um cliente OAuth do tipo **"App
+   para computador"**, complete a verificação de marca e solicite acesso
+   "Basic" (agora automatizado, decidido em minutos).
+2. `pip install -r requirements.txt`
+3. `python3 scripts/generate_refresh_token.py --client-id ... --client-secret ...`
+   — abre o navegador uma vez, você loga e autoriza, o script imprime o
+   refresh token.
+4. Preencha `GOOGLE_ADS_CLIENT_ID` / `GOOGLE_ADS_CLIENT_SECRET` /
+   `GOOGLE_ADS_REFRESH_TOKEN` / `GOOGLE_ADS_LOGIN_CUSTOMER_ID` (o Customer ID
+   da conta, sem hífen) no `.env` local e como Secrets do repositório no
+   GitHub.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
