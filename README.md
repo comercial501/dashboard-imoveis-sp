@@ -33,9 +33,13 @@ scripts/
   parse_usenonstop_xlsx.py  ← fallback: lê export manual .xlsx (sem NONSTOP_TOKEN)
   normalize.py               ← normalização de bairro/endereço + estatísticas
   engine.py                   ← motor de cálculo dos 10 painéis
-  build_data.py                ← orquestra tudo → site/data.json
+  build_data.py                ← orquestra tudo → site/data.json + site/raw.json
 site/
-  index.html / styles.css / app.js / data.json
+  index.html / styles.css / app.js
+  data.json   ← agregado por bairro, carregado no primeiro acesso (rápido)
+  raw.json    ← registros individuais (ITBI + nonStop), carregado só quando
+                o usuário usa um filtro — ver "Filtros" abaixo
+  engine.js   ← porte de scripts/engine.py pra JavaScript, roda no navegador
 .github/workflows/build-data.yml  ← roda build_data.py todo dia às 8h (BRT)
 ```
 
@@ -97,6 +101,9 @@ Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
 3. **Perfil por Bairro** — metragem/preço/dormitórios/vagas que mais vendeu,
    com fallback para estimativa regional (vizinhos até 3km) quando a amostra
    do bairro é baixa (< 5 transações ou < 5 imóveis no perfil).
+3b. **Estoque × Demanda** — tabela com todos os 47 bairros: quantos anúncios
+   ativos hoje batem o perfil vencedor vs. o volume de vendas do ano, com
+   drill-down pra ver os anúncios específicos que compõem esse estoque.
 4. **Mapa** — bolhas por centróide real (coordenadas do estoque nonStop),
    raio ∝ √volume, cor = score.
 5. **Captação Ativa Estratégica** — endereços com 2+ vendas de revenda
@@ -107,6 +114,30 @@ Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
    bônus de captação ativa).
 7. **Valor de Oportunidade** — imóveis 20%+ abaixo da mediana paga no bairro
    (só em bairros com 10+ vendas no ano — mediana confiável).
+
+## Filtros (bairro + faixa de preço)
+
+O painel "Filtros" no topo do site deixa selecionar um ou mais dos 47
+bairros e/ou uma faixa de preço (aplicada tanto ao valor pago na Prefeitura
+quanto ao pedido na nonStop). Ao mudar qualquer filtro, os painéis são
+**recalculados** — médias, medianas, scores e rankings refeitos só com os
+dados que passam pelo filtro, não apenas a lista final escondida. Isso roda
+inteiramente no navegador (`site/engine.js`), carregando `site/raw.json`
+(registros individuais) sob demanda na primeira vez que um filtro é usado.
+
+`engine.js` é um porte funcionalmente idêntico de `scripts/engine.py` —
+validado campo a campo contra a saída do Python (bairros, ranking,
+prontidão, imóveis prioritários, captação ativa, valor de oportunidade)
+antes de entrar no site. Qualquer mudança de fórmula/limiar em `engine.py`
+precisa ser replicada em `engine.js`, senão os dois lados divergem
+silenciosamente.
+
+**Regra sutil herdada da versão original**: o filtro de **preço** vale
+sobre os 47 bairros inteiros (inclusive como "doadores" de estimativa
+regional pro fallback de vizinhança — ver Perfil por Bairro), mas o filtro
+de **bairro** só entra depois, restringindo quais bairros geram linha e
+entram na normalização (z-score) do score — nunca restringe de quem um
+bairro pode "herdar" perfil quando a amostra própria é pequena.
 
 ## Automação (GitHub Actions)
 

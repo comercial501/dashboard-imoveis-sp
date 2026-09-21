@@ -38,13 +38,13 @@ jobs:
           NONSTOP_TOKEN: ${{ secrets.NONSTOP_TOKEN }}
         run: python3 scripts/build_data.py
 
-      - name: Commitar site/data.json se mudou
+      - name: Commitar site/data.json e site/raw.json se mudou
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add site/data.json
+          git add site/data.json site/raw.json
           if git diff --cached --quiet; then
-            echo "Sem mudanças em site/data.json."
+            echo "Sem mudanças em site/data.json / site/raw.json."
           else
             git commit -m "chore: atualizar data.json ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
             git push

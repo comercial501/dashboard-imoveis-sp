@@ -158,23 +158,68 @@ function rankRows(container, names, data, { scoreKey, metaFmt, badges, maxOverri
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
-let DATA = null;
+let DATA = null; // "view" atualmente exibida (dado do servidor, ou recomputado pelo engine.js com filtro)
+let SERVER_DATA = null; // snapshot original de data.json, pra restaurar instantaneamente ao limpar filtros
+let RAW = null; // conteúdo de raw.json, carregado sob demanda (lazy)
+let RAW_PROMISE = null;
+const FILTERS = { bairros: new Set(), priceMin: null, priceMax: null };
 
-async function main() {
-  const res = await fetch("data.json");
-  if (!res.ok) {
-    document.querySelector(".app").prepend(el("div", { class: "note" }, "Não consegui carregar data.json. Rode `python3 scripts/build_data.py` e sirva a pasta site/ com um servidor local."));
-    return;
+function filtersActive() {
+  return FILTERS.bairros.size > 0 || FILTERS.priceMin != null || FILTERS.priceMax != null;
+}
+
+function ensureEngineLoaded() {
+  if (RAW_PROMISE) return RAW_PROMISE;
+  RAW_PROMISE = (async () => {
+    if (!window.computeEngine) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "engine.js";
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    const res = await fetch("raw.json");
+    RAW = await res.json();
+  })();
+  return RAW_PROMISE;
+}
+
+function mergeStaticMeta(computed) {
+  // O engine.js recalcula só o que muda com o filtro. Estatísticas de
+  // ingestão (total de linhas lidas/batidas na fonte) são globais e não
+  // mudam com o filtro — herda do data.json original pros painéis que as
+  // exibem (ex: resumo da Visão Geral) não quebrarem.
+  computed.generated_at = SERVER_DATA.generated_at;
+  computed.meta.total_itbi_rows_seen = SERVER_DATA.meta.total_itbi_rows_seen;
+  computed.meta.total_itbi_rows_matched = SERVER_DATA.meta.total_itbi_rows_matched;
+  computed.meta.usn = SERVER_DATA.meta.usn;
+  return computed;
+}
+
+function recomputeAndRenderAll() {
+  if (!filtersActive()) {
+    // Sem filtro: se já carregamos o engine (por causa do painel Estoque x
+    // Demanda), recomputa mesmo assim pra manter a lista de imóveis por
+    // faixa disponível — resultado é idêntico ao data.json original.
+    if (RAW) {
+      DATA = mergeStaticMeta(computeEngine(RAW, {}));
+    } else {
+      DATA = SERVER_DATA;
+    }
+  } else {
+    DATA = mergeStaticMeta(computeEngine(RAW, {
+      bairroScope: [...FILTERS.bairros],
+      priceMin: FILTERS.priceMin,
+      priceMax: FILTERS.priceMax,
+    }));
   }
-  DATA = await res.json();
   window.__data = DATA;
+  renderAll();
+}
 
-  const m = DATA.meta;
-  document.getElementById("updated-at").textContent = `Dados de ${m.years.join("/")} · gerado em ${DATA.generated_at}`;
-  const fonte = m.usn && m.usn.fonte === "nonstop_api" ? "API nonStop" : "export nonStop";
-  document.getElementById("fontes-foot").textContent = `ITBI (Prefeitura) · ${fonte}`;
-
-  setupTabs();
+function renderAll() {
   renderVisaoGeral();
   renderRanking();
   renderProntidao();
@@ -184,12 +229,34 @@ async function main() {
   renderPrioritarios();
   renderPorBairro();
   renderValorOportunidade();
+  renderEstoqueDemanda();
+}
+
+async function main() {
+  const res = await fetch("data.json");
+  if (!res.ok) {
+    document.querySelector(".app").prepend(el("div", { class: "note" }, "Não consegui carregar data.json. Rode `python3 scripts/build_data.py` e sirva a pasta site/ com um servidor local."));
+    return;
+  }
+  SERVER_DATA = await res.json();
+  DATA = SERVER_DATA;
+  window.__data = DATA;
+
+  const m = DATA.meta;
+  document.getElementById("updated-at").textContent = `Dados de ${m.years.join("/")} · gerado em ${DATA.generated_at}`;
+  const fonte = m.usn && m.usn.fonte === "nonstop_api" ? "API nonStop" : "export nonStop";
+  document.getElementById("fontes-foot").textContent = `ITBI (Prefeitura) · ${fonte}`;
+
+  setupTabs();
+  setupFiltros();
+  renderAll(); // já dispara o carregamento em segundo plano do engine.js/raw.json (ver renderEstoqueDemanda)
 }
 
 const PANELS = [
   { id: "visao-geral", label: "Visão Geral" },
   { id: "ranking", label: "Ranking de Oportunidade" },
   { id: "prontidao", label: "Prontidão para Campanha" },
+  { id: "estoque-demanda", label: "Estoque × Demanda" },
   { id: "perfil", label: "Perfil por Bairro" },
   { id: "mapa", label: "Mapa" },
   { id: "captacao", label: "Captação Ativa" },
@@ -213,6 +280,103 @@ function showPanel(id) {
   window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
 }
 document.addEventListener("DOMContentLoaded", () => showPanel("visao-geral"));
+
+// ---------------------------------------------------------------------------
+// Filtros (bairro multi-seleção + faixa de preço) — recalcula tudo via
+// engine.js quando ativos.
+// ---------------------------------------------------------------------------
+function setupFiltros() {
+  const listBox = document.getElementById("filtro-bairro-list");
+  const countLabel = document.getElementById("filtro-bairro-count");
+  const statusLabel = document.getElementById("filtro-status");
+  const searchInput = document.getElementById("filtro-busca-bairro");
+  const minInput = document.getElementById("filtro-preco-min");
+  const maxInput = document.getElementById("filtro-preco-max");
+
+  SERVER_DATA.ranking.slice().sort((a, b) => a.localeCompare(b, "pt-BR")).forEach((name) => {
+    const item = el("label", { class: "filtro-bairro-item" });
+    const checkbox = el("input", { type: "checkbox", value: name });
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) FILTERS.bairros.add(name);
+      else FILTERS.bairros.delete(name);
+      onFilterChange();
+    });
+    item.appendChild(checkbox);
+    item.appendChild(el("span", {}, name));
+    item.dataset.name = name.toLowerCase();
+    listBox.appendChild(item);
+  });
+
+  function updateStatus() {
+    countLabel.textContent = FILTERS.bairros.size ? `${FILTERS.bairros.size} selecionado${FILTERS.bairros.size === 1 ? "" : "s"}` : "todos";
+    const parts = [];
+    if (FILTERS.bairros.size) parts.push(`${FILTERS.bairros.size} bairro(s)`);
+    if (FILTERS.priceMin != null || FILTERS.priceMax != null) parts.push("faixa de preço");
+    statusLabel.textContent = parts.length ? `Filtro ativo: ${parts.join(" + ")} — recalculando ao vivo.` : "";
+    statusLabel.classList.toggle("active", parts.length > 0);
+  }
+
+  let debounceTimer = null;
+  function onFilterChange() {
+    updateStatus();
+    if (!RAW) {
+      statusLabel.textContent = "Carregando motor de recálculo…";
+      statusLabel.classList.add("active");
+    }
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      ensureEngineLoaded().then(() => { recomputeAndRenderAll(); updateStatus(); });
+    }, 250);
+  }
+
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value.trim().toLowerCase();
+    listBox.querySelectorAll(".filtro-bairro-item").forEach((item) => {
+      item.classList.toggle("hidden", q.length > 0 && !item.dataset.name.includes(q));
+    });
+  });
+
+  document.getElementById("filtro-selecionar-todos").addEventListener("click", (e) => {
+    e.preventDefault();
+    listBox.querySelectorAll(".filtro-bairro-item:not(.hidden) input").forEach((cb) => {
+      cb.checked = true;
+      FILTERS.bairros.add(cb.value);
+    });
+    onFilterChange();
+  });
+
+  document.getElementById("filtro-limpar-bairros").addEventListener("click", (e) => {
+    e.preventDefault();
+    FILTERS.bairros.clear();
+    listBox.querySelectorAll("input").forEach((cb) => (cb.checked = false));
+    onFilterChange();
+  });
+
+  [minInput, maxInput].forEach((input, idx) => {
+    input.addEventListener("input", () => {
+      const v = input.value.trim() === "" ? null : Number(input.value);
+      if (idx === 0) FILTERS.priceMin = v;
+      else FILTERS.priceMax = v;
+      onFilterChange();
+    });
+  });
+
+  document.getElementById("filtro-limpar-tudo").addEventListener("click", (e) => {
+    e.preventDefault();
+    FILTERS.bairros.clear();
+    FILTERS.priceMin = null;
+    FILTERS.priceMax = null;
+    listBox.querySelectorAll("input").forEach((cb) => (cb.checked = false));
+    minInput.value = "";
+    maxInput.value = "";
+    searchInput.value = "";
+    listBox.querySelectorAll(".filtro-bairro-item").forEach((item) => item.classList.remove("hidden"));
+    updateStatus();
+    DATA = RAW ? mergeStaticMeta(computeEngine(RAW, {})) : SERVER_DATA;
+    window.__data = DATA;
+    renderAll();
+  });
+}
 
 function statTile(label, value, sub) {
   return el("div", { class: "stat-tile" }, [
@@ -306,10 +470,44 @@ function renderRanking() {
 // Prontidão para Campanha (Painel 2)
 // ---------------------------------------------------------------------------
 function renderProntidao() {
-  rankRows(document.getElementById("prontidao-table"), DATA.prontidao_ranking, DATA, {
-    scoreKey: "prontidao_campanha",
-    metaFmt: (b) => `Ranking de Oportunidade: score ${fmtInt(b.score)} · estoque no perfil ${fmtInt(b.stock_matching_profile)}`,
-    badges: (b) => (b.flag_prioridade_maxima ? [badge("Prioridade Máxima", "gold")] : []),
+  const container = document.getElementById("prontidao-table");
+  container.innerHTML = "";
+  const imoveisByBairro = {};
+  DATA.imoveis_prioritarios.forEach((im) => (imoveisByBairro[im.bairro] ||= []).push(im));
+
+  DATA.prontidao_ranking.forEach((name, i) => {
+    const b = DATA.bairros[name];
+    const wrap = el("div", {});
+    const row = el("div", { class: "rank-row" + (i < 3 ? " top3" : ""), style: "cursor:pointer" });
+    row.appendChild(el("div", { class: "rank-num" }, String(i + 1)));
+    const body = el("div", { class: "rank-body" });
+    const nameLine = el("div", { class: "rank-name" }, [name, b.flag_prioridade_maxima ? badge("Prioridade Máxima", "gold") : null]);
+    body.appendChild(nameLine);
+    body.appendChild(el("div", { class: "rank-meta" }, `Ranking de Oportunidade: score ${fmtInt(b.score)} · estoque no perfil ${fmtInt(b.stock_matching_profile)} · toque para ver os 10 melhores imóveis`));
+    row.appendChild(body);
+    const track = el("div", { class: "rank-bar-track" });
+    track.appendChild(el("div", { class: "rank-bar-fill", style: `width:${Math.min(100, b.prontidao_campanha)}%` }));
+    row.appendChild(track);
+    row.appendChild(el("div", { class: "rank-score" }, fmtInt(b.prontidao_campanha)));
+    wrap.appendChild(row);
+
+    const expandBox = el("div", { class: "prontidao-expand", style: "display:none" });
+    let loaded = false;
+    row.addEventListener("click", () => {
+      const showing = expandBox.style.display !== "none";
+      expandBox.style.display = showing ? "none" : "block";
+      if (!showing && !loaded) {
+        loaded = true;
+        const top10 = (imoveisByBairro[name] || []).slice(0, 10);
+        if (!top10.length) {
+          expandBox.appendChild(el("div", { class: "placeholder-block" }, "Nenhum imóvel pontuado neste bairro com os filtros atuais."));
+        } else {
+          top10.forEach((im, idx) => expandBox.appendChild(imovelRow(im, idx)));
+        }
+      }
+    });
+    wrap.appendChild(expandBox);
+    container.appendChild(wrap);
   });
 }
 
@@ -318,9 +516,13 @@ function renderProntidao() {
 // ---------------------------------------------------------------------------
 function renderPerfil() {
   const select = document.getElementById("perfil-select");
+  const prev = select.value;
+  select.innerHTML = "";
   DATA.ranking.forEach((name) => select.appendChild(el("option", { value: name }, name)));
-  select.addEventListener("change", () => renderPerfilContent(select.value));
-  renderPerfilContent(select.value);
+  select.value = DATA.ranking.includes(prev) ? prev : DATA.ranking[0];
+  select.onchange = () => renderPerfilContent(select.value);
+  if (select.value) renderPerfilContent(select.value);
+  else document.getElementById("perfil-content").innerHTML = "";
 }
 
 function renderPerfilContent(name) {
@@ -534,12 +736,17 @@ function renderPrioritarios() {
 // ---------------------------------------------------------------------------
 function renderPorBairro() {
   const select = document.getElementById("porbairro-select");
+  const prev = select.value;
+  select.innerHTML = "";
   DATA.ranking.forEach((name) => {
     const n = DATA.imoveis_prioritarios.filter((im) => im.bairro === name).length;
     if (n > 0) select.appendChild(el("option", { value: name }, `${name} (${n})`));
   });
-  select.addEventListener("change", () => renderPorBairroContent(select.value));
+  const values = [...select.options].map((o) => o.value);
+  select.value = values.includes(prev) ? prev : values[0] || "";
+  select.onchange = () => renderPorBairroContent(select.value);
   if (select.options.length) renderPorBairroContent(select.value);
+  else document.getElementById("porbairro-content").innerHTML = "";
 }
 
 function renderPorBairroContent(name) {
@@ -547,6 +754,71 @@ function renderPorBairroContent(name) {
   box.innerHTML = "";
   const items = DATA.imoveis_prioritarios.filter((im) => im.bairro === name);
   items.forEach((im, i) => box.appendChild(imovelRow(im, i)));
+}
+
+// ---------------------------------------------------------------------------
+// Estoque × Demanda (tabela completa, todos os bairros do escopo)
+// ---------------------------------------------------------------------------
+function renderEstoqueDemanda() {
+  const container = document.getElementById("estoque-demanda-table");
+  container.innerHTML = "";
+
+  if (!DATA._matchingListingsByBairro) {
+    container.appendChild(el("div", { class: "note" }, "Carregando lista detalhada de estoque…"));
+    ensureEngineLoaded().then(() => recomputeAndRenderAll());
+    return;
+  }
+
+  const rows = DATA.ranking.map((name) => ({ bairro: name, ...DATA.bairros[name] }));
+  sortableTable(container, {
+    initialSortKey: "stock_demand_ratio",
+    initialSortDir: 1,
+    columns: [
+      { key: "bairro", label: "Bairro" },
+      { key: "volume_primary_year", label: "Demanda (ano)" },
+      { key: "stock_total", label: "Estoque total" },
+      { key: "stock_matching_profile", label: "Estoque no perfil" },
+      { key: "stock_demand_ratio", label: "Cobertura", fmt: (v) => (v >= 999 ? "∞" : v.toFixed(3)) },
+      {
+        key: "sinal", label: "Sinal", sortable: false, render: (r) => {
+          if (r.flag_oportunidade) return badge("Oportunidade", "gold");
+          if (r.flag_alerta) return badge("Alerta preço", "critical");
+          return badge("Neutro", "neutral");
+        },
+      },
+      {
+        key: "detalhes", label: "Detalhes", sortable: false, render: (r) => {
+          const link = el("a", { href: "#" }, "Ver lista completa");
+          link.addEventListener("click", (e) => { e.preventDefault(); toggleEstoqueDetalhe(r.bairro); });
+          return link;
+        },
+      },
+    ],
+    rows,
+  });
+}
+
+function toggleEstoqueDetalhe(bairro) {
+  const existing = document.getElementById("estoque-detalhe-box");
+  if (existing) existing.remove();
+  const listings = (DATA._matchingListingsByBairro && DATA._matchingListingsByBairro[bairro]) || [];
+  const box = el("section", { class: "card", id: "estoque-detalhe-box" }, [
+    el("h2", { style: "font-size:14.5px" }, `Estoque no perfil vencedor — ${bairro}`),
+    el("div", { class: "card-sub" }, `${listings.length} anúncio${listings.length === 1 ? "" : "s"} dentro da faixa de metragem vencedora do bairro.`),
+  ]);
+  if (!listings.length) {
+    box.appendChild(el("div", { class: "placeholder-block" }, "Nenhum anúncio ativo dentro dessa faixa no momento."));
+  } else {
+    listings.forEach((r) => {
+      const row = el("div", { class: "mini-listing-row" }, [
+        el("div", {}, `${r.addrDisplay || "(endereço não informado)"} · ${fmtM2(r.area)} · ${r.quartos ?? "—"} dorm`),
+        el("div", {}, [fmtMoneyCompact(r.valor), " ", r.link ? el("a", { href: r.link, target: "_blank", rel: "noopener" }, "Ver ↗") : null]),
+      ]);
+      box.appendChild(row);
+    });
+  }
+  document.getElementById("estoque-demanda-table").after(box);
+  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 // ---------------------------------------------------------------------------

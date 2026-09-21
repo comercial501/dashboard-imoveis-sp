@@ -198,6 +198,43 @@ a { color: var(--gold-soft); }
 .badge.warning { background: var(--status-warning-bg); color: var(--status-warning); }
 .badge.neutral { background: var(--status-neutral-bg); color: var(--text-muted); }
 
+/* Filtros */
+.filtros-head { margin-bottom: 14px; }
+.filtros-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 22px; }
+@media (max-width: 800px) { .filtros-grid { grid-template-columns: 1fr; } }
+.filtros-subhead {
+  display: flex; align-items: center; justify-content: space-between; font-size: 12px;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; margin-bottom: 8px;
+}
+.filtros-subhead a { font-size: 12px; text-transform: none; letter-spacing: normal; font-weight: 600; cursor: pointer; }
+.filtro-input {
+  width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-primary);
+  font: inherit; font-size: 13.5px; padding: 9px 12px; border-radius: 8px; box-sizing: border-box;
+}
+.filtro-input::placeholder { color: var(--text-muted); }
+.filtro-bairro-list {
+  margin-top: 8px; max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px 12px;
+}
+.filtro-bairro-item { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; user-select: none; }
+.filtro-bairro-item input { accent-color: var(--gold); cursor: pointer; }
+.filtro-bairro-item.hidden { display: none; }
+.filtro-preco-row { display: flex; align-items: center; gap: 10px; }
+.filtro-preco-row .muted { flex-shrink: 0; }
+#filtro-status { min-height: 16px; }
+#filtro-status.active { color: var(--gold); font-weight: 600; }
+
+/* Estoque x Demanda: linha expansível */
+.expand-toggle { color: var(--gold-soft); cursor: pointer; font-size: 12.5px; font-weight: 600; }
+.expand-row td { background: var(--surface-2); padding: 0 !important; }
+.expand-row .expand-inner { padding: 12px 16px; }
+.mini-listing-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--gridline); font-size: 12.5px; }
+.mini-listing-row:last-child { border-bottom: none; }
+.mini-listing-row a { color: var(--gold-soft); text-decoration: none; }
+
+/* Prontidão: expand com top imóveis */
+.prontidao-expand { padding: 6px 4px 16px 46px; }
+
 /* Bairro rank rows (Ranking / Prontidão) */
 .rank-row {
   display: flex; align-items: center; gap: 14px; padding: 12px 4px; border-bottom: 1px solid var(--gridline);
