@@ -48,11 +48,28 @@ site/
 ```
 cp .env.example .env               # preencha NONSTOP_TOKEN no .env (nunca commitar)
 python3 scripts/build_data.py      # sincroniza ITBI + nonStop, gera site/data.json
-cd site && python3 -m http.server 8731
+python3 site/serve_no_cache.py
 ```
 
 Abra `http://localhost:8731/index.html`. Precisa ser via servidor local (não
-`file://`) porque a página carrega `data.json` com `fetch()`.
+`file://`) porque a página carrega `data.json` com `fetch()`. Use
+`serve_no_cache.py` em vez de `python3 -m http.server` — ele manda
+`Cache-Control: no-store`, senão o navegador guarda `data.json`/`raw.json`
+em cache e a dashboard parece "não atualizar" mesmo depois do pipeline
+diário rodar.
+
+### Automação local (Mac) — servidor sempre ligado + sync diário
+
+Pra acessar a dashboard (inclusive do celular, via [Tailscale](https://tailscale.com))
+sem precisar abrir terminal nenhum: dois LaunchAgents do macOS cuidam disso
+sozinhos — `~/Library/LaunchAgents/com.topio.dashboard-imoveis.server.plist`
+(mantém `serve_no_cache.py` sempre rodando na porta 8731, reinicia sozinho
+se cair) e `com.topio.dashboard-imoveis.sync.plist` (`git pull` automático
+às 8h20 e ao meio-dia, depois que a Action do GitHub atualiza `data.json`).
+**Importante**: o projeto precisa ficar fora de `~/Desktop` (ou de
+`~/Documents`/`~/Downloads`) — essas pastas têm uma proteção de privacidade
+do macOS que bloqueia processos rodados via `launchd` (diferente de rodar
+pelo Terminal).
 
 Sem `NONSTOP_TOKEN` definido, o script cai automaticamente para o export
 manual mais recente em `dados-usenonstop/*.xlsx` (se existir algum arquivo
