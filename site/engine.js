@@ -147,6 +147,16 @@ function tercile(sortedVals, frac) {
   return sortedVals[idx];
 }
 
+// Desempate alfabético de texto (bairro/endereço) — de propósito NÃO usa
+// localeCompare (comparação tipo dicionário, ignora maiúscula/minúscula
+// como critério primário) porque o lado Python compara string padrão
+// (sensível a maiúscula/minúscula). Minúsculas dos dois lados = mesmo
+// resultado sempre, sem depender de locale/ICU.
+function cmpLower(a, b) {
+  const al = a.toLowerCase(), bl = b.toLowerCase();
+  return al < bl ? -1 : al > bl ? 1 : 0;
+}
+
 function excelSerialToYm(serial) {
   // Época Excel (sistema 1900): 1899-12-30. Date.UTC em ms.
   const epoch = Date.UTC(1899, 11, 30);
@@ -411,7 +421,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       tem_unidade_a_venda_hoje: temHoje, unidades_a_venda_hoje: unidadesHoje,
     });
   }
-  captacaoAtiva.sort((a, b) => a.bairro.localeCompare(b.bairro) || b.n_vendas - a.n_vendas || String(a.addr_key).localeCompare(String(b.addr_key)));
+  captacaoAtiva.sort((a, b) => cmpLower(a.bairro, b.bairro) || b.n_vendas - a.n_vendas || String(a.addr_key).localeCompare(String(b.addr_key)));
   // addr_key vira string ao passar por Object.keys(byAddr) — normaliza pra
   // String() dos dois lados na hora de comparar, senão Set.has(numero) falha
   // silenciosamente contra chaves guardadas como string.
@@ -550,7 +560,10 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       final_score: round(finalScore, 2), resumo: resumoImovel(price, aderencia, areaConf, b.score_revenda, temCaptacao),
     });
   }
-  imoveisPrioritarios.sort((a, b) => b.final_score - a.final_score || String(a.addr_key).localeCompare(String(b.addr_key)) || String(a.codigo).localeCompare(String(b.codigo)));
+  // Desempate por endereço (minúsculas) + código — nunca addr_key: aqui é
+  // um índice inteiro interno, diferente da chave composta em string do
+  // lado Python, então usá-lo divergiria o desempate entre os dois motores.
+  imoveisPrioritarios.sort((a, b) => b.final_score - a.final_score || cmpLower(a.endereco || "", b.endereco || "") || String(a.codigo || "").localeCompare(String(b.codigo || "")));
 
   // --- Painel 2: Prontidão ---
   const stockMatchScope = {}; scope.forEach((b) => (stockMatchScope[b] = bairrosOut[b].stock_matching_profile));
@@ -575,7 +588,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       mediana_paga_bairro: mediana, desconto_pct: round(desconto * 100), atencao: desconto >= C.valor_oportunidade_atencao_desconto,
     });
   }
-  valorOportunidadeImoveis.sort((a, b) => b.desconto_pct - a.desconto_pct);
+  valorOportunidadeImoveis.sort((a, b) => b.desconto_pct - a.desconto_pct || cmpLower(a.endereco || "", b.endereco || "") || String(a.codigo || "").localeCompare(String(b.codigo || "")));
 
   const achadosByBairro = {};
   for (const a of valorOportunidadeImoveis) achadosByBairro[a.bairro] = (achadosByBairro[a.bairro] || 0) + 1;
@@ -610,12 +623,16 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   const valorOportunidadePorBairro = Object.entries(achadosByBairro).map(([bairro, n]) => {
     const total = (imoveisByBairro[bairro] || []).filter((im) => bairrosOut[im.bairro].volume_primary_year >= C.valor_oportunidade_min_vendas_primary).length;
     return { bairro, n_achados: n, estoque_total: total, pct_do_estoque: total ? round((100 * n) / total) : null };
-  }).sort((a, b) => b.n_achados - a.n_achados || a.bairro.localeCompare(b.bairro));
+  }).sort((a, b) => b.n_achados - a.n_achados || cmpLower(a.bairro, b.bairro));
 
   // --- Painel 7: Captação Ativa Estratégica ---
+  // Mudança 13: não exclui mais endereços com unidade ativa hoje — um
+  // prédio com giro comprovado continua valendo a visita pra tentar captar
+  // OUTRAS unidades. "tem_unidade_a_venda_hoje" vira dado exibido, não
+  // filtro de exclusão.
   const byBairroAtiva = {}, byBairroUnico = {};
-  for (const c of captacaoAtiva) if (!c.tem_unidade_a_venda_hoje && scopeSet.has(c.bairro)) (byBairroAtiva[c.bairro] ||= []).push(c);
-  for (const c of captacaoUnico) if (!c.tem_unidade_a_venda_hoje && scopeSet.has(c.bairro)) (byBairroUnico[c.bairro] ||= []).push(c);
+  for (const c of captacaoAtiva) if (scopeSet.has(c.bairro)) (byBairroAtiva[c.bairro] ||= []).push(c);
+  for (const c of captacaoUnico) if (scopeSet.has(c.bairro)) (byBairroUnico[c.bairro] ||= []).push(c);
 
   const captacaoEstrategica = [];
   scope.forEach((b) => {
@@ -626,18 +643,31 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     }
     if (!enderecos.length) return;
     enderecos.forEach((e) => { if (e.unico === undefined) e.unico = false; });
-    enderecos.sort((a, c) => c.n_vendas - a.n_vendas || a.endereco.localeCompare(c.endereco));
+    // Sem unidade ativa primeiro (só prospecção resolve o acesso); depois
+    // mais vendas, depois alfabético em minúsculas (comparação simples de
+    // string, não localeCompare — evita divergir do Python, que compara
+    // case-sensitive por padrão).
+    enderecos.sort((a, c) => {
+      if (a.tem_unidade_a_venda_hoje !== c.tem_unidade_a_venda_hoje) return a.tem_unidade_a_venda_hoje ? 1 : -1;
+      if (c.n_vendas !== a.n_vendas) return c.n_vendas - a.n_vendas;
+      const al = a.endereco.toLowerCase(), cl = c.endereco.toLowerCase();
+      return al < cl ? -1 : al > cl ? 1 : 0;
+    });
 
     const bo = bairrosOut[b];
     captacaoEstrategica.push({
       bairro: b, flag_prioridade_maxima: bo.flag_prioridade_maxima,
       perfil: { area_band: bo.area_band, price_band: bo.price_band, profile_quartos: bo.profile_quartos, profile_vagas: bo.profile_vagas, profile_reliability: bo.profile_reliability },
-      enderecos: enderecos.map((e) => ({ endereco: e.endereco, n_vendas: e.n_vendas, preco_min: e.preco_min, preco_max: e.preco_max, area_min: e.area_min, area_max: e.area_max, unico: e.unico })),
+      enderecos: enderecos.map((e) => ({
+        endereco: e.endereco, n_vendas: e.n_vendas, preco_min: e.preco_min, preco_max: e.preco_max,
+        area_min: e.area_min, area_max: e.area_max, unico: e.unico,
+        tem_unidade_a_venda_hoje: e.tem_unidade_a_venda_hoje, unidades_a_venda_hoje: e.unidades_a_venda_hoje,
+      })),
     });
   });
   captacaoEstrategica.sort((a, b) => (a.flag_prioridade_maxima ? 0 : 1) - (b.flag_prioridade_maxima ? 0 : 1)
     || bairrosOut[b.bairro].volume_primary_year - bairrosOut[a.bairro].volume_primary_year
-    || a.bairro.localeCompare(b.bairro));
+    || cmpLower(a.bairro, b.bairro));
 
   // --- saída final: só os bairros do escopo ---
   const bairrosFinal = {};

@@ -169,8 +169,13 @@ Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
 4. **Mapa** — bolhas por centróide real (coordenadas do estoque nonStop),
    raio ∝ √volume, cor = score.
 5. **Captação Ativa Estratégica** — endereços com 2+ vendas de revenda
-   orgânica (excluindo lançamentos e preços incoerentes) sem nenhuma unidade
-   anunciada hoje.
+   orgânica (excluindo lançamentos e preços incoerentes). Endereços sem
+   nenhuma unidade anunciada hoje vêm primeiro (prospecção resolve um acesso
+   que não existe por outro caminho); endereços que já têm alguma unidade
+   ativa continuam na lista, marcados, porque o prédio com giro comprovado
+   ainda vale a visita pra tentar captar outras unidades — **não são mais
+   excluídos** (mudança de metodologia: ver comentário "Mudança 13" em
+   `engine.py`).
 6. **Imóveis Prioritários** — pontuação por imóvel (35% liquidez de revenda
    do bairro + 30% alinhamento de preço + 25% aderência ao perfil + 10%
    bônus de captação ativa).

@@ -104,12 +104,8 @@ def card_to_record(card):
     complement = address.get("complement")
 
     akey = address_key(bairro, street, number) if bairro else None
-    if street and number:
-        adisp = f"{street}, {number}"
-        if complement:
-            adisp += f" - {complement}"
-    else:
-        adisp = street
+    adisp_building = f"{street}, {number}" if street and number else street
+    adisp = f"{adisp_building} - {complement}" if (adisp_building and complement) else adisp_building
 
     values = card.get("values") or {}
     areas = card.get("areas") or {}
@@ -128,6 +124,7 @@ def card_to_record(card):
         "bairro": bairro,
         "addr_key": akey,
         "addr_display": adisp,
+        "addr_display_building": adisp_building,
         "valor": values.get("sale"),
         "area": areas.get("private"),
         "quartos": card.get("rooms"),

@@ -279,7 +279,15 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
                 liquidez[bairro][r["sheet_year"]]["total"] += 1
 
         endereco = next((r["addr_display"] for r in recs if r["addr_display"]), addr_key)
-        tem_hoje, unidades_hoje = _tem_unidade_a_venda_hoje(usn_by_addr_key.get(addr_key, []))
+        usn_aqui = usn_by_addr_key.get(addr_key, [])
+        # Prefere a grafia natural do endereço vinda da nonStop (nível de
+        # prédio, sem complemento de unidade) sobre o title-case derivado do
+        # ITBI, igual ao critério documentado (ver §3 do spec de metodologia)
+        # e já aplicado no lado JS via a tabela de interning do raw.json.
+        preferido = next((u["addr_display_building"] for u in usn_aqui if u.get("addr_display_building")), None)
+        if preferido:
+            endereco = preferido
+        tem_hoje, unidades_hoje = _tem_unidade_a_venda_hoje(usn_aqui)
 
         if len(recs) == 1:
             r = recs[0]
@@ -314,7 +322,7 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
             "tem_unidade_a_venda_hoje": tem_hoje, "unidades_a_venda_hoje": unidades_hoje,
         })
 
-    captacao_ativa.sort(key=lambda c: (c["bairro"], -c["n_vendas"], c["addr_key"]))
+    captacao_ativa.sort(key=lambda c: (c["bairro"].lower(), -c["n_vendas"], c["addr_key"]))
 
     meta = {
         "enderecos_com_repeticao": n_addr_total_multi,
@@ -450,7 +458,10 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, addr_in_captacao_ati
             "final_score": _round(final_score, 2), "resumo": resumo,
         })
 
-    out.sort(key=lambda x: (-x["final_score"], x["addr_key"] or "", x["codigo"] or ""))
+    # Desempate por endereço (minúsculas) + código — nunca addr_key: no lado
+    # JS ele é um índice inteiro interno (não a chave composta em string),
+    # então usá-lo aqui faria o desempate divergir entre os dois motores.
+    out.sort(key=lambda x: (-x["final_score"], (x["endereco"] or "").lower(), x["codigo"] or ""))
     return out
 
 
@@ -476,7 +487,7 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
             "desconto_pct": _round(desconto * 100, 1),
             "atencao": desconto >= VALOR_OPORTUNIDADE_ATENCAO_DESCONTO,
         })
-    achados.sort(key=lambda a: -a["desconto_pct"])
+    achados.sort(key=lambda a: (-a["desconto_pct"], (a["endereco"] or "").lower(), a["codigo"] or ""))
 
     stock_eleg = {}
     achados_by_bairro = {}
@@ -494,7 +505,7 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
             "bairro": b, "n_achados": n, "estoque_total": total,
             "pct_do_estoque": _round(100 * n / total, 1) if total else None,
         })
-    por_bairro.sort(key=lambda x: (-x["n_achados"], x["bairro"]))
+    por_bairro.sort(key=lambda x: (-x["n_achados"], x["bairro"].lower()))
 
     return {"imoveis": achados, "por_bairro": por_bairro}
 
@@ -503,14 +514,18 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
 # 8. Painel 7 — Captação Ativa Estratégica
 # ---------------------------------------------------------------------------
 def _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out):
+    # Mudança 13: NÃO exclui mais endereços que já têm unidade anunciada
+    # hoje — um prédio com giro comprovado continua valendo a visita pra
+    # tentar captar OUTRAS unidades, mesmo com uma já ativa. A informação
+    # "já tem anúncio ativo" vira um dado exibido (não um filtro de
+    # exclusão), pra quem for a campo decidir com contexto, não pra
+    # dashboard decidir por ele.
     by_bairro_ativa = {}
     for c in captacao_ativa:
-        if not c["tem_unidade_a_venda_hoje"]:
-            by_bairro_ativa.setdefault(c["bairro"], []).append(c)
+        by_bairro_ativa.setdefault(c["bairro"], []).append(c)
     by_bairro_unico = {}
     for c in captacao_unico:
-        if not c["tem_unidade_a_venda_hoje"]:
-            by_bairro_unico.setdefault(c["bairro"], []).append(c)
+        by_bairro_unico.setdefault(c["bairro"], []).append(c)
 
     groups = []
     for b in TARGETS:
@@ -525,7 +540,12 @@ def _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out):
             continue
         for e in enderecos:
             e.setdefault("unico", False)
-        enderecos.sort(key=lambda e: (-e["n_vendas"], e["endereco"]))
+        # Sem unidade ativa primeiro (só esse prospecção resolve o acesso);
+        # dentro de cada grupo, mais vendas primeiro, depois alfabético.
+        # Desempate por texto em minúsculas — evita divergir do lado JS,
+        # que usa comparação case-insensitive (localeCompare); comparação
+        # padrão de string é sensível a maiúscula/minúscula nos dois lados.
+        enderecos.sort(key=lambda e: (e["tem_unidade_a_venda_hoje"], -e["n_vendas"], e["endereco"].lower()))
 
         bo = bairros_out[b]
         groups.append({
@@ -539,7 +559,8 @@ def _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out):
             "enderecos": [
                 {"endereco": e["endereco"], "n_vendas": e["n_vendas"], "preco_min": e["preco_min"],
                  "preco_max": e["preco_max"], "area_min": e["area_min"], "area_max": e["area_max"],
-                 "unico": e["unico"]}
+                 "unico": e["unico"], "tem_unidade_a_venda_hoje": e["tem_unidade_a_venda_hoje"],
+                 "unidades_a_venda_hoje": e["unidades_a_venda_hoje"]}
                 for e in enderecos
             ],
             "_used_unico_fallback": used_unico,
@@ -548,7 +569,7 @@ def _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out):
     groups.sort(key=lambda g: (
         0 if g["flag_prioridade_maxima"] else 1,
         -bairros_out[g["bairro"]]["volume_primary_year"],
-        g["bairro"],
+        g["bairro"].lower(),
     ))
     for g in groups:
         g.pop("_used_unico_fallback", None)

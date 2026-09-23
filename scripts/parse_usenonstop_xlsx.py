@@ -105,6 +105,7 @@ def parse_usenonstop_xlsx(path):
                 "bairro": bairro,
                 "addr_key": akey,
                 "addr_display": adisp,
+                "addr_display_building": base_disp,
                 "valor": valor,
                 "area": area,
                 "quartos": quartos,

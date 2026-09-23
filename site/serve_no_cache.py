@@ -5,8 +5,9 @@ o data.json/raw.json antigo e a dashboard parece "não atualizar" mesmo
 depois do pipeline diário rodar (só resolvia com hard refresh manual)."""
 import http.server
 import os
+import sys
 
-PORT = 8731
+DEFAULT_PORT = 8731
 
 
 class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
@@ -16,7 +17,8 @@ class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    with http.server.ThreadingHTTPServer(("", PORT), NoCacheHandler) as httpd:
-        print(f"Servindo em http://localhost:{PORT} (sem cache)")
+    with http.server.ThreadingHTTPServer(("", port), NoCacheHandler) as httpd:
+        print(f"Servindo em http://localhost:{port} (sem cache)")
         httpd.serve_forever()

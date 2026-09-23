@@ -105,9 +105,12 @@ def build_raw_payload(itbi_records, usn_records, years):
 
     usn_out = []
     for r in usn_records:
-        # Prefere a grafia natural do endereço vinda da nonStop, igual ao
-        # comportamento original (addr_upgrade_display).
-        aidx = intern_addr(r["addr_key"], r["addr_display"], prefer=True)
+        # Prefere a grafia natural do endereço vinda da nonStop pra tabela
+        # compartilhada (usada em referências a nível de PRÉDIO, como
+        # Captação Ativa) — mas sem o complemento (número da unidade), que
+        # só faz sentido pro anúncio individual, não pro prédio inteiro.
+        # addr_display_building = "Rua X, 123" (nunca "Rua X, 123 - apto 45").
+        aidx = intern_addr(r["addr_key"], r["addr_display_building"], prefer=True)
         usn_out.append([
             bairro_idx[r["bairro"]], aidx, r["addr_display"], r["valor"], r["area"],
             r["quartos"], r["vagas"], r["lat"], r["lon"], r["situacao_code"], r["codigo"], r["link"],

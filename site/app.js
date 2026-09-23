@@ -698,14 +698,29 @@ function renderCaptacao() {
     }
 
     g.enderecos.forEach((e) => {
+      const nameLine = [e.endereco, e.unico ? badge("Endereço único", "neutral") : null];
+      if (e.tem_unidade_a_venda_hoje) nameLine.push(badge("Já anunciado hoje", "warning"));
+      let metaLine = `${e.n_vendas} venda${e.n_vendas === 1 ? "" : "s"}${e.area_min != null ? ` · ${fmtM2(e.area_min)}${e.area_max !== e.area_min ? "–" + fmtM2(e.area_max) : ""}` : ""}`;
       const row = el("div", { class: "addr-row" }, [
         el("div", {}, [
-          el("div", { class: "addr-name" }, [e.endereco, e.unico ? badge("Endereço único", "neutral") : null]),
-          el("div", { class: "addr-meta" }, `${e.n_vendas} venda${e.n_vendas === 1 ? "" : "s"}${e.area_min != null ? ` · ${fmtM2(e.area_min)}${e.area_max !== e.area_min ? "–" + fmtM2(e.area_max) : ""}` : ""}`),
+          el("div", { class: "addr-name" }, nameLine),
+          el("div", { class: "addr-meta" }, metaLine),
         ]),
         el("div", { class: "addr-price" }, e.preco_min === e.preco_max ? fmtMoneyCompact(e.preco_min) : `${fmtMoneyCompact(e.preco_min)} – ${fmtMoneyCompact(e.preco_max)}`),
       ]);
       details.appendChild(row);
+      if (e.tem_unidade_a_venda_hoje && e.unidades_a_venda_hoje && e.unidades_a_venda_hoje.length) {
+        const links = el("div", { class: "addr-row", style: "padding-top:0; padding-bottom:10px" }, [
+          el("div", { class: "small muted" }, [
+            "Unidade(s) já anunciada(s) nesse endereço: ",
+            ...e.unidades_a_venda_hoje.flatMap((u, i) => [
+              i > 0 ? ", " : null,
+              u.link ? el("a", { href: u.link, target: "_blank", rel: "noopener" }, u.codigo || "ver") : (u.codigo || "—"),
+            ]),
+          ]),
+        ]);
+        details.appendChild(links);
+      }
     });
     box.appendChild(details);
   });
