@@ -175,6 +175,26 @@ diferenças legítimas entre "o que se pagou historicamente" e "o que se
 pede hoje" — um gap grande que sobra depois da limpeza pode ainda refletir
 mercado real, vale conferir com conhecimento local.
 
+Uma segunda rodada da mesma auditoria endereçou mais dois pontos:
+
+- **Mediana de preço pedido sem proteção contra outlier**: `asking_median`
+  (preço pedido hoje, usado em Prontidão para Campanha e Perfil Vencedor)
+  não filtrava anúncios com valor digitado errado (ex: metro quadrado
+  lançado como valor total). **Decisão**: aplica cercas de Tukey (IQR) —
+  a mesma técnica já usada pra preço pago do ITBI — antes de calcular a
+  mediana.
+- **Faixa de metragem de Captação Ativa sem checagem de coerência**: um
+  endereço com histórico de 2+ vendas podia reportar `area_min`/`area_max`
+  vindos de unidades completamente diferentes (ex: um apto de 45m² e uma
+  cobertura de 300m² no mesmo prédio), o que sugere erro de leitura do
+  ITBI ou plantas tão diferentes que a faixa não ajuda a decisão de
+  captação. **Decisão**: quando a razão `area_max/area_min` de um endereço
+  ultrapassa 4x, a faixa vira `None`/`None` em vez de mostrar um intervalo
+  enganoso — limiar calibrado pela distribuição real de 3.345 endereços
+  com múltiplas vendas (p50=1,0x, p75=1,16x, p90=1,55x, p95=1,85x,
+  p99=2,6x — 4x já é bem acima do ruído normal de plantas variadas no
+  mesmo prédio).
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
