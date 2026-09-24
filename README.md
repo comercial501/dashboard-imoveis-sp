@@ -2,7 +2,7 @@
 
 Dashboard estática (sem Node/build step) que cruza vendas reais de imóveis
 (ITBI da Prefeitura de SP) com o estoque atual de anúncios (nonStop) para os
-47 bairros da carteira, respondendo: **em qual bairro anunciar** e **qual
+49 bairros da carteira, respondendo: **em qual bairro anunciar** e **qual
 imóvel priorizar** para gerar leads qualificados.
 
 Mesmo padrão de arquitetura do
@@ -125,7 +125,7 @@ o pipeline todo dia.
 bairro, só por cidade — a segmentação por bairro depende inteiramente do
 nome dele estar no termo pesquisado, um proxy razoável mas imperfeito.
 
-**Classificação Alto/Médio/Baixo**: tercil contra os 47 bairros inteiros,
+**Classificação Alto/Médio/Baixo**: tercil contra os 49 bairros inteiros,
 recalculado a cada busca — **não** muda com os filtros de bairro/preço da
 tela (um tercil sobre 2-3 bairros filtrados não teria sentido estatístico).
 
@@ -277,7 +277,7 @@ Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
 
 1. **Ranking de Oportunidade** — bairros por score (50% z-score do volume de
    vendas residenciais no último ano fechado + 50% z-score da tendência de
-   crescimento), normalizado 0–100 entre os 47 bairros.
+   crescimento), normalizado 0–100 entre os 49 bairros.
 2. **Prontidão para Campanha** — score combinando 6 sinais (liquidez/tendência
    15%, estoque compatível 20%, alinhamento de preço 15%, captação ativa 15%,
    qualidade×cobertura dos imóveis prioritários 25%, concentração de achados
@@ -285,7 +285,7 @@ Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
 3. **Perfil por Bairro** — metragem/preço/dormitórios/vagas que mais vendeu,
    com fallback para estimativa regional (vizinhos até 3km) quando a amostra
    do bairro é baixa (< 5 transações ou < 5 imóveis no perfil).
-3b. **Estoque × Demanda** — tabela com todos os 47 bairros: quantos anúncios
+3b. **Estoque × Demanda** — tabela com todos os 49 bairros: quantos anúncios
    ativos hoje batem o perfil vencedor vs. o volume de vendas do ano, com
    drill-down pra ver os anúncios específicos que compõem esse estoque.
 4. **Mapa** — bolhas por centróide real (coordenadas do estoque nonStop),
@@ -322,7 +322,7 @@ precisa ser replicada em `engine.js`, senão os dois lados divergem
 silenciosamente.
 
 **Regra sutil herdada da versão original**: o filtro de **preço** vale
-sobre os 47 bairros inteiros (inclusive como "doadores" de estimativa
+sobre os 49 bairros inteiros (inclusive como "doadores" de estimativa
 regional pro fallback de vizinhança — ver Perfil por Bairro), mas o filtro
 de **bairro** só entra depois, restringindo quais bairros geram linha e
 entram na normalização (z-score) do score — nunca restringe de quem um

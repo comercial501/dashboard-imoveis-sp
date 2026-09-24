@@ -24,8 +24,9 @@ ACCENTS = {
     "Ç": "C", "Ñ": "N",
 }
 
-# Os 47 bairros-alvo da carteira (ordem original de build_data.pl @TARGETS).
-# Único lugar onde essa lista existe — não há config externa.
+# Os 49 bairros-alvo da carteira (47 originais de build_data.pl @TARGETS +
+# Jardim América/Jardim Paulistano, adicionados em 2026-09-24 a pedido do
+# usuário). Único lugar onde essa lista existe — não há config externa.
 TARGETS = [
     "Vila Madalena", "Lapa", "Pinheiros", "Itaim Bibi", "Vila Olímpia", "Brooklin",
     "Chácara Santo Antônio", "Alto da Boa Vista", "Jardim dos Estados", "Jardim Petrópolis",
@@ -36,13 +37,16 @@ TARGETS = [
     "Paraíso", "Planalto Paulista", "Mirandópolis", "Chácara Inglesa", "Bosque da Saúde",
     "Vila Mariana", "Jardim Vila Mariana", "Vila Gumercindo", "Vila Firmiano Pinto",
     "Jardim da Glória", "Cambuci", "Vila da Saúde", "Ipiranga", "Mooca", "Tatuapé",
+    "Jardim América", "Jardim Paulistano",
 ]
-assert len(TARGETS) == 47, f"esperava 47 bairros-alvo, achei {len(TARGETS)}"
+assert len(TARGETS) == 49, f"esperava 49 bairros-alvo, achei {len(TARGETS)}"
 
 ALIASES = {
     "BROOKLIN PAULISTA": "BROOKLIN",
     "BROOKLIN NOVO": "BROOKLIN",
     "VILA POMPEIA": "POMPEIA",
+    "JD AMERICA": "JARDIM AMERICA",
+    "JD PAULISTANO": "JARDIM PAULISTANO",
 }
 
 _PAREN_RE = re.compile(r"\([^)]*\)")
