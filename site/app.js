@@ -697,7 +697,7 @@ function renderCaptacao() {
         `Perfil vencedor: ${fmtM2(g.perfil.area_band[0])}–${fmtM2(g.perfil.area_band[1])} · ${g.perfil.profile_quartos ?? "—"} dorm · ${g.perfil.profile_vagas ?? "—"} vaga(s)`));
     }
 
-    g.enderecos.forEach((e) => {
+    const appendAddrRow = (container, e) => {
       const nameLine = [e.endereco, e.unico ? badge("Endereço único", "neutral") : null];
       if (e.tem_unidade_a_venda_hoje) nameLine.push(badge("Já anunciado hoje", "warning"));
       let metaLine = `${e.n_vendas} venda${e.n_vendas === 1 ? "" : "s"}${e.area_min != null ? ` · ${fmtM2(e.area_min)}${e.area_max !== e.area_min ? "–" + fmtM2(e.area_max) : ""}` : ""}`;
@@ -708,7 +708,7 @@ function renderCaptacao() {
         ]),
         el("div", { class: "addr-price" }, e.preco_min === e.preco_max ? fmtMoneyCompact(e.preco_min) : `${fmtMoneyCompact(e.preco_min)} – ${fmtMoneyCompact(e.preco_max)}`),
       ]);
-      details.appendChild(row);
+      container.appendChild(row);
       if (e.tem_unidade_a_venda_hoje && e.unidades_a_venda_hoje && e.unidades_a_venda_hoje.length) {
         const links = el("div", { class: "addr-row", style: "padding-top:0; padding-bottom:10px" }, [
           el("div", { class: "small muted" }, [
@@ -719,9 +719,35 @@ function renderCaptacao() {
             ]),
           ]),
         ]);
-        details.appendChild(links);
+        container.appendChild(links);
       }
-    });
+    };
+
+    // Bairros com muitos endereços elegíveis (ex: Jardim Paulista, Vila
+    // Mariana) deixavam o grupo expandido gigante. Mostra só os 15 mais
+    // líquidos (topo da ordenação já existente — sem anúncio ativo hoje
+    // primeiro, mais vendas primeiro) e esconde o resto atrás de "ver
+    // todos", do mais quente pro mais frio.
+    const TOP_N = 15;
+    const top = g.enderecos.slice(0, TOP_N);
+    const rest = g.enderecos.slice(TOP_N);
+    top.forEach((e) => appendAddrRow(details, e));
+
+    if (rest.length) {
+      const restBox = el("div", { class: "captacao-rest", style: "display:none" });
+      rest.forEach((e) => appendAddrRow(restBox, e));
+      const toggle = el("a", { href: "#", class: "captacao-toggle" }, `Ver todos os ${g.enderecos.length} endereços (do mais quente ao mais frio) ↓`);
+      toggle.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        const showing = restBox.style.display !== "none";
+        restBox.style.display = showing ? "none" : "";
+        toggle.textContent = showing
+          ? `Ver todos os ${g.enderecos.length} endereços (do mais quente ao mais frio) ↓`
+          : `Mostrar só os ${TOP_N} mais líquidos ↑`;
+      });
+      details.appendChild(toggle);
+      details.appendChild(restBox);
+    }
     box.appendChild(details);
   });
 }
