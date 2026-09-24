@@ -179,10 +179,10 @@ function decodeRecords(raw, priceMin, priceMax) {
   };
 
   const itbi = [];
-  for (const [bIdx, sheetYear, day, valor, area, addrIdx] of raw.itbi) {
+  for (const [bIdx, sheetYear, day, valor, area, addrIdx, isCompraVenda] of raw.itbi) {
     if (!inPriceRange(valor)) continue;
     itbi.push({
-      bairro: raw.bairros[bIdx], sheetYear, day, valor, area,
+      bairro: raw.bairros[bIdx], sheetYear, day, valor, area, isCompraVenda,
       addrKey: addrIdx, addrDisplay: addrIdx != null ? raw.addr_display[addrIdx] : null,
     });
   }
@@ -212,13 +212,25 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   const { itbi: itbiRecords, usn: usnRecords } = decodeRecords(raw, priceMin, priceMax);
 
   // --- 1. Agregação ITBI por bairro/ano + pares (área,valor) ---
-  const yearlyValores = {}, pairsAllYears = {}, monthCounts = {};
-  TARGETS.forEach((b) => { yearlyValores[b] = { [yearPrev]: [], [yearFull]: [], [yearCurr]: [] }; pairsAllYears[b] = []; monthCounts[b] = {}; });
+  // count = QUALQUER transação residencial válida (giro do bairro é giro,
+  // mesmo com valor não confiável pra preço). avg_valor/median_valor e
+  // pairsAllYears (faixa de metragem/preço) usam SÓ isCompraVenda=true —
+  // ver comentário equivalente em scripts/engine.py._aggregate_itbi.
+  const yearlyCount = {}, yearlyValoresVenda = {}, pairsAllYears = {}, monthCounts = {};
+  TARGETS.forEach((b) => {
+    yearlyCount[b] = { [yearPrev]: 0, [yearFull]: 0, [yearCurr]: 0 };
+    yearlyValoresVenda[b] = { [yearPrev]: [], [yearFull]: [], [yearCurr]: [] };
+    pairsAllYears[b] = [];
+    monthCounts[b] = {};
+  });
 
   for (const r of itbiRecords) {
-    if (!(r.bairro in yearlyValores)) continue;
-    if (r.sheetYear in yearlyValores[r.bairro]) yearlyValores[r.bairro][r.sheetYear].push(r.valor);
-    if (r.area != null) pairsAllYears[r.bairro].push({ area: r.area, valor: r.valor });
+    if (!(r.bairro in yearlyCount)) continue;
+    if (r.sheetYear in yearlyCount[r.bairro]) {
+      yearlyCount[r.bairro][r.sheetYear]++;
+      if (r.isCompraVenda) yearlyValoresVenda[r.bairro][r.sheetYear].push(r.valor);
+    }
+    if (r.area != null && r.isCompraVenda) pairsAllYears[r.bairro].push({ area: r.area, valor: r.valor });
     if (r.day != null) {
       try {
         const [y, m] = excelSerialToYm(r.day);
@@ -232,8 +244,8 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   TARGETS.forEach((b) => {
     yearly[b] = {};
     [yearPrev, yearFull, yearCurr].forEach((y) => {
-      const vals = yearlyValores[b][y];
-      yearly[b][y] = { count: vals.length, avg_valor: round(mean(vals), 2), median_valor: round(median(vals), 2) };
+      const vals = yearlyValoresVenda[b][y];
+      yearly[b][y] = { count: yearlyCount[b][y], avg_valor: round(mean(vals), 2), median_valor: round(median(vals), 2) };
     });
   });
 

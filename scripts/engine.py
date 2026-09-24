@@ -68,18 +68,30 @@ def _round(v, digits=1):
 # 1. Agregação por bairro/ano + pares (área, valor) pra faixa de metragem
 # ---------------------------------------------------------------------------
 def _aggregate_itbi(itbi_records, years):
-    yearly_valores = {b: {y: [] for y in years} for b in TARGETS}
+    """Volume (`count`) conta QUALQUER transação residencial válida — giro
+    do bairro é giro, mesmo quando o valor não é confiável pra preço.
+    `avg_valor`/`median_valor` e `pairs_all_years` (faixa de metragem/preço,
+    Perfil Vencedor) usam SÓ `is_compra_venda=True` — ~11,6% das linhas são
+    integralização de capital, leilão, herança, divórcio, permuta etc.,
+    com valor sistematicamente mais baixo que preço de mercado (medido em
+    produção: mediana R$605mil em "compra e venda" vs. R$150-460mil nas
+    outras naturezas) — decisão explícita do usuário de não deixar isso
+    contaminar preço/metragem, mas manter contando pra volume/liquidez."""
+    yearly_count = {b: {y: 0 for y in years} for b in TARGETS}
+    yearly_valores_venda = {b: {y: [] for y in years} for b in TARGETS}
     pairs_all_years = {b: [] for b in TARGETS}
     month_counts = {b: {} for b in TARGETS}  # bairro -> (ano,mes) -> count
 
     for r in itbi_records:
         b = r["bairro"]
-        if b not in yearly_valores:
+        if b not in yearly_count:
             continue
         y = r["sheet_year"]
-        if y in yearly_valores[b]:
-            yearly_valores[b][y].append(r["valor"])
-        if r["area"] is not None:
+        if y in yearly_count[b]:
+            yearly_count[b][y] += 1
+            if r["is_compra_venda"]:
+                yearly_valores_venda[b][y].append(r["valor"])
+        if r["area"] is not None and r["is_compra_venda"]:
             pairs_all_years[b].append({"area": r["area"], "valor": r["valor"]})
         if r["day"] is not None:
             try:
@@ -92,9 +104,9 @@ def _aggregate_itbi(itbi_records, years):
     for b in TARGETS:
         yearly[b] = {}
         for y in years:
-            vals = yearly_valores[b][y]
+            vals = yearly_valores_venda[b][y]
             yearly[b][y] = {
-                "count": len(vals),
+                "count": yearly_count[b][y],
                 "avg_valor": _round(mean(vals), 2),
                 "median_valor": _round(median(vals), 2),
             }

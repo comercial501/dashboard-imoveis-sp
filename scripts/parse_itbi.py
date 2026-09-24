@@ -29,14 +29,28 @@ VALOR_RE = re.compile(r"^-?\d+(\.\d+)?$")
 
 AREA_CAP = 600  # m² — ver spec §6.2: "Área Construída" às vezes guarda a área do prédio inteiro
 
+# Coluna H = "Natureza de Transação". Só "1.Compra e venda" é venda de
+# mercado de verdade — o resto (integralização de capital, leilão, herança,
+# divórcio, permuta, etc — ~11,6% das linhas residenciais em 2025) usa
+# valor contábil/simbólico, sistematicamente mais baixo que preço de
+# mercado (mediana R$605mil em "compra e venda" vs. R$150-460mil nas
+# outras naturezas, medido em produção). `is_compra_venda` é usado pelo
+# motor de cálculo pra filtrar SÓ a mediana de preço e a faixa de
+# metragem — volume/liquidez continuam contando qualquer transação
+# residencial válida (decisão do usuário: giro do bairro é giro, mesmo
+# quando não é um preço confiável).
+NATUREZA_COMPRA_VENDA_RE = re.compile(r"^1\.")
+
 
 def parse_itbi_file(path):
     """Retorna (records, stats) onde cada record é:
-    {bairro, sheet_year, day, valor, area, addr_key, addr_display}
-    e stats = {"rows_seen": int, "rows_matched": int, "sheets": [nomes]}."""
+    {bairro, sheet_year, day, valor, area, addr_key, addr_display, is_compra_venda}
+    e stats = {"rows_seen": int, "rows_matched": int, "duplicates_removed": int, "sheets": [nomes]}."""
     records = []
     rows_seen = 0
     rows_matched = 0
+    duplicates_removed = 0
+    seen_exact = set()
     sheet_names = []
 
     with Workbook(path) as wb:
@@ -68,8 +82,6 @@ def parse_itbi_file(path):
                 if valor <= 0:
                     continue
 
-                rows_matched += 1
-
                 day = None
                 data_raw = cells.get("J")
                 if data_raw is not None:
@@ -77,6 +89,25 @@ def parse_itbi_file(path):
                         day = int(float(data_raw))
                     except ValueError:
                         pass
+
+                street = cells.get("B")
+                number = cells.get("C")
+
+                # Deduplicação de linhas EXATAMENTE idênticas (mesmo bairro +
+                # rua + número + valor + data) — medido em produção: ~2,6%
+                # das linhas residenciais válidas de 2025 são duplicatas
+                # exatas assim, provavelmente registro repetido da própria
+                # Prefeitura (não dá pra saber com certeza — em teoria 2
+                # unidades idênticas vendidas no mesmo prédio no mesmo dia
+                # pelo mesmo preço também bateria essa chave, mas é bem
+                # menos provável que duplicidade de registro).
+                dedup_key = (bairro, (street or "").strip().upper(), (number or "").strip(), round(valor, 2), day)
+                if dedup_key in seen_exact:
+                    duplicates_removed += 1
+                    continue
+                seen_exact.add(dedup_key)
+
+                rows_matched += 1
 
                 area = None
                 area_raw = cells.get("W")
@@ -88,8 +119,9 @@ def parse_itbi_file(path):
                     except ValueError:
                         pass
 
-                street = cells.get("B")
-                number = cells.get("C")
+                natureza = (cells.get("H") or "").strip()
+                is_compra_venda = bool(NATUREZA_COMPRA_VENDA_RE.match(natureza))
+
                 akey = address_key(bairro, street, number)
                 adisp = None
                 if akey:
@@ -103,9 +135,13 @@ def parse_itbi_file(path):
                     "area": area,
                     "addr_key": akey,
                     "addr_display": adisp,
+                    "is_compra_venda": is_compra_venda,
                 })
 
-    return records, {"rows_seen": rows_seen, "rows_matched": rows_matched, "sheets": sheet_names}
+    return records, {
+        "rows_seen": rows_seen, "rows_matched": rows_matched,
+        "duplicates_removed": duplicates_removed, "sheets": sheet_names,
+    }
 
 
 def parse_itbi_years(year_to_path):
@@ -113,6 +149,7 @@ def parse_itbi_years(year_to_path):
     all_records = []
     total_seen = 0
     total_matched = 0
+    total_duplicates = 0
     sheets_found = 0
     for year in sorted(year_to_path):
         path = year_to_path[year]
@@ -122,10 +159,12 @@ def parse_itbi_years(year_to_path):
         all_records.extend(records)
         total_seen += stats["rows_seen"]
         total_matched += stats["rows_matched"]
+        total_duplicates += stats["duplicates_removed"]
         sheets_found += len(stats["sheets"])
     return all_records, {
         "total_rows_seen": total_seen,
         "total_rows_matched": total_matched,
+        "duplicates_removed": total_duplicates,
         "sheets_found": sheets_found,
     }
 

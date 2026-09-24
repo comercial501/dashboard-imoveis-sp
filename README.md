@@ -148,6 +148,33 @@ selo):
    da conta, sem hífen) no `.env` local e como Secrets do repositório no
    GitHub.
 
+## Limpeza de dados do ITBI (auditoria de 2026-09-24)
+
+Uma auditoria completa da metodologia encontrou dois problemas reais nos
+dados brutos do ITBI, corrigidos em `parse_itbi.py`/`engine.py`:
+
+- **Natureza de transação**: ~11,6% das linhas residenciais válidas não são
+  venda de mercado — são integralização de capital, leilão, herança,
+  divórcio, permuta etc. (coluna "Natureza de Transação" do ITBI), com
+  valor sistematicamente mais baixo que compra e venda genuína (medido em
+  produção, 2025: mediana R$605mil em "1.Compra e venda" vs. R$150-460mil
+  nessas outras naturezas). Isso puxava a mediana de preço pago pra baixo
+  artificialmente. **Decisão**: `avg_valor`/`median_valor`/faixa de
+  metragem (Perfil Vencedor) agora usam só `is_compra_venda=True`; volume
+  de vendas e liquidez continuam contando qualquer transação residencial
+  válida (giro do bairro é giro, mesmo quando o valor não é confiável pra
+  preço). Lançamentos **não** foram adicionados a esse filtro — continuam
+  contando pra mediana/perfil, só saem da Captação Ativa (decisão do
+  usuário).
+- **Duplicidade exata**: ~2,6% das linhas eram duplicatas exatas (mesmo
+  bairro+rua+número+valor+data) — colapsadas para 1 por grupo.
+
+Isso reduz alguns gaps de preço que estavam inflados por ruído (ex:
+Ipiranga caiu de 250% pra 230% de gap), mas não elimina completamente
+diferenças legítimas entre "o que se pagou historicamente" e "o que se
+pede hoje" — um gap grande que sobra depois da limpeza pode ainda refletir
+mercado real, vale conferir com conhecimento local.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
