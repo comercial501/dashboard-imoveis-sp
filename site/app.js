@@ -821,7 +821,7 @@ function renderEstoqueDemanda() {
       {
         key: "detalhes", label: "Detalhes", sortable: false, render: (r) => {
           const link = el("a", { href: "#" }, "Ver lista completa");
-          link.addEventListener("click", (e) => { e.preventDefault(); toggleEstoqueDetalhe(r.bairro); });
+          link.addEventListener("click", (e) => { e.preventDefault(); toggleEstoqueDetalhe(r.bairro, e.currentTarget); });
           return link;
         },
       },
@@ -830,11 +830,21 @@ function renderEstoqueDemanda() {
   });
 }
 
-function toggleEstoqueDetalhe(bairro) {
-  const existing = document.getElementById("estoque-detalhe-box");
+// Acordeão: a linha de detalhe é inserida logo abaixo da linha clicada (não
+// no fim da tabela inteira) — com 47 bairros na lista, um clique numa linha
+// do topo abria a resposta lá embaixo, fora da tela, parecendo que o link
+// não fazia nada.
+function toggleEstoqueDetalhe(bairro, linkEl) {
+  const table = linkEl.closest("table");
+  const clickedRow = linkEl.closest("tr");
+  const existing = table.querySelector(".estoque-detalhe-row");
+  const wasOpenForSameRow = existing && existing.dataset.bairro === bairro;
   if (existing) existing.remove();
+  if (wasOpenForSameRow) return;
+
   const listings = (DATA._matchingListingsByBairro && DATA._matchingListingsByBairro[bairro]) || [];
-  const box = el("section", { class: "card", id: "estoque-detalhe-box" }, [
+  const nCols = clickedRow.children.length;
+  const box = el("div", { class: "card", style: "margin:0" }, [
     el("h2", { style: "font-size:14.5px" }, `Estoque no perfil vencedor — ${bairro}`),
     el("div", { class: "card-sub" }, `${listings.length} anúncio${listings.length === 1 ? "" : "s"} dentro da faixa de metragem vencedora do bairro.`),
   ]);
@@ -849,8 +859,11 @@ function toggleEstoqueDetalhe(bairro) {
       box.appendChild(row);
     });
   }
-  document.getElementById("estoque-demanda-table").after(box);
-  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  const detalheRow = el("tr", { class: "estoque-detalhe-row", "data-bairro": bairro }, [
+    el("td", { colspan: String(nCols) }, [box]),
+  ]);
+  clickedRow.after(detalheRow);
+  detalheRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 // ---------------------------------------------------------------------------
