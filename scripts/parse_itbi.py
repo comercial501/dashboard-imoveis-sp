@@ -122,6 +122,29 @@ def parse_itbi_file(path):
                 natureza = (cells.get("H") or "").strip()
                 is_compra_venda = bool(NATUREZA_COMPRA_VENDA_RE.match(natureza))
 
+                # Coluna L = % do imóvel efetivamente transacionado (auditoria
+                # de 2026-09-24: confirmado comparando com as colunas K/M —
+                # K é o valor venal de referência do imóvel INTEIRO, M = K *
+                # L/100). ~20% das linhas "1.Compra e venda" residenciais têm
+                # L < 100 — são transferências de FRAÇÃO ideal (partilha de
+                # herança/divórcio entre coproprietários, doação de parte,
+                # etc.), não venda do imóvel inteiro. O `valor` (coluna I)
+                # dessas linhas é o preço só da fração, não do imóvel — misturar
+                # com vendas de 100% é comparar maçã com pedaço de maçã (ex:
+                # Rua Jose Maria Lisboa 356: uma venda de R$1,5M virou 2 linhas,
+                # 79,82% por R$1,405mil + 20,18% por R$95mil — sem esse filtro
+                # o R$95mil parecia um preço real do apartamento inteiro).
+                # `is_full_transfer` é usado igual `is_compra_venda`: só filtra
+                # preço/metragem, nunca volume/liquidez (giro é giro mesmo numa
+                # transferência parcial).
+                pct_raw = cells.get("L")
+                is_full_transfer = True
+                if pct_raw is not None:
+                    try:
+                        is_full_transfer = float(pct_raw) >= 99.99
+                    except ValueError:
+                        pass
+
                 akey = address_key(street, number)
                 adisp = None
                 if akey:
@@ -136,6 +159,7 @@ def parse_itbi_file(path):
                     "addr_key": akey,
                     "addr_display": adisp,
                     "is_compra_venda": is_compra_venda,
+                    "is_full_transfer": is_full_transfer,
                 })
 
     return records, {

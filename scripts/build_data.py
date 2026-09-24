@@ -101,7 +101,7 @@ def build_raw_payload(itbi_records, usn_records, years):
         aidx = intern_addr(r["addr_key"], r["addr_display"])
         itbi_out.append([
             bairro_idx[r["bairro"]], r["sheet_year"], r["day"], r["valor"], r["area"], aidx,
-            r["is_compra_venda"],
+            r["is_compra_venda"], r["is_full_transfer"],
         ])
 
     usn_out = []

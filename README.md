@@ -229,6 +229,47 @@ Os dois motores (Python e JavaScript) foram revalidados campo a campo após
 essa mudança — 0 divergências em `captacao_ativa` (3.013 endereços),
 `bairros`, `ranking`, `imoveis_prioritarios` e `valor_oportunidade`.
 
+Uma quarta rodada (2026-09-24, motivada pelo usuário conferindo endereços
+do Jardim Paulista pessoalmente e achando faixas de preço "impossíveis"
+como R$95mil–R$1,4M pro mesmo apartamento) encontrou o problema mais
+significativo de toda a auditoria:
+
+- **~20% das linhas "1.Compra e venda" são transferência de FRAÇÃO ideal,
+  não do imóvel inteiro.** O ITBI tem uma coluna (L) com o percentual do
+  imóvel efetivamente transacionado — confirmado comparando com as colunas
+  de valor venal de referência (K = referência do imóvel inteiro, M = K ×
+  L/100). Quando um imóvel é herdado por vários herdeiros, partilhado num
+  divórcio, ou tem uma fração doada, cada transferência de fração vira uma
+  linha própria no ITBI com `L < 100` — e o `valor` dessa linha é o preço
+  só da fração, não do apartamento inteiro. **Medido: 4.529 das 22.760
+  linhas "compra e venda" residenciais da carteira (19,9%, quase 1 em
+  cada 5) são transferências parciais.** Exemplo real — Rua Jose Maria
+  Lisboa, 356: uma venda de R$1,5M foi registrada em 2 linhas de ITBI no
+  mesmo dia (79,82% por R$1.405.000 + 20,18% por R$95.000); sem esse
+  filtro, o R$95mil parecia ser o preço de um apartamento inteiro de
+  137m², quando na origem é só a 5ª parte de uma venda de R$1,5M.
+  **Decisão**: nova checagem `is_full_transfer` (L ≥ 99,99%, tolerância só
+  pra ruído de arredondamento), combinada com `is_compra_venda` em TODO
+  lugar que calcula preço/metragem (mediana de bairro, faixa de metragem
+  do Perfil Vencedor, faixa de preço da Captação Ativa) — igual às
+  correções anteriores, volume/liquidez continua contando qualquer
+  transação, fracionária ou não.
+
+Essa é a correção de maior impacto de toda a auditoria (19,9% das linhas
+válidas afetadas, contra 11,6% da natureza de transação e 2,6% das
+duplicatas). Revalidado Python × JavaScript de novo: 0 divergências em
+`captacao_ativa` (2.811 endereços), `bairros` e `imoveis_prioritarios`
+(1.820 imóveis).
+
+**Limitação conhecida que continua**: a checagem de coerência de preço por
+endereço (`ADDR_MAX_RATIO = 20x`) não pega tudo — ex: Avenida Brig Luis
+Antonio, 3249 ainda mostra R$59.561–R$480.000 (8x) pra apartamentos de
+74–77m², mesmo já filtrando natureza e fração. Não é um bug de pipeline
+identificado (a linha é "compra e venda", 100% do imóvel) — pode ser uma
+venda genuinamente distressed (leilão, favor familiar) que a Prefeitura
+registrou como compra e venda comum. Vale conferir esses casos residuais
+pessoalmente (Google/QuintoAndar) antes de usar como referência de preço.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`

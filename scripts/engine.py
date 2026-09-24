@@ -77,16 +77,24 @@ def _round(v, digits=1):
 # ---------------------------------------------------------------------------
 # 1. Agregação por bairro/ano + pares (área, valor) pra faixa de metragem
 # ---------------------------------------------------------------------------
+def _is_valid_sale(r):
+    """Só conta pra preço/metragem quando é (a) "1.Compra e venda" de
+    mercado E (b) transferência de 100% do imóvel (coluna L do ITBI —
+    ~20% das linhas "compra e venda" são transferência de FRAÇÃO ideal
+    entre coproprietários — herança, divórcio, doação de parte — cujo
+    `valor` corresponde só à fração, não ao imóvel inteiro; ver
+    parse_itbi.py). Volume/liquidez continua contando qualquer transação
+    residencial válida, cheia ou fracionária — giro é giro."""
+    return r["is_compra_venda"] and r["is_full_transfer"]
+
+
 def _aggregate_itbi(itbi_records, years):
     """Volume (`count`) conta QUALQUER transação residencial válida — giro
     do bairro é giro, mesmo quando o valor não é confiável pra preço.
     `avg_valor`/`median_valor` e `pairs_all_years` (faixa de metragem/preço,
-    Perfil Vencedor) usam SÓ `is_compra_venda=True` — ~11,6% das linhas são
-    integralização de capital, leilão, herança, divórcio, permuta etc.,
-    com valor sistematicamente mais baixo que preço de mercado (medido em
-    produção: mediana R$605mil em "compra e venda" vs. R$150-460mil nas
-    outras naturezas) — decisão explícita do usuário de não deixar isso
-    contaminar preço/metragem, mas manter contando pra volume/liquidez."""
+    Perfil Vencedor) usam só vendas válidas (ver `_is_valid_sale`) —
+    decisão explícita do usuário de não deixar isso contaminar
+    preço/metragem, mas manter contando pra volume/liquidez."""
     yearly_count = {b: {y: 0 for y in years} for b in TARGETS}
     yearly_valores_venda = {b: {y: [] for y in years} for b in TARGETS}
     pairs_all_years = {b: [] for b in TARGETS}
@@ -97,11 +105,12 @@ def _aggregate_itbi(itbi_records, years):
         if b not in yearly_count:
             continue
         y = r["sheet_year"]
+        valid = _is_valid_sale(r)
         if y in yearly_count[b]:
             yearly_count[b][y] += 1
-            if r["is_compra_venda"]:
+            if valid:
                 yearly_valores_venda[b][y].append(r["valor"])
-        if r["area"] is not None and r["is_compra_venda"]:
+        if r["area"] is not None and valid:
             pairs_all_years[b].append({"area": r["area"], "valor": r["valor"]})
         if r["day"] is not None:
             try:
@@ -336,12 +345,15 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
             if r["sheet_year"] in liquidez[r["bairro"]]:
                 liquidez[r["bairro"]][r["sheet_year"]]["total"] += 1
 
-        # Só "1.Compra e venda" conta como venda de mercado pro histórico
-        # de PREÇO de um endereço (mesmo critério da mediana de bairro) —
-        # herança/doação/integralização de capital tem valor contábil, não
-        # preço pago de verdade, e não deveriam contar como "n vendas" nem
-        # entrar na faixa de preço exibida pro usuário.
-        recs = [r for r in all_recs if r["is_compra_venda"]]
+        # Só venda válida (compra e venda de mercado E 100% do imóvel — ver
+        # _is_valid_sale) conta como "venda" pro histórico de PREÇO de um
+        # endereço: herança/doação/integralização de capital tem valor
+        # contábil, e transferência de fração ideal (coproprietário vendendo
+        # só a sua parte) tem valor proporcional à fração, não ao imóvel
+        # inteiro — nenhum dos dois é preço de mercado do apartamento e não
+        # deveriam contar como "n vendas" nem entrar na faixa de preço
+        # exibida pro usuário.
+        recs = [r for r in all_recs if _is_valid_sale(r)]
         if not recs:
             n_addr_sem_venda_real += 1
             continue
