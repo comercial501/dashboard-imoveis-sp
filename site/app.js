@@ -297,6 +297,62 @@ function showPanel(id) {
 document.addEventListener("DOMContentLoaded", () => showPanel("visao-geral"));
 
 // ---------------------------------------------------------------------------
+// "Baixar PDF" — impressão nativa do navegador (sem lib de PDF em JS: ver
+// @media print em styles.css). Um botão global baixa o painel ativo
+// inteiro; a Captação Ativa também tem um link por bairro (ver
+// renderCaptacao) que isola só aquele grupo antes de imprimir.
+// ---------------------------------------------------------------------------
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("pdf-btn");
+  if (btn) btn.addEventListener("click", () => window.print());
+});
+
+window.addEventListener("beforeprint", () => {
+  if (document.body.classList.contains("printing-captacao-group")) return; // printCaptacaoGroup já cuida disso
+  const activePanel = document.querySelector(".panel.active");
+  if (!activePanel || activePanel.dataset.panel !== "captacao") return;
+  // Imprimindo a Captação Ativa inteira: expande todo mundo (senão um
+  // <details> fechado ou um "ver todos" não expandido não aparece no PDF).
+  activePanel.querySelectorAll(".captacao-group").forEach((d) => {
+    d.dataset.wasOpen = d.open ? "1" : "0";
+    d.open = true;
+  });
+  activePanel.querySelectorAll(".captacao-rest").forEach((r) => {
+    r.dataset.prevDisplay = r.style.display;
+    r.style.display = "";
+  });
+});
+window.addEventListener("afterprint", () => {
+  document.querySelectorAll(".captacao-group[data-was-open]").forEach((d) => {
+    d.open = d.dataset.wasOpen === "1";
+    delete d.dataset.wasOpen;
+  });
+  document.querySelectorAll(".captacao-rest[data-prev-display]").forEach((r) => {
+    r.style.display = r.dataset.prevDisplay;
+    delete r.dataset.prevDisplay;
+  });
+});
+
+function printCaptacaoGroup(detailsEl) {
+  const wasOpen = detailsEl.open;
+  detailsEl.open = true;
+  const rest = detailsEl.querySelector(".captacao-rest");
+  const prevRestDisplay = rest ? rest.style.display : null;
+  if (rest) rest.style.display = "";
+  detailsEl.classList.add("print-only-this");
+  document.body.classList.add("printing-captacao-group");
+  const cleanup = () => {
+    detailsEl.classList.remove("print-only-this");
+    document.body.classList.remove("printing-captacao-group");
+    detailsEl.open = wasOpen;
+    if (rest) rest.style.display = prevRestDisplay;
+    window.removeEventListener("afterprint", cleanup);
+  };
+  window.addEventListener("afterprint", cleanup);
+  window.print();
+}
+
+// ---------------------------------------------------------------------------
 // Filtros (bairro multi-seleção + faixa de preço) — recalcula tudo via
 // engine.js quando ativos.
 // ---------------------------------------------------------------------------
@@ -686,8 +742,14 @@ function renderCaptacao() {
   }
   DATA.captacao_estrategica.forEach((g) => {
     const details = el("details", { class: "captacao-group" });
+    const pdfLink = el("a", { href: "#", class: "captacao-pdf-link" }, "Baixar PDF ↓");
+    pdfLink.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      printCaptacaoGroup(details);
+    });
     const summary = el("summary", {}, [
-      el("span", {}, [g.bairro, g.flag_prioridade_maxima ? badge("Prioridade Máxima", "gold") : null, searchInterestBadge(DATA.bairros[g.bairro])]),
+      el("span", {}, [g.bairro, g.flag_prioridade_maxima ? badge("Prioridade Máxima", "gold") : null, searchInterestBadge(DATA.bairros[g.bairro]), pdfLink]),
       el("span", { class: "n" }, `${g.enderecos.length} endereço${g.enderecos.length === 1 ? "" : "s"}`),
     ]);
     details.appendChild(summary);
