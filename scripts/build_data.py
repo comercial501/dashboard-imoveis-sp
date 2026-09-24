@@ -132,6 +132,7 @@ def build_raw_payload(itbi_records, usn_records, years):
             "launch_window_days": engine.LAUNCH_WINDOW_DAYS,
             "addr_min_valor": engine.ADDR_MIN_VALOR,
             "addr_max_ratio": engine.ADDR_MAX_RATIO,
+            "addr_max_ratio_area": engine.ADDR_MAX_RATIO_AREA,
             "valor_oportunidade_min_desconto": engine.VALOR_OPORTUNIDADE_MIN_DESCONTO,
             "valor_oportunidade_atencao_desconto": engine.VALOR_OPORTUNIDADE_ATENCAO_DESCONTO,
             "valor_oportunidade_min_vendas_primary": engine.VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY,

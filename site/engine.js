@@ -33,6 +33,17 @@ function percentile(p, values) {
   return vals[lo] + (vals[hi] - vals[lo]) * frac;
 }
 
+function trimOutliersIqr(values, k = 1.5) {
+  const vals = values.filter((v) => v != null);
+  if (vals.length < 4) return vals;
+  const q1 = percentile(25, vals), q3 = percentile(75, vals);
+  const iqr = q3 - q1;
+  if (iqr === 0) return vals;
+  const lo = q1 - k * iqr, hi = q3 + k * iqr;
+  const filtered = vals.filter((v) => v >= lo && v <= hi);
+  return filtered.length ? filtered : vals;
+}
+
 function modeOf(values) {
   const vals = values.filter((v) => v != null);
   if (!vals.length) return null;
@@ -244,7 +255,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   TARGETS.forEach((b) => {
     yearly[b] = {};
     [yearPrev, yearFull, yearCurr].forEach((y) => {
-      const vals = yearlyValoresVenda[b][y];
+      const vals = trimOutliersIqr(yearlyValoresVenda[b][y]);
       yearly[b][y] = { count: yearlyCount[b][y], avg_valor: round(mean(vals), 2), median_valor: round(median(vals), 2) };
     });
   });
@@ -286,7 +297,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   const stockTotal = {}, askingMedian = {};
   TARGETS.forEach((b) => {
     stockTotal[b] = usnByBairro[b].length;
-    askingMedian[b] = round(median(usnByBairro[b].map((r) => r.valor).filter((v) => v != null)), 2);
+    askingMedian[b] = round(median(trimOutliersIqr(usnByBairro[b].map((r) => r.valor))), 2);
   });
 
   // --- 3. Perfil vencedor + fallback regional (Mudança 1) ---
@@ -371,6 +382,16 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     if (vmin > 0 && vmax / vmin > C.addr_max_ratio) return true;
     return false;
   };
+  // area_min/area_max de um endereço com 2+ unidades — [null,null] se a
+  // razão máx/mín for grande demais pra confiar (provável erro de
+  // digitação, não prédio misto de verdade). NÃO exclui o endereço da
+  // Captação Ativa, só esconde a metragem exibida.
+  const coherentAreaRange = (areas) => {
+    if (!areas.length) return [null, null];
+    const amin = Math.min(...areas), amax = Math.max(...areas);
+    if (areas.length >= 2 && amin > 0 && amax / amin > C.addr_max_ratio_area) return [null, null];
+    return [amin, amax];
+  };
   const isLaunch = (daysIn) => {
     const days = daysIn.filter((d) => d != null).sort((a, b) => a - b);
     if (days.length < C.launch_min_count) return false;
@@ -426,10 +447,11 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
 
     for (const r of recs) if (liquidez[bairro][r.sheetYear]) liquidez[bairro][r.sheetYear].revenda++;
     const areas = recs.map((r) => r.area).filter((a) => a != null);
+    const [areaMin, areaMax] = coherentAreaRange(areas);
     captacaoAtiva.push({
       bairro, addr_key: addrKey, endereco, n_vendas: recs.length,
       preco_min: Math.min(...valores), preco_max: Math.max(...valores), preco_medio: round(mean(valores), 2),
-      area_min: areas.length ? Math.min(...areas) : null, area_max: areas.length ? Math.max(...areas) : null,
+      area_min: areaMin, area_max: areaMax,
       tem_unidade_a_venda_hoje: temHoje, unidades_a_venda_hoje: unidadesHoje,
     });
   }

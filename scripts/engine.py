@@ -33,6 +33,7 @@ from normalize import (
     nearest_neighbors,
     normalize_0_100,
     percentile,
+    trim_outliers_iqr,
     zscore_map,
 )
 from normalize import TARGETS
@@ -46,6 +47,15 @@ LAUNCH_MIN_COUNT = 5
 LAUNCH_WINDOW_DAYS = 182
 ADDR_MIN_VALOR = 30_000
 ADDR_MAX_RATIO = 20
+# Razão máx/mín de área (m²) num mesmo endereço acima da qual a faixa
+# exibida (area_min/area_max) vira None (não confiável) — NÃO exclui o
+# endereço da Captação Ativa, só esconde a metragem exibida (achado da
+# auditoria de 2026-09-24: medido em produção, 90% dos endereços com 2+
+# vendas de "compra e venda" têm razão ≤1,55x, 99% ≤2,6x; 4x já cobre até
+# prédios com unidades bem diferentes — tipo garden + cobertura — sem
+# deixar passar erro de digitação óbvio, tipo "29m² e 480m²" no mesmo
+# endereço).
+ADDR_MAX_RATIO_AREA = 4
 VALOR_OPORTUNIDADE_MIN_DESCONTO = 0.20
 VALOR_OPORTUNIDADE_ATENCAO_DESCONTO = 0.30
 VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY = 10
@@ -104,7 +114,10 @@ def _aggregate_itbi(itbi_records, years):
     for b in TARGETS:
         yearly[b] = {}
         for y in years:
-            vals = yearly_valores_venda[b][y]
+            # trim_outliers_iqr protege a mediana contra erro de digitação
+            # isolado (ex: um valor com um zero a mais/a menos) — ver
+            # achado da auditoria de 2026-09-24 no README.
+            vals = trim_outliers_iqr(yearly_valores_venda[b][y])
             yearly[b][y] = {
                 "count": yearly_count[b][y],
                 "avg_valor": _round(mean(vals), 2),
@@ -159,8 +172,10 @@ def _aggregate_usn(usn_records):
             centroids[b] = None
 
     stock_total = {b: len(by_bairro[b]) for b in TARGETS}
+    # trim_outliers_iqr protege contra anúncio com erro de digitação (ex:
+    # um zero a mais no valor) contaminando a mediana pedida do bairro.
     asking_median = {
-        b: _round(median([r["valor"] for r in by_bairro[b] if r["valor"] is not None]), 2)
+        b: _round(median(trim_outliers_iqr([r["valor"] for r in by_bairro[b] if r["valor"] is not None])), 2)
         for b in TARGETS
     }
     return by_bairro, centroids, stock_total, asking_median
@@ -255,6 +270,20 @@ def _price_incoherent(valores):
     return False
 
 
+def _coherent_area_range(areas):
+    """area_min/area_max de um endereço com 2+ unidades — None/None se a
+    razão máx/mín for grande demais pra confiar (provável erro de
+    digitação numa das linhas, não prédio misto de verdade). NÃO exclui o
+    endereço da Captação Ativa, só esconde a metragem exibida — ver
+    ADDR_MAX_RATIO_AREA."""
+    if not areas:
+        return None, None
+    amin, amax = min(areas), max(areas)
+    if len(areas) >= 2 and amin > 0 and (amax / amin) > ADDR_MAX_RATIO_AREA:
+        return None, None
+    return amin, amax
+
+
 def _is_launch(days):
     days = sorted(d for d in days if d is not None)
     if len(days) < LAUNCH_MIN_COUNT:
@@ -326,11 +355,12 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
             if r["sheet_year"] in liquidez[bairro]:
                 liquidez[bairro][r["sheet_year"]]["revenda"] += 1
         areas = [r["area"] for r in recs if r["area"] is not None]
+        area_min, area_max = _coherent_area_range(areas)
         captacao_ativa.append({
             "bairro": bairro, "addr_key": addr_key, "endereco": endereco,
             "n_vendas": len(recs), "preco_min": min(valores), "preco_max": max(valores),
             "preco_medio": _round(mean(valores), 2),
-            "area_min": min(areas) if areas else None, "area_max": max(areas) if areas else None,
+            "area_min": area_min, "area_max": area_max,
             "tem_unidade_a_venda_hoje": tem_hoje, "unidades_a_venda_hoje": unidades_hoje,
         })
 

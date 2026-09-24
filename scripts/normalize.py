@@ -179,6 +179,24 @@ def percentile(p, values):
     return vals[lo] + (vals[hi] - vals[lo]) * frac
 
 
+def trim_outliers_iqr(values, k=1.5):
+    """Remove outliers pelas cercas de Tukey: fora de [Q1-k*IQR, Q3+k*IQR].
+    Método padrão, adaptado automaticamente à escala de cada bairro (não
+    exige um limiar absoluto fixo, que não funcionaria igual pra 47 bairros
+    com faixas de preço tão diferentes). Com menos de 4 valores, Q1/Q3 não
+    são informativos o bastante — devolve a lista original sem filtrar."""
+    vals = [v for v in values if v is not None]
+    if len(vals) < 4:
+        return vals
+    q1, q3 = percentile(25, vals), percentile(75, vals)
+    iqr = q3 - q1
+    if iqr == 0:
+        return vals
+    lo, hi = q1 - k * iqr, q3 + k * iqr
+    filtered = [v for v in vals if lo <= v <= hi]
+    return filtered if filtered else vals
+
+
 def mode_of(values):
     """Moda com desempate determinístico: valor numericamente menor vence
     (replica `sort { $c{$b} <=> $c{$a} || $a <=> $b }` do Perl — não confiar
