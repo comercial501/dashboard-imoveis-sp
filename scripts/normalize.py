@@ -123,14 +123,20 @@ def normalize_number(s):
     return s
 
 
-def address_key(bairro_canonico, street, number):
-    """bairro_canonico já deve ser o resultado de bairro_canon() (canônico,
-    não bruto). Retorna None se rua OU número normalizados ficarem vazios."""
+def address_key(street, number):
+    """Chave de endereço = SÓ rua+número, sem bairro (auditoria de
+    2026-09-23: a coluna "Bairro" do ITBI é preenchida por transação, não é
+    um dado fixo do prédio — o mesmo edifício aparece com bairros diferentes
+    em vendas diferentes em ~6% dos endereços da carteira, quase sempre
+    entre bairros vizinhos, ex: Alameda Franca 107 tinha 2 vendas em
+    "Jardins" e 2 em "Jardim Paulista", partindo o histórico do MESMO
+    prédio em dois endereços incompletos. Retorna None se rua OU número
+    normalizados ficarem vazios."""
     s = normalize_street(street)
     n = normalize_number(number)
     if not s or not n:
         return None
-    return f"{bairro_canonico}|{s}|{n}"
+    return f"{s}|{n}"
 
 
 def display_street(street):

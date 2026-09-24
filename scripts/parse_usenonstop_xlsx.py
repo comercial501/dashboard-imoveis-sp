@@ -96,7 +96,7 @@ def parse_usenonstop_xlsx(path):
 
             street = cells.get("C")
             number = cells.get("D")
-            akey = address_key(bairro, street, number)
+            akey = address_key(street, number)
             complemento = cells.get("E")
             base_disp = f"{street}, {number}" if street and number else display_street(street)
             adisp = f"{base_disp} - {complemento}" if complemento else base_disp

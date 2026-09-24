@@ -284,6 +284,19 @@ def _coherent_area_range(areas):
     return amin, amax
 
 
+def _majority_bairro(recs):
+    """addr_key agora é só rua+número (ver normalize.address_key) — um
+    mesmo prédio pode ter linhas do ITBI com bairro diferente entre si
+    (dado preenchido por transação, não é fixo do prédio). Usa o bairro
+    mais frequente entre as vendas reais do endereço; empate resolvido
+    alfabeticamente (mesmo critério de desempate determinístico já usado
+    em mode_of/imoveis_prioritarios)."""
+    counts = {}
+    for r in recs:
+        counts[r["bairro"]] = counts.get(r["bairro"], 0) + 1
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0].lower()))[0][0]
+
+
 def _is_launch(days):
     days = sorted(d for d in days if d is not None)
     if len(days) < LAUNCH_MIN_COUNT:
@@ -312,13 +325,32 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
     n_addr_discarded = 0
     n_addr_launch = 0
     n_addr_total_multi = 0
+    n_addr_sem_venda_real = 0
 
-    for addr_key, recs in by_addr.items():
-        bairro = recs[0]["bairro"]
-        for r in recs:
-            if r["sheet_year"] in liquidez[bairro]:
-                liquidez[bairro][r["sheet_year"]]["total"] += 1
+    for addr_key, all_recs in by_addr.items():
+        # Volume/liquidez conta TODA transação residencial válida, no bairro
+        # em que ela foi DE FATO registrada linha a linha (decisão do
+        # usuário: giro é giro) — isso não muda com o filtro de natureza
+        # abaixo, que só afeta a identidade do PRÉDIO (Captação Ativa).
+        for r in all_recs:
+            if r["sheet_year"] in liquidez[r["bairro"]]:
+                liquidez[r["bairro"]][r["sheet_year"]]["total"] += 1
 
+        # Só "1.Compra e venda" conta como venda de mercado pro histórico
+        # de PREÇO de um endereço (mesmo critério da mediana de bairro) —
+        # herança/doação/integralização de capital tem valor contábil, não
+        # preço pago de verdade, e não deveriam contar como "n vendas" nem
+        # entrar na faixa de preço exibida pro usuário.
+        recs = [r for r in all_recs if r["is_compra_venda"]]
+        if not recs:
+            n_addr_sem_venda_real += 1
+            continue
+
+        # addr_key é só rua+número (ver normalize.address_key) — o mesmo
+        # prédio pode ter linhas do ITBI com bairro diferente entre si
+        # (dado preenchido por transação, não fixo do prédio). Usa o bairro
+        # majoritário entre as vendas reais como bairro do prédio.
+        bairro = _majority_bairro(recs)
         endereco = next((r["addr_display"] for r in recs if r["addr_display"]), addr_key)
         usn_aqui = usn_by_addr_key.get(addr_key, [])
         # Prefere a grafia natural do endereço vinda da nonStop (nível de
@@ -370,6 +402,7 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
         "enderecos_com_repeticao": n_addr_total_multi,
         "enderecos_descartados_preco": n_addr_discarded,
         "enderecos_lancamento": n_addr_launch,
+        "enderecos_sem_venda_real": n_addr_sem_venda_real,
         "enderecos_captacao_ativa": len(captacao_ativa),
     }
     return liquidez, captacao_ativa, captacao_unico, meta

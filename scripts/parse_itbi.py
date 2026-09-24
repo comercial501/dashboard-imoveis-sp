@@ -122,7 +122,7 @@ def parse_itbi_file(path):
                 natureza = (cells.get("H") or "").strip()
                 is_compra_venda = bool(NATUREZA_COMPRA_VENDA_RE.match(natureza))
 
-                akey = address_key(bairro, street, number)
+                akey = address_key(street, number)
                 adisp = None
                 if akey:
                     adisp = f"{display_street(street)}, {normalize_number(number)}"

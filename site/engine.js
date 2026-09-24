@@ -417,16 +417,35 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   const byAddr = {};
   for (const r of itbiRecords) if (r.addrKey != null) (byAddr[r.addrKey] ||= []).push(r);
 
+  // addrKey é só rua+número (o mesmo prédio pode ter linhas do ITBI com
+  // bairro diferente entre si — dado preenchido por transação, não fixo do
+  // prédio). Usa o bairro mais frequente entre as vendas reais do
+  // endereço; empate resolvido alfabeticamente (mesmo critério de
+  // scripts/engine.py::_majority_bairro).
+  const majorityBairro = (recs) => {
+    const counts = {};
+    for (const r of recs) counts[r.bairro] = (counts[r.bairro] || 0) + 1;
+    return Object.keys(counts).sort((a, b) => (counts[b] - counts[a]) || cmpLower(a, b))[0];
+  };
+
   const liquidez = {};
   TARGETS.forEach((b) => (liquidez[b] = { [yearPrev]: { total: 0, revenda: 0 }, [yearFull]: { total: 0, revenda: 0 }, [yearCurr]: { total: 0, revenda: 0 } }));
   const captacaoAtiva = [], captacaoUnico = [];
-  let nAddrDiscarded = 0, nAddrLaunch = 0, nAddrTotalMulti = 0;
+  let nAddrDiscarded = 0, nAddrLaunch = 0, nAddrTotalMulti = 0, nAddrSemVendaReal = 0;
 
   for (const addrKey of Object.keys(byAddr)) {
-    const recs = byAddr[addrKey];
-    const bairro = recs[0].bairro;
-    for (const r of recs) if (liquidez[bairro][r.sheetYear]) liquidez[bairro][r.sheetYear].total++;
+    const allRecs = byAddr[addrKey];
+    // Volume/liquidez conta TODA transação residencial válida, no bairro em
+    // que foi de fato registrada linha a linha — não muda com o filtro de
+    // natureza abaixo, que só afeta a identidade do PRÉDIO (Captação Ativa).
+    for (const r of allRecs) if (liquidez[r.bairro][r.sheetYear]) liquidez[r.bairro][r.sheetYear].total++;
 
+    // Só "1.Compra e venda" conta como venda de mercado pro histórico de
+    // PREÇO de um endereço (mesmo critério da mediana de bairro).
+    const recs = allRecs.filter((r) => r.isCompraVenda);
+    if (!recs.length) { nAddrSemVendaReal++; continue; }
+
+    const bairro = majorityBairro(recs);
     const endereco = recs.find((r) => r.addrDisplay)?.addrDisplay || String(addrKey);
     const [temHoje, unidadesHoje] = temUnidadeHoje(usnByAddrKey[addrKey]);
 

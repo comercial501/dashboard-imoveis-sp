@@ -195,6 +195,40 @@ Uma segunda rodada da mesma auditoria endereçou mais dois pontos:
   p99=2,6x — 4x já é bem acima do ruído normal de plantas variadas no
   mesmo prédio).
 
+Uma terceira rodada (2026-09-23, motivada por um endereço que o usuário
+conferiu pessoalmente contra a planilha) encontrou dois problemas mais
+sérios, específicos da Captação Ativa (histórico de vendas por endereço):
+
+- **Endereço partido em dois bairros**: a coluna "Bairro" do ITBI é
+  preenchida por TRANSAÇÃO, não é um dado fixo do prédio — o cartório às
+  vezes registra o mesmo edifício com bairros diferentes em vendas
+  diferentes (medido: **592 dos 9.514 endereços únicos da carteira, 6,2%**,
+  quase sempre entre bairros vizinhos: Indianópolis/Moema, Perdizes/
+  Pompéia, Higienópolis/Santa Cecília, Jardim Paulista/Jardins etc.). Como
+  a chave de endereço antiga incluía o bairro (`bairro|rua|número`), isso
+  partia o histórico de UM prédio em duas entradas incompletas na Captação
+  Ativa — ex: Alameda Franca, 107 aparecia com só 2 vendas (as de
+  "Jardins") quando na verdade tinha 4 (as outras 2 registradas como
+  "Jardim Paulista"). **Decisão**: a chave de endereço agora é só
+  `rua|número` (`normalize.address_key`); o bairro exibido pro endereço
+  fica sendo o mais frequente entre as vendas reais dali (empate resolvido
+  alfabeticamente).
+- **Captação Ativa não aplicava o filtro de natureza de transação**: a
+  correção da 1ª rodada (só "compra e venda" conta pra preço) tinha sido
+  aplicada na mediana por bairro, mas não na faixa de preço por endereço
+  — uma transferência de herança/doação continuava contando como "venda"
+  e podia virar o `preco_min` exibido. Ex: Rua Rio Grande, 574 mostrava
+  R$149mil–R$1,8M (12 "vendas"); o R$149mil era uma transferência sem
+  natureza de compra e venda — a faixa real, com as 10 vendas de mercado
+  genuínas, é R$1,36M–R$1,8M. **Decisão**: mesmo filtro `is_compra_venda`
+  da mediana de bairro, agora também na faixa de preço/contagem de vendas
+  por endereço; um endereço cuja ÚNICA venda registrada não é compra e
+  venda sai da Captação Ativa (não tem preço de mercado de referência).
+
+Os dois motores (Python e JavaScript) foram revalidados campo a campo após
+essa mudança — 0 divergências em `captacao_ativa` (3.013 endereços),
+`bairros`, `ranking`, `imoveis_prioritarios` e `valor_oportunidade`.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
