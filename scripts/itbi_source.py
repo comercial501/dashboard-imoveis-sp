@@ -20,6 +20,7 @@ descobrir o link atual de cada ano.
 import html
 import json
 import re
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -31,6 +32,34 @@ USER_AGENT = (
 )
 REQUEST_TIMEOUT = 60
 
+# Erros transitórios que valem retry (2026-09-25: o pipeline inteiro falhou
+# uma vez por um 403 passageiro da Prefeitura — dia único num histórico de
+# execuções diárias, os dias antes/depois funcionaram normal). Alguns
+# códigos aqui são provavelmente bloqueio de WAF/rate-limit, não erro de
+# verdade; um retry com espera resolve sem precisar de intervenção manual.
+RETRYABLE_HTTP_CODES = {403, 408, 429, 500, 502, 503, 504}
+RETRY_DELAYS_S = (5, 20, 60)  # 3 tentativas extras (4 no total) com backoff
+
+
+def _urlopen_retry(req, timeout, log=print):
+    """urlopen com retry/backoff pra erros transitórios (ver
+    RETRYABLE_HTTP_CODES) — sem isso, uma falha passageira da Prefeitura
+    derruba o pipeline inteiro do dia."""
+    last_exc = None
+    for attempt, delay in enumerate((0,) + RETRY_DELAYS_S):
+        if delay:
+            log(f"[itbi] tentativa {attempt + 1}/{len(RETRY_DELAYS_S) + 1} em {delay}s (erro anterior: {last_exc})...")
+            time.sleep(delay)
+        try:
+            return urllib.request.urlopen(req, timeout=timeout)
+        except urllib.error.HTTPError as e:
+            last_exc = e
+            if e.code not in RETRYABLE_HTTP_CODES:
+                raise
+        except urllib.error.URLError as e:
+            last_exc = e
+    raise last_exc
+
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "itbi_raw"
 STATE_FILE = ROOT / "data" / "itbi_state.json"
@@ -41,10 +70,10 @@ STATE_FILE = ROOT / "data" / "itbi_state.json"
 YEARS_BACK = 3
 
 
-def _fetch_text(url):
+def _fetch_text(url, log=print):
     """GET e decodifica como texto usando o charset do Content-Type (ou utf-8)."""
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+    with _urlopen_retry(req, REQUEST_TIMEOUT, log=log) as resp:
         charset = resp.headers.get_content_charset() or "utf-8"
         return resp.read().decode(charset, errors="ignore")
 
@@ -62,14 +91,14 @@ def _fix_raw_url(url):
     return url
 
 
-def discover_year_links():
+def discover_year_links(log=print):
     """Raspa a página da Prefeitura e retorna {ano: url_xlsx}.
 
     Cada item da lista de download é um <li> cujo texto começa com o ano
     (ex: "2026 (<a href=...>Excel/xlsx</a>) (<a href=...>ODS</a>)"), então
     o ano é lido diretamente do texto do <li> — não depende de posição.
     """
-    body = _fetch_text(PAGE_URL)
+    body = _fetch_text(PAGE_URL, log=log)
 
     anchor = "Faça o download"
     idx = body.find(anchor)
@@ -100,17 +129,17 @@ def discover_year_links():
     return years
 
 
-def _head_info(url):
+def _head_info(url, log=print):
     """Faz HEAD (via GET com Range mínimo — alguns servidores da Prefeitura
     não respondem bem a HEAD) e devolve (last_modified, content_length)."""
     req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+        with _urlopen_retry(req, REQUEST_TIMEOUT, log=log) as resp:
             return resp.headers.get("Last-Modified"), resp.headers.get("Content-Length")
     except urllib.error.HTTPError as e:
         if e.code == 405:  # método não permitido — cai pra GET normal
             req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-            with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+            with _urlopen_retry(req, REQUEST_TIMEOUT, log=log) as resp:
                 return resp.headers.get("Last-Modified"), resp.headers.get("Content-Length")
         raise
 
@@ -132,7 +161,7 @@ def sync(target_years, log=print):
     mudou desde a última sincronização. Retorna o set de anos cujo arquivo
     local mudou nesta chamada (para o build_data.py saber o que reprocessar)."""
     RAW_DIR.mkdir(parents=True, exist_ok=True)
-    links = discover_year_links()
+    links = discover_year_links(log=log)
     state = _load_state()
     changed = set()
 
@@ -142,7 +171,7 @@ def sync(target_years, log=print):
             log(f"[itbi] aviso: nenhum link encontrado pro ano {year} na página da Prefeitura — pulando.")
             continue
 
-        last_modified, content_length = _head_info(url)
+        last_modified, content_length = _head_info(url, log=log)
         prev = state.get(str(year), {})
         local_path = RAW_DIR / f"{year}.xlsx"
 
@@ -158,7 +187,7 @@ def sync(target_years, log=print):
 
         log(f"[itbi] {year}: baixando ({content_length or '?'} bytes, Last-Modified {last_modified})...")
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-        with urllib.request.urlopen(req, timeout=max(REQUEST_TIMEOUT, 300)) as resp:
+        with _urlopen_retry(req, max(REQUEST_TIMEOUT, 300), log=log) as resp:
             data = resp.read()
         local_path.write_bytes(data)
 
