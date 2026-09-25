@@ -275,9 +275,9 @@ pessoalmente (Google/QuintoAndar) antes de usar como referência de preço.
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
 (cada função referencia a lógica original). Resumo por painel:
 
-1. **Ranking de Oportunidade** — bairros por score (50% z-score do volume de
-   vendas residenciais no último ano fechado + 50% z-score da tendência de
-   crescimento), normalizado 0–100 entre os 49 bairros.
+1. **Ranking de Oportunidade** — bairros por score (50% z-score do volume
+   médio anual de vendas residenciais, pool 2024–2026 + 50% z-score da
+   tendência de crescimento), normalizado 0–100 entre os 49 bairros.
 2. **Prontidão para Campanha** — score combinando 6 sinais (liquidez/tendência
    15%, estoque compatível 20%, alinhamento de preço 15%, captação ativa 15%,
    qualidade×cobertura dos imóveis prioritários 25%, concentração de achados
@@ -286,8 +286,9 @@ Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
    com fallback para estimativa regional (vizinhos até 3km) quando a amostra
    do bairro é baixa (< 5 transações ou < 5 imóveis no perfil).
 3b. **Estoque × Demanda** — tabela com todos os 49 bairros: quantos anúncios
-   ativos hoje batem o perfil vencedor vs. o volume de vendas do ano, com
-   drill-down pra ver os anúncios específicos que compõem esse estoque.
+   ativos hoje batem o perfil vencedor vs. o volume médio anual de vendas
+   (pool 2024–2026), com drill-down pra ver os anúncios específicos que
+   compõem esse estoque.
 4. **Mapa** — bolhas por centróide real (coordenadas do estoque nonStop),
    raio ∝ √volume, cor = score.
 5. **Captação Ativa Estratégica** — endereços com 2+ vendas de revenda
@@ -302,11 +303,11 @@ Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
    do bairro + 30% alinhamento de preço + 25% aderência ao perfil + 10%
    bônus de captação ativa).
 7. **Valor de Oportunidade** — imóveis 20%+ abaixo da mediana paga no bairro
-   (só em bairros com 10+ vendas no ano — mediana confiável).
+   (só em bairros com 10+ vendas/ano em média, 2024–2026 — mediana confiável).
 
 ## Filtros (bairro + faixa de preço)
 
-O painel "Filtros" no topo do site deixa selecionar um ou mais dos 47
+O painel "Filtros" no topo do site deixa selecionar um ou mais dos 49
 bairros e/ou uma faixa de preço (aplicada tanto ao valor pago na Prefeitura
 quanto ao pedido na nonStop). Ao mudar qualquer filtro, os painéis são
 **recalculados** — médias, medianas, scores e rankings refeitos só com os

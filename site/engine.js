@@ -268,6 +268,16 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     });
   });
 
+  // Mediana "de referência" (Ranking, Prontidão, Estoque×Demanda, Valor de
+  // Oportunidade) = pool dos 3 anos juntos, não só o último fechado (ver
+  // scripts/engine.py._aggregate_itbi — decisão do usuário, 2026-09-25).
+  const pooledMedian = {};
+  TARGETS.forEach((b) => {
+    const pool = [yearPrev, yearFull, yearCurr].flatMap((y) => yearlyValoresVenda[b][y]);
+    const vals = trimOutliersIqr(pool);
+    pooledMedian[b] = { avg_valor: round(mean(vals), 2), median_valor: round(median(vals), 2), n: vals.length };
+  });
+
   const h1Count = (mc, year) => {
     let s = 0;
     for (let m = 1; m <= 6; m++) s += mc[`${year}-${m}`] || 0;
@@ -491,11 +501,13 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   // --- montagem preliminar por bairro (todos os 47 — o filtro de bairro só entra na normalização/ranking) ---
   const bairrosOut = {};
   TARGETS.forEach((b) => {
-    const volumePrimary = yearly[b][yearFull].count;
+    // Volume "de referência" = média anual dos 3 anos, não só o último
+    // fechado (ver scripts/engine.py.compute — decisão do usuário, 2026-09-25).
+    const volumePrimary = round(mean([yearly[b][yearPrev].count, yearly[b][yearFull].count, yearly[b][yearCurr].count]), 0);
     const stockMatch = profile[b].profile_sample_size;
     const demand = volumePrimary;
     const ratio = demand > 0 ? stockMatch / demand : (stockMatch > 0 ? 999 : 0);
-    const paidMedian = yearly[b][yearFull].median_valor;
+    const paidMedian = pooledMedian[b].median_valor;
     const asking = askingMedian[b];
     const priceGapPct = paidMedian && asking ? round(((asking - paidMedian) / paidMedian) * 100) : null;
 
@@ -514,7 +526,8 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       centroid: centroids[b],
       stock_demand_ratio: Math.round(ratio * 1000) / 1000, price_gap_pct: priceGapPct,
       flag_alerta: priceGapPct != null && Math.abs(priceGapPct) >= 20,
-      liquidez_total_primary_year: liquidez[b][yearFull].total, liquidez_revenda_primary_year: liquidez[b][yearFull].revenda,
+      liquidez_total_primary_year: round(mean([liquidez[b][yearPrev].total, liquidez[b][yearFull].total, liquidez[b][yearCurr].total]), 0),
+      liquidez_revenda_primary_year: round(mean([liquidez[b][yearPrev].revenda, liquidez[b][yearFull].revenda, liquidez[b][yearCurr].revenda]), 0),
       liquidez_por_ano: { [yearPrev]: liquidez[b][yearPrev], [yearFull]: liquidez[b][yearFull], [yearCurr]: liquidez[b][yearCurr] },
       _matching_listings: profile[b]._matching_listings,
     };

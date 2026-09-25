@@ -81,7 +81,7 @@ _CANON_BY_NORM = {normalize_bairro(t): t for t in TARGETS}
 def bairro_canon(raw):
     """Retorna o nome canônico (com acento/caixa original) de TARGETS, ou
     None se o bairro (após normalizar + aplicar alias) não estiver na
-    carteira de 47 bairros."""
+    carteira de 49 bairros."""
     n = normalize_bairro(raw)
     if not n:
         return None
@@ -192,7 +192,7 @@ def percentile(p, values):
 def trim_outliers_iqr(values, k=1.5):
     """Remove outliers pelas cercas de Tukey: fora de [Q1-k*IQR, Q3+k*IQR].
     Método padrão, adaptado automaticamente à escala de cada bairro (não
-    exige um limiar absoluto fixo, que não funcionaria igual pra 47 bairros
+    exige um limiar absoluto fixo, que não funcionaria igual pra 49 bairros
     com faixas de preço tão diferentes). Com menos de 4 valores, Q1/Q3 não
     são informativos o bastante — devolve a lista original sem filtrar."""
     vals = [v for v in values if v is not None]
@@ -284,7 +284,7 @@ NEIGHBOR_COUNT = 3
 
 def nearest_neighbors(bairro, centroids, targets, max_km=NEIGHBOR_MAX_KM, count=NEIGHBOR_COUNT):
     """centroids: dict[bairro -> (lat, lon) ou None]. targets: iterável dos
-    47 bairros (sempre a lista completa, mesmo com filtro de UI ativo — ver
+    49 bairros (sempre a lista completa, mesmo com filtro de UI ativo — ver
     itbi_methodology_spec.md §6.8). Retorna lista [(bairro, distancia_km), ...]
     ordenada por distância crescente, no máximo `count` itens."""
     c0 = centroids.get(bairro)

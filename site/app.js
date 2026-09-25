@@ -48,6 +48,12 @@ function fmtM2(n) {
   return fmtInt(n) + "m²";
 }
 function sum(arr) { return arr.reduce((a, b) => a + b, 0); }
+// Vendas/mediana "de referência" usam pool/média dos 3 anos, não só o
+// último fechado (decisão do usuário, 2026-09-25) — ver engine.js/engine.py.
+function anosRefLabel() {
+  const ys = DATA.meta.years;
+  return `${ys[0]}–${ys[ys.length - 1]}`;
+}
 
 function badge(text, kind) {
   return el("span", { class: `badge ${kind}` }, text);
@@ -61,7 +67,7 @@ function reliabilityTag(rel) {
 // Interesse de busca no Google (Keyword Planner) — sinal PROSPECTIVO de
 // demanda (gente pesquisando agora), complementar à liquidez do ITBI
 // (retrospectiva, só vendas já fechadas). Classificação Alto/Médio/Baixo é
-// por tercil contra os 47 bairros inteiros — só informativo, não entra em
+// por tercil contra os 49 bairros inteiros — só informativo, não entra em
 // nenhum score ainda (ver scripts/build_data.py e README).
 function searchInterestBadge(b) {
   const si = b.search_interest;
@@ -464,7 +470,7 @@ function renderVisaoGeral() {
   const top10 = DATA.ranking.slice(0, 10);
   rankRows(document.getElementById("visao-ranking"), top10, DATA, {
     scoreKey: "score",
-    metaFmt: (b) => `${fmtInt(b.volume_primary_year)} vendas em ${DATA.meta.primary_year} · tendência ${b.trend_pct != null ? fmtPct(b.trend_pct) : "—"}`,
+    metaFmt: (b) => `${fmtInt(b.volume_primary_year)} vendas/ano (méd. ${anosRefLabel()}) · tendência ${b.trend_pct != null ? fmtPct(b.trend_pct) : "—"}`,
     badges: (b) => {
       const out = [];
       if (b.flag_oportunidade) out.push(badge("Oportunidade", "gold"));
@@ -519,7 +525,7 @@ function renderRanking() {
       { key: "pos", label: "#", sortable: false },
       { key: "bairro", label: "Bairro" },
       { key: "score", label: "Score", fmt: (v) => fmtInt(v) },
-      { key: "volume_primary_year", label: `Vendas ${DATA.meta.primary_year}` },
+      { key: "volume_primary_year", label: `Vendas/ano (méd. ${anosRefLabel()})` },
       { key: "trend_pct", label: "Tendência", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
       { key: "stock_demand_ratio", label: "Estoque/Demanda", fmt: (v) => (v >= 999 ? "∞" : v.toFixed(2)) },
       { key: "price_gap_pct", label: "Gap Preço", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
@@ -607,7 +613,7 @@ function renderPerfilContent(name) {
   tiles.appendChild(statTile("Score de Oportunidade", fmtInt(b.score)));
   tiles.appendChild(statTile("Score de Revenda", fmtInt(b.score_revenda)));
   tiles.appendChild(statTile("Prontidão para Campanha", fmtInt(b.prontidao_campanha)));
-  tiles.appendChild(statTile(`Vendas ${DATA.meta.primary_year}`, fmtInt(b.volume_primary_year)));
+  tiles.appendChild(statTile(`Vendas/ano (méd. ${anosRefLabel()})`, fmtInt(b.volume_primary_year)));
   box.appendChild(tiles);
 
   const perfilBox = el("section", { class: "card", style: "margin:0 0 14px; padding:16px 18px;" });
@@ -641,13 +647,13 @@ function renderPerfilContent(name) {
     { label: "Estoque no perfil vencedor", value: b.stock_matching_profile, colorVar: "--gold" },
   ], { maxOverride: Math.max(b.stock_total, 1) });
   stockBox.appendChild(el("div", { class: "small muted", style: "margin-top:8px" },
-    `Razão estoque no perfil / vendas ${DATA.meta.primary_year}: ${b.stock_demand_ratio >= 999 ? "∞ (sem demanda registrada)" : b.stock_demand_ratio.toFixed(2)}`));
+    `Razão estoque no perfil / vendas por ano (méd. ${anosRefLabel()}): ${b.stock_demand_ratio >= 999 ? "∞ (sem demanda registrada)" : b.stock_demand_ratio.toFixed(2)}`));
   box.appendChild(stockBox);
 
   const priceBox = el("section", { class: "card", style: "margin:0; padding:16px 18px;" });
   priceBox.appendChild(el("h2", { style: "font-size:14.5px" }, "Faixa de Preço que Converte"));
   barRows(priceBox, [
-    { label: `Mediana paga (${DATA.meta.primary_year})`, value: b.paid_median_valor_primary_year || 0, colorVar: "--series-aqua" },
+    { label: `Mediana paga (${anosRefLabel()})`, value: b.paid_median_valor_primary_year || 0, colorVar: "--series-aqua" },
     { label: "Mediana pedida (hoje)", value: b.asking_median_valor || 0, colorVar: "--series-orange" },
   ], { valueFmt: (v) => fmtMoneyCompact(v), maxOverride: Math.max(b.paid_median_valor_primary_year || 0, b.asking_median_valor || 0, 1) });
   if (b.price_gap_pct != null) {
@@ -895,7 +901,7 @@ function renderEstoqueDemanda() {
     initialSortDir: 1,
     columns: [
       { key: "bairro", label: "Bairro" },
-      { key: "volume_primary_year", label: "Demanda (ano)" },
+      { key: "volume_primary_year", label: `Demanda (méd./ano ${anosRefLabel()})` },
       { key: "stock_total", label: "Estoque total" },
       { key: "stock_matching_profile", label: "Estoque no perfil" },
       { key: "stock_demand_ratio", label: "Cobertura", fmt: (v) => (v >= 999 ? "∞" : v.toFixed(3)) },
@@ -919,7 +925,7 @@ function renderEstoqueDemanda() {
 }
 
 // Acordeão: a linha de detalhe é inserida logo abaixo da linha clicada (não
-// no fim da tabela inteira) — com 47 bairros na lista, um clique numa linha
+// no fim da tabela inteira) — com 49 bairros na lista, um clique numa linha
 // do topo abria a resposta lá embaixo, fora da tela, parecendo que o link
 // não fazia nada.
 function toggleEstoqueDetalhe(bairro, linkEl) {

@@ -11,11 +11,19 @@ agregada consumida pelo site (site/data.json).
 Generalização em relação ao original: o Perl tinha os anos 2024/2025/2026
 hardcoded. Aqui os "papéis" dos 3 anos mais recentes são dinâmicos:
   - year_curr  = ano em andamento (o mais recente, dados parciais)
-  - year_full  = último ano fechado (year_curr - 1) — métrica primária de
-                 volume/mediana/liquidez, equivalente ao "2025" do original
+  - year_full  = último ano fechado (year_curr - 1) — só usado pra tendência
+                 ano-cheio-vs-ano-cheio junto com year_prev
   - year_prev  = dois anos atrás (year_curr - 2) — usado só pra tendência
                  ano-cheio-vs-ano-cheio (equivalente ao "growth_24_25")
 Isso evita ter que editar o código todo ano-novo.
+
+Volume/mediana de preço/liquidez "de referência" (Ranking, Prontidão,
+Estoque×Demanda, Valor de Oportunidade) NÃO usam só year_full — decisão do
+usuário em 2026-09-25: usam os 3 anos juntos (pool pra mediana de preço,
+média anual pra volume/liquidez), pra amostra maior e mais estável em
+bairros com poucas vendas por ano. year_full/year_prev continuam existindo
+só pra calcular a tendência de crescimento, que por definição precisa
+comparar anos distintos.
 """
 import statistics as _stats
 
@@ -132,7 +140,25 @@ def _aggregate_itbi(itbi_records, years):
                 "avg_valor": _round(mean(vals), 2),
                 "median_valor": _round(median(vals), 2),
             }
-    return yearly, pairs_all_years, month_counts
+
+    # Mediana "de referência" do bairro (usada no Ranking, Prontidão,
+    # Estoque×Demanda e Valor de Oportunidade) — pool dos 3 anos juntos, não
+    # só o último fechado (decisão do usuário, 2026-09-25): amostra maior e
+    # mais estável, principalmente em bairros com poucas vendas por ano.
+    # Mesmo critério que Captação Ativa e Perfil Vencedor já usavam. Cercas
+    # de Tukey aplicadas UMA VEZ sobre o pool combinado (não por ano depois
+    # somado), senão o corte de outlier fica inconsistente.
+    pooled_median = {}
+    for b in TARGETS:
+        pool = [v for y in years for v in yearly_valores_venda[b][y]]
+        vals = trim_outliers_iqr(pool)
+        pooled_median[b] = {
+            "avg_valor": _round(mean(vals), 2),
+            "median_valor": _round(median(vals), 2),
+            "n": len(vals),
+        }
+
+    return yearly, pairs_all_years, month_counts, pooled_median
 
 
 def _h1_count(month_counts_bairro, year):
@@ -670,7 +696,7 @@ def compute(itbi_records, usn_records, years):
     """years: lista de 3 anos ascendente, ex: [2024, 2025, 2026]."""
     year_prev, year_full, year_curr = years
 
-    yearly, pairs_all_years, month_counts = _aggregate_itbi(itbi_records, years)
+    yearly, pairs_all_years, month_counts, pooled_median = _aggregate_itbi(itbi_records, years)
     trend = _compute_trend(yearly, month_counts, year_prev, year_full, year_curr)
     usn_by_bairro, centroids, stock_total, asking_median = _aggregate_usn(usn_records)
     profile = _compute_profile(pairs_all_years, usn_by_bairro, centroids)
@@ -686,12 +712,19 @@ def compute(itbi_records, usn_records, years):
     # --- montagem preliminar por bairro (sem os campos que dependem de score cross-bairro) ---
     bairros_out = {}
     for b in TARGETS:
-        volume_primary = yearly[b][year_full]["count"]
+        # Volume/liquidez "de referência" (Ranking, Prontidão, Estoque×
+        # Demanda) = média anual dos 3 anos, não só o último fechado
+        # (decisão do usuário, 2026-09-25) — soma bruta dos 3 anos
+        # distorceria a unidade "vendas por ano" usada nos limiares/razões
+        # abaixo, já que 2026 (ano em andamento) tem menos meses que os
+        # outros dois; a média preserva a leitura "por ano" com amostra
+        # maior e mais estável.
+        volume_primary = round(mean([yearly[b][y]["count"] for y in years]))
         stock_match = profile[b]["profile_sample_size"]
         demand = volume_primary
         ratio = (stock_match / demand) if demand > 0 else (999 if stock_match > 0 else 0)
 
-        paid_median = yearly[b][year_full]["median_valor"]
+        paid_median = pooled_median[b]["median_valor"]
         asking = asking_median[b]
         price_gap_pct = _round((asking - paid_median) / paid_median * 100, 1) if (paid_median and asking) else None
 
@@ -713,8 +746,8 @@ def compute(itbi_records, usn_records, years):
             "centroid": list(centroids[b]) if centroids[b] else None,
             "stock_demand_ratio": round(ratio, 3), "price_gap_pct": price_gap_pct,
             "flag_alerta": price_gap_pct is not None and abs(price_gap_pct) >= 20,
-            "liquidez_total_primary_year": liquidez[b][year_full]["total"],
-            "liquidez_revenda_primary_year": liquidez[b][year_full]["revenda"],
+            "liquidez_total_primary_year": round(mean([liquidez[b][y]["total"] for y in years])),
+            "liquidez_revenda_primary_year": round(mean([liquidez[b][y]["revenda"] for y in years])),
             "liquidez_por_ano": {str(y): liquidez[b][y] for y in years},
         }
 
