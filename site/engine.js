@@ -332,9 +332,13 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     if (ownPairs.length >= C.reliability_threshold) {
       const [lo, hi, valores] = modeBucketFromPairs(ownPairs, C.area_bucket_width, C.max_per_exact_area);
       if (lo != null) {
+        // trimOutliersIqr protege a faixa/mediana contra erro de digitação
+        // isolado dentro do bucket de metragem vencedora — ver
+        // scripts/engine.py._compute_profile (auditoria de 2026-09-25).
+        const valoresOk = trimOutliersIqr(valores);
         entry.area_band = [lo, hi];
-        entry.price_band = [round(percentile(25, valores), 2), round(percentile(75, valores), 2)];
-        entry.price_band_median = round(median(valores), 2);
+        entry.price_band = [round(percentile(25, valoresOk), 2), round(percentile(75, valoresOk), 2)];
+        entry.price_band_median = round(median(valoresOk), 2);
         entry.area_band_reliability = "individual";
       }
     } else {
@@ -349,9 +353,10 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
         }
         const [lo, hi, valores] = modeBucketFromPairs(pool, C.area_bucket_width, C.max_per_exact_area);
         if (lo != null && valores.length) {
+          const valoresOk = trimOutliersIqr(valores);
           entry.area_band = [lo, hi];
-          entry.price_band = [round(percentile(25, valores), 2), round(percentile(75, valores), 2)];
-          entry.price_band_median = round(median(valores), 2);
+          entry.price_band = [round(percentile(25, valoresOk), 2), round(percentile(75, valoresOk), 2)];
+          entry.price_band_median = round(median(valoresOk), 2);
           entry.area_band_reliability = "regional";
           entry.area_band_neighbors = neighborInfo;
         }

@@ -235,9 +235,16 @@ def _compute_profile(pairs_all_years, usn_by_bairro, centroids):
         if len(own_pairs) >= RELIABILITY_THRESHOLD:
             lo, hi, valores = mode_bucket_from_pairs(own_pairs)
             if lo is not None:
+                # trim_outliers_iqr protege a faixa/mediana de preço contra
+                # erro de digitação isolado dentro do bucket de metragem
+                # vencedora — mesmo critério já usado na mediana de bairro e
+                # na mediana pedida (achado da auditoria de 2026-09-25: sem
+                # isso, 30 dos 45 bairros com faixa individual tinham pelo
+                # menos 1 outlier contaminando essa faixa).
+                valores_ok = trim_outliers_iqr(valores)
                 entry["area_band"] = [lo, hi]
-                entry["price_band"] = [_round(percentile(25, valores), 2), _round(percentile(75, valores), 2)]
-                entry["price_band_median"] = _round(median(valores), 2)
+                entry["price_band"] = [_round(percentile(25, valores_ok), 2), _round(percentile(75, valores_ok), 2)]
+                entry["price_band_median"] = _round(median(valores_ok), 2)
                 entry["area_band_reliability"] = "individual"
         else:
             neighbors = nearest_neighbors(b, centroids, TARGETS, NEIGHBOR_MAX_KM, NEIGHBOR_COUNT)
@@ -250,9 +257,10 @@ def _compute_profile(pairs_all_years, usn_by_bairro, centroids):
                     neighbor_info.append({"bairro": other, "distancia_km": round(dist, 2), "n_pares": len(n_pairs)})
                 lo, hi, valores = mode_bucket_from_pairs(pool)
                 if lo is not None and valores:
+                    valores_ok = trim_outliers_iqr(valores)
                     entry["area_band"] = [lo, hi]
-                    entry["price_band"] = [_round(percentile(25, valores), 2), _round(percentile(75, valores), 2)]
-                    entry["price_band_median"] = _round(median(valores), 2)
+                    entry["price_band"] = [_round(percentile(25, valores_ok), 2), _round(percentile(75, valores_ok), 2)]
+                    entry["price_band_median"] = _round(median(valores_ok), 2)
                     entry["area_band_reliability"] = "regional"
                     entry["area_band_neighbors"] = neighbor_info
 
