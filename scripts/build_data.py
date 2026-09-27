@@ -187,10 +187,28 @@ def main():
     years = [current_year - 2, current_year - 1, current_year]
 
     print(f"[build] anos: {years}")
-    changed_years = itbi_source.sync(years)
-    print(f"[build] ITBI sincronizado ({time.time() - t_start:.1f}s) — anos atualizados: {sorted(changed_years) or 'nenhum'}")
+    # A Prefeitura já bloqueou a Action com 403 mesmo depois do retry/backoff
+    # de itbi_source.py (2 vezes em 3 dias, 2026-09-25 e 2026-09-27) — falha
+    # de rede aqui não pode mais derrubar o pipeline inteiro (estoque/preço
+    # da nonStop continuam querendo atualizar todo dia mesmo sem ITBI novo).
+    # Cai pro cache local em data/itbi_raw/ (existe sempre que já rodou com
+    # sucesso alguma vez — ver actions/cache no workflow) e tenta de novo
+    # amanhã; o pior caso é ITBI com até ~1 dia a mais de atraso, nunca um
+    # site fora do ar.
+    try:
+        changed_years = itbi_source.sync(years)
+        print(f"[build] ITBI sincronizado ({time.time() - t_start:.1f}s) — anos atualizados: {sorted(changed_years) or 'nenhum'}")
+    except Exception as e:
+        print(f"[build] AVISO: falha ao sincronizar ITBI da Prefeitura ({e!r}) — usando o cache local em data/itbi_raw/ (pode estar desatualizado; tenta de novo na próxima execução).")
+        changed_years = set()
 
     year_to_path = {y: itbi_source.RAW_DIR / f"{y}.xlsx" for y in years}
+    if not any(p.exists() for p in year_to_path.values()):
+        raise SystemExit(
+            "Nenhum .xlsx de ITBI em cache (data/itbi_raw/) e a sincronização com a "
+            "Prefeitura falhou — não há nada pra processar. Rode de novo manualmente "
+            "ou confira se o cache do workflow foi perdido."
+        )
     itbi_records, itbi_stats = parse_itbi_years(year_to_path)
     print(f"[build] ITBI parseado: {itbi_stats}")
 
