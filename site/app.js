@@ -251,6 +251,7 @@ function renderAll() {
   renderPorBairro();
   renderValorOportunidade();
   renderEstoqueDemanda();
+  renderPrecoM2();
 }
 
 async function main() {
@@ -284,6 +285,7 @@ const PANELS = [
   { id: "prioritarios", label: "Imóveis Prioritários" },
   { id: "por-bairro", label: "Por Bairro/Região" },
   { id: "valor-oportunidade", label: "Valor de Oportunidade" },
+  { id: "preco-m2", label: "Preço por m²" },
 ];
 
 function setupTabs() {
@@ -1063,6 +1065,36 @@ function renderValorOportunidade() {
   } else {
     barRows(bairrosBox, porBairro.map((p) => ({ label: p.bairro, value: p.n_achados, colorVar: "--gold" })), { valueFmt: (v) => fmtInt(v) });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Preço por m² — Pago × Pedido (Painel 11, Etapa 4 da auditoria de 2026-09-29)
+// ---------------------------------------------------------------------------
+function renderPrecoM2() {
+  const container = document.getElementById("preco-m2-table");
+  container.innerHTML = "";
+  const rows = DATA.preco_m2_painel || [];
+  if (!rows.length) {
+    container.appendChild(el("div", { class: "placeholder-block" }, "Sem apartamentos suficientes nos últimos 12 meses pra calcular esse painel."));
+    return;
+  }
+  sortableTable(container, {
+    initialSortKey: "gap_pct",
+    columns: [
+      { key: "bairro", label: "Bairro" },
+      { key: "faixa", label: "Faixa de metragem" },
+      { key: "mediana_pago_m2", label: "R$/m² pago (mediana, 12m)", fmt: (v) => (v == null ? "—" : fmtMoneyCompact(v)) },
+      { key: "mediana_pedido_m2", label: "R$/m² pedido (mediana, hoje)", fmt: (v) => (v == null ? "—" : fmtMoneyCompact(v)) },
+      { key: "gap_pct", label: "Gap", fmt: (v) => (v == null ? "—" : (v >= 0 ? "+" : "") + fmtPct(v)) },
+      { key: "n_transacoes_12m", label: "Vendas (12m)", fmt: (v) => fmtInt(v) },
+      { key: "n_anuncios", label: "Anúncios" },
+      {
+        key: "amostra_pequena", label: "Amostra", sortable: false,
+        render: (r) => (r.amostra_pequena ? badge("Amostra pequena", "neutral") : badge("Confiável", "gold")),
+      },
+    ],
+    rows,
+  });
 }
 
 main().catch((e) => console.error("MAIN FAILED", e.stack || e));

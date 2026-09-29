@@ -337,6 +337,52 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     }
   }
 
+  // Etapa 4 (2026-09-29): painel dedicado "Preço por m² — Pago × Pedido".
+  // Diferente de precoM2 acima (pool de 3 anos pras 5 comparações da
+  // Etapa 3), aqui TUDO — inclusive a mediana paga — é escopado aos
+  // ÚLTIMOS 12 MESES, e só apartamento — ver
+  // scripts/engine.py._compute_preco_m2_painel.
+  const precoM2Painel = [];
+  {
+    const pago = {}, pedido = {};
+    for (const r of itbiRecords) {
+      if (!r.isCleanSale || !(r.bairro in yearlyCount) || r.tipoImovel !== "apartamento") continue;
+      if (r.day == null || (C.hoje_serial - r.day) < 0 || (C.hoje_serial - r.day) > C.janela_preco_m2_dias) continue;
+      const f = faixaMetragem(r.area, C.faixas_metragem);
+      if (f == null) continue;
+      const key = `${r.bairro}\u0001${f}`;
+      (pago[key] ||= []).push(round(r.valor / r.area, 2));
+    }
+    for (const r of usnRecords) {
+      if (!(r.bairro in yearlyCount) || r.tipoImovel !== "apartamento") continue;
+      if (!r.valor || !r.area) continue;
+      const f = faixaMetragem(r.area, C.faixas_metragem);
+      if (f == null) continue;
+      const key = `${r.bairro}\u0001${f}`;
+      (pedido[key] ||= []).push(r.valor / r.area);
+    }
+    for (const bairro of TARGETS) {
+      for (const [, , faixa] of C.faixas_metragem) {
+        const key = `${bairro}\u0001${faixa}`;
+        const pagoVals = pago[key] || [];
+        if (!pagoVals.length && !(key in pedido)) continue;
+        const medianaPago = pagoVals.length ? round(median(pagoVals), 2) : null;
+
+        const pedidoVals = trimOutliersIqr(pedido[key] || []);
+        const medianaPedido = pedidoVals.length ? round(median(pedidoVals), 2) : null;
+
+        let gapPct = null;
+        if (medianaPago && medianaPedido) gapPct = round(((medianaPedido - medianaPago) / medianaPago) * 100, 1);
+
+        precoM2Painel.push({
+          bairro, faixa, mediana_pago_m2: medianaPago, mediana_pedido_m2: medianaPedido, gap_pct: gapPct,
+          n_transacoes_12m: pagoVals.length, n_anuncios: (pedido[key] || []).length,
+          amostra_pequena: pagoVals.length < C.min_transacoes_preco_m2_12m,
+        });
+      }
+    }
+  }
+
   const segmentoRepresentativo = (segmentos) => {
     const candidatos = segmentos.filter((s) => s.gap_pct != null && !s.amostra_pequena);
     if (!candidatos.length) return null;
@@ -865,6 +911,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     imoveis_prioritarios: imoveisPrioritarios,
     valor_oportunidade: { imoveis: valorOportunidadeImoveis, por_bairro: valorOportunidadePorBairro },
     captacao_estrategica: captacaoEstrategica,
+    preco_m2_painel: precoM2Painel.filter((p) => scopeSet.has(p.bairro)),
     // uso interno pro painel Estoque x Demanda (listagens que batem o perfil vencedor)
     _matchingListingsByBairro: Object.fromEntries(scope.map((b) => [b, bairrosOut[b]._matching_listings])),
   };

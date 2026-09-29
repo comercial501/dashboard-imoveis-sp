@@ -542,6 +542,61 @@ def _compute_preco_m2(itbi_records, usn_records, hoje_serial):
     return out
 
 
+def _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial):
+    """Painel dedicado "Preço por m² — Pago × Pedido" (Etapa 4, 2026-09-29):
+    diferente de `_compute_preco_m2` (que faz pool de 3 anos pras 5
+    comparações da Etapa 3), aqui TUDO — inclusive a mediana paga — é
+    escopado aos ÚLTIMOS 12 MESES, e só apartamento (o pedido explícito do
+    usuário: "só apartamentos residenciais"). Um retrato do mercado AGORA,
+    não uma média histórica de 3 anos. Retorna lista achatada (uma linha
+    por bairro+faixa), ordenada por bairro."""
+    pago = {}  # (bairro, faixa) -> [valor_m2, ...] só dos últimos 12 meses
+    for r in itbi_records:
+        if not r["is_clean_sale"] or r["bairro"] not in TARGETS or r["tipo_imovel"] != "apartamento":
+            continue
+        if r["day"] is None or not (0 <= (hoje_serial - r["day"]) <= JANELA_PRECO_M2_DIAS):
+            continue
+        f = faixa_metragem(r["area"])
+        if f is None:
+            continue
+        pago.setdefault((r["bairro"], f), []).append(r["valor_m2"])
+
+    pedido = {}  # (bairro, faixa) -> [valor_m2, ...] (estoque atual, sem janela de tempo — não tem "data da venda")
+    for r in usn_records:
+        if r["bairro"] not in TARGETS or r.get("tipo_imovel") != "apartamento":
+            continue
+        if not r["valor"] or not r["area"]:
+            continue
+        f = faixa_metragem(r["area"])
+        if f is None:
+            continue
+        pedido.setdefault((r["bairro"], f), []).append(r["valor"] / r["area"])
+
+    out = []
+    for bairro in TARGETS:
+        for _lo, _hi, f in FAIXAS_METRAGEM:
+            key = (bairro, f)
+            pago_vals = pago.get(key, [])
+            if not pago_vals and key not in pedido:
+                continue
+            mediana_pago = _round(median(pago_vals), 2) if pago_vals else None
+
+            pedido_vals = trim_outliers_iqr(pedido.get(key, []))
+            mediana_pedido = _round(median(pedido_vals), 2) if pedido_vals else None
+
+            gap_pct = None
+            if mediana_pago and mediana_pedido:
+                gap_pct = _round((mediana_pedido - mediana_pago) / mediana_pago * 100, 1)
+
+            out.append({
+                "bairro": bairro, "faixa": f,
+                "mediana_pago_m2": mediana_pago, "mediana_pedido_m2": mediana_pedido, "gap_pct": gap_pct,
+                "n_transacoes_12m": len(pago_vals), "n_anuncios": len(pedido.get(key, [])),
+                "amostra_pequena": len(pago_vals) < MIN_TRANSACOES_PRECO_M2_12M,
+            })
+    return out
+
+
 def _segmento_representativo(segmentos):
     """Segmento (tipo+faixa) mais confiável de um bairro pra reduzir a
     matriz de segmentos a UM número por bairro (Gap Preço do Ranking,
@@ -841,7 +896,9 @@ def compute(itbi_records, usn_records, years):
     trend = _compute_trend(yearly, month_counts, year_prev, year_full, year_curr)
     usn_by_bairro, centroids, stock_total, asking_median = _aggregate_usn(usn_records)
     profile = _compute_profile(pairs_all_years, usn_by_bairro, centroids)
-    preco_m2 = _compute_preco_m2(itbi_records, usn_records, today_excel_serial())
+    hoje_serial = today_excel_serial()
+    preco_m2 = _compute_preco_m2(itbi_records, usn_records, hoje_serial)
+    preco_m2_painel = _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial)
 
     usn_by_addr_key = {}
     for r in usn_records:
@@ -1011,4 +1068,5 @@ def compute(itbi_records, usn_records, years):
         "imoveis_prioritarios": imoveis_prioritarios,
         "valor_oportunidade": valor_oportunidade,
         "captacao_estrategica": captacao_estrategica,
+        "preco_m2_painel": preco_m2_painel,
     }

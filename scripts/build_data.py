@@ -16,6 +16,7 @@ Rodar:
 
 Em produção (GitHub Actions), roda todo dia — ver .github/workflows/build-data.yml.
 """
+import csv
 import json
 import os
 import sys
@@ -38,6 +39,7 @@ OUT_RAW = ROOT / "site" / "raw.json"
 # usuário pediu pra poder auditar esse log, então ele precisa ser
 # versionado/committed junto com data.json e raw.json a cada execução.
 OUT_CLEAN_LOG = ROOT / "site" / "itbi_clean_log.json"
+OUT_PRECO_M2_CSV = ROOT / "output" / "preco_m2_por_bairro.csv"
 ENV_FILE = ROOT / ".env"
 
 
@@ -193,6 +195,26 @@ def _attach_search_interest(bairros_out, search_interest):
             entry["search_interest"] = search_interest[b]
 
 
+def _write_preco_m2_csv(preco_m2_painel, path):
+    """Export pedido na Etapa 4 (2026-09-29) — mesmo dado do painel "Preço
+    por m² — Pago × Pedido", em CSV pra abrir fora da dashboard (Excel/
+    Sheets). Uma linha por bairro+faixa (só apartamento, últimos 12 meses
+    — ver engine.py._compute_preco_m2_painel)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cols = [
+        "bairro", "faixa_metragem", "mediana_pago_r_m2", "mediana_pedido_r_m2", "gap_pct",
+        "n_transacoes_12m", "n_anuncios", "amostra_pequena",
+    ]
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(cols)
+        for p in preco_m2_painel:
+            w.writerow([
+                p["bairro"], p["faixa"], p["mediana_pago_m2"], p["mediana_pedido_m2"], p["gap_pct"],
+                p["n_transacoes_12m"], p["n_anuncios"], "sim" if p["amostra_pequena"] else "nao",
+            ])
+
+
 def main():
     _load_dotenv()
     t_start = time.time()
@@ -254,6 +276,9 @@ def main():
 
     result = engine.compute(itbi_records, usn_records, years)
     print(f"[build] motor de cálculo concluído ({time.time() - t_start:.1f}s total)")
+
+    _write_preco_m2_csv(result["preco_m2_painel"], OUT_PRECO_M2_CSV)
+    print(f"[build] {OUT_PRECO_M2_CSV} escrito ({len(result['preco_m2_painel'])} linhas)")
 
     if search_interest:
         _attach_search_interest(result["bairros"], search_interest)

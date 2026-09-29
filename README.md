@@ -405,6 +405,31 @@ Revalidado Python × JavaScript depois de toda a Etapa 3: 0 divergências
 em `preco_m2_segmentos` (49 bairros), Valor de Oportunidade (41
 achados) e Imóveis Prioritários (1.820 imóveis).
 
+## Painel "Preço por m² — Pago × Pedido" (Etapa 4 da auditoria de 2026-09-29)
+
+Painel dedicado (aba própria, `engine._compute_preco_m2_painel()`) com
+escopo dele mesmo, diferente do resto da Etapa 3: **só apartamento**
+(nem casa) e **só últimos 12 meses** — inclusive a mediana paga, não só a
+checagem de amostra. É um retrato do mercado AGORA, não o pool de 3 anos
+usado nas outras 5 comparações. Uma linha por bairro × faixa de metragem
+(4 faixas × 49 bairros = até 196 linhas, 157 com dado real na última
+execução):
+
+- Mediana de R$/m² pago (ITBI limpo, últimos 12 meses)
+- Mediana de R$/m² pedido (estoque atual da nonStop — sem janela de
+  tempo, porque anúncio não tem "data da venda")
+- Gap % entre os dois
+- Número de vendas pagas (12 meses) e de anúncios na amostra
+- Selo "Amostra pequena" quando há menos de 10 vendas pagas no segmento
+  nos últimos 12 meses (mesma regra da Etapa 3) — mostra a linha mesmo
+  assim, só avisa que a referência ainda não é confiável.
+
+Exportado também em `output/preco_m2_por_bairro.csv` a cada execução do
+`build_data.py` (committed pelo workflow, igual `site/data.json`) —
+também se beneficia do `AREA_CAP_NONSTOP` descrito acima.
+
+Revalidado Python × JavaScript: 0 divergências nas 157 linhas do painel.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
