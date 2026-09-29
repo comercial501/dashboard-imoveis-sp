@@ -466,6 +466,43 @@ sobraram depois (19 removidos, todos com 1-2 anúncios). Revalidado Python
 bairros) e na lista de Alertas recomputada (86 segmentos nos dois
 motores).
 
+## Persistência e descrições dos painéis (Etapa 6 da auditoria de 2026-09-29)
+
+A limpeza e a nova lógica de R$/m² (Etapas 2-5) já rodam automaticamente,
+sem passo manual nenhum: o GitHub Actions (`.github/workflows/build-data.yml`)
+executa `python3 scripts/build_data.py` **todo dia** às 8h BRT — não só
+semanal —, e esse script já embute 100% da limpeza (`clean_itbi.py`) e do
+motor novo (`engine.compute()`). Localmente, dois LaunchAgents cuidam do
+resto sem depender de terminal aberto: um mantém `serve_no_cache.py`
+sempre ligado, o outro faz `git pull` às 8h20 e ao meio-dia pra puxar o
+`data.json` que a Action já atualizou (ver "Automação local" acima).
+Nenhum dos dois caminhos automáticos depende de `atualizar.sh`.
+
+**Achado à parte, fora do escopo original da Etapa 6**: `atualizar.sh` e
+`scripts/build.sh` chamavam um pipeline antigo em Perl
+(`build_data.pl`/`embed_dashboard.pl`, gerando `dashboard_data.json`/
+`dashboard.html` — nada disso existe mais no fluxo atual). O próprio
+README já afirmava (seção "Como surgiu") que esse fluxo Perl "não faz
+mais parte do pipeline nem está neste repositório", mas os arquivos
+continuavam commitados — quem rodasse `./atualizar.sh` manualmente
+receberia um resultado desatualizado, sem nenhuma correção das Etapas
+2-5. Removê-los (`atualizar.sh`, `scripts/build.sh` e os 6 `scripts/*.pl`)
+ficou pendente de uma ação de exclusão em git que o ambiente sandbox
+bloqueou por segurança (irreversível dentro da sessão, mesmo sendo
+reversível via histórico do git) — fica pra você rodar localmente:
+`git rm atualizar.sh scripts/build.sh scripts/build_data.pl scripts/compare_runs.pl scripts/embed_dashboard.pl scripts/verify.pl scripts/verify_mudanca1.pl scripts/verify_mudanca2.pl scripts/verify_mudanca3.pl scripts/verify_raw.pl`.
+Isso não afeta a atualização automática — ela nunca chamou esses
+arquivos.
+
+**Descrições dos painéis** (texto visível na própria dashboard) revisadas
+pra deixar explícito, onde antes só era implícito, que a comparação é em
+R$/m² dentro do mesmo segmento (tipo de imóvel + faixa de metragem):
+Ranking de Oportunidade (coluna "Gap Preço"/badge "Alerta preço"),
+Prontidão para Campanha e Estoque × Demanda ("alinhamento de preço"/
+"Alerta preço"), e Imóveis Prioritários para Campanha ("alinhamento de
+preço"). Alertas, Perfil por Bairro, Valor de Oportunidade e o painel
+"Preço por m²" já tinham sido atualizados nas Etapas 3-5.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
