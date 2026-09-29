@@ -41,6 +41,31 @@ TIPO_IMOVEL_POR_USO = {
     "10": "casa", "12": "casa", "14": "casa",
 }
 
+# Campo "type" da API da nonStop (e coluna "Tipo" do export manual — mesmo
+# vocabulário nos dois, confirmado em 2026-09-29) -> mesma classificação de
+# 2 categorias usada pro ITBI acima, pra comparação de preço por m² ser
+# sempre "mesmo tipo de imóvel". Tipos fora dessa lista (TERRENO_*,
+# comercial, rural etc. — já deveriam estar excluídos pelo filtro
+# use=RESIDENCIAL, mas por segurança) ficam None: fora de qualquer
+# comparação por tipo.
+TIPO_IMOVEL_NONSTOP = {
+    "APARTAMENTO_TIPO": "apartamento", "APARTAMENTO_GARDEN": "apartamento",
+    "COBERTURA": "apartamento", "STUDIO": "apartamento", "LOFT": "apartamento",
+    "FLAT": "apartamento", "DUPLEX": "apartamento",
+    "CASA_TIPO": "casa", "SOBRADO": "casa", "CASA_EM_CONDOMINIO": "casa", "CASA_DE_VILA": "casa",
+}
+
+# Cap de área privativa dos anúncios da nonStop — achado testando a Etapa 3
+# (2026-09-29): um anúncio tinha área "130000" (130 mil m², claramente um
+# erro de digitação — provavelmente 130m² com 3 zeros a mais), gerando um
+# R$/m² de R$13 e um falso "99,8% de desconto" no Valor de Oportunidade.
+# Maior área legítima na amostra real: 895m² (mansão/cobertura grande) — um
+# teto de 2000m² corta só o erro óbvio, sem descartar casas grandes de
+# verdade (mais alto que o AREA_CAP=600 do ITBI de propósito: aqui é
+# anúncio de UMA unidade específica, não o problema de "área construída
+# pode ser do prédio inteiro" que o ITBI tem).
+AREA_CAP_NONSTOP = 2000
+
 # Faixas de metragem (Etapa 3 da auditoria de 2026-09-29) — usadas tanto
 # pra remover outlier de R$/m² (aqui) quanto pra segmentar toda comparação
 # de preço pedido × pago (engine.py).

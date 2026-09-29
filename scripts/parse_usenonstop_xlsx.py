@@ -14,6 +14,7 @@ itbi_methodology_spec.md §1.2.
 """
 import re
 
+from clean_itbi import AREA_CAP_NONSTOP, TIPO_IMOVEL_NONSTOP
 from normalize import address_key, bairro_canon, display_street, normalize_number
 from xlsx_reader import Workbook
 
@@ -66,7 +67,9 @@ def parse_usenonstop_xlsx(path):
             if area_raw:
                 try:
                     a = float(area_raw)
-                    if a > 0:
+                    # Ver clean_itbi.AREA_CAP_NONSTOP: erro de digitação
+                    # grosseiro na área privativa gera R$/m² absurdo.
+                    if 0 < a <= AREA_CAP_NONSTOP:
                         area = a
                 except ValueError:
                     pass
@@ -113,6 +116,7 @@ def parse_usenonstop_xlsx(path):
                 "lat": lat,
                 "lon": lon,
                 "situacao_code": situacao_code,
+                "tipo_imovel": TIPO_IMOVEL_NONSTOP.get((cells.get("P") or "").strip()),
                 "codigo": cells.get("B"),
                 "link": cells.get("BA"),
             })

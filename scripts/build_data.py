@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import clean_itbi
 import engine
 import itbi_source
-from normalize import TARGETS
+from normalize import TARGETS, today_excel_serial
 from parse_itbi import parse_itbi_years
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -120,6 +120,7 @@ def build_raw_payload(itbi_records, usn_records, years):
         usn_out.append([
             bairro_idx[r["bairro"]], aidx, r["addr_display"], r["valor"], r["area"],
             r["quartos"], r["vagas"], r["lat"], r["lon"], r["situacao_code"], r["codigo"], r["link"],
+            r.get("tipo_imovel"),
         ])
 
     return {
@@ -149,6 +150,13 @@ def build_raw_payload(itbi_records, usn_records, years):
             "pesos_painel8": engine.PESOS_PAINEL8,
             "pesos_prontidao": engine.PESOS_PRONTIDAO,
             "faixas_metragem": [[lo, (hi if hi != float("inf") else None), label] for lo, hi, label in clean_itbi.FAIXAS_METRAGEM],
+            "min_transacoes_preco_m2_12m": engine.MIN_TRANSACOES_PRECO_M2_12M,
+            "janela_preco_m2_dias": engine.JANELA_PRECO_M2_DIAS,
+            # Congelado no momento do build — o recompute no navegador (ao
+            # aplicar um filtro) usa esse valor, não a data real do
+            # visitante, pra bater exatamente com data.json quando nenhum
+            # filtro está ativo (mesma janela "últimos 12 meses" nos dois).
+            "hoje_serial": today_excel_serial(),
         },
     }
 

@@ -168,6 +168,17 @@ function cmpLower(a, b) {
   return al < bl ? -1 : al > bl ? 1 : 0;
 }
 
+// Faixas vêm de raw.constants.faixas_metragem (mesma fonte que
+// scripts/clean_itbi.FAIXAS_METRAGEM — nunca hardcoded aqui de novo).
+// Cada item é [lo, hi, label]; hi null = faixa aberta (acima de).
+function faixaMetragem(area, faixas) {
+  if (area == null) return null;
+  for (const [lo, hi, label] of faixas) {
+    if ((lo < area && (hi == null || area <= hi)) || (lo === 0 && area === 0)) return label;
+  }
+  return null;
+}
+
 function excelSerialToYm(serial) {
   // Época Excel (sistema 1900): 1899-12-30. Date.UTC em ms.
   const epoch = Date.UTC(1899, 11, 30);
@@ -199,11 +210,11 @@ function decodeRecords(raw, priceMin, priceMax) {
   }
 
   const usn = [];
-  for (const [bIdx, addrIdx, addrDisplay, valor, area, quartos, vagas, lat, lon, situacaoCode, codigo, link] of raw.usn) {
+  for (const [bIdx, addrIdx, addrDisplay, valor, area, quartos, vagas, lat, lon, situacaoCode, codigo, link, tipoImovel] of raw.usn) {
     if (!inPriceRange(valor)) continue;
     usn.push({
       bairro: raw.bairros[bIdx], addrKey: addrIdx, addrDisplay, valor, area, quartos, vagas,
-      lat, lon, situacaoCode, codigo, link,
+      lat, lon, situacaoCode, codigo, link, tipoImovel,
     });
   }
 
@@ -278,6 +289,68 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     const vals = trimOutliersIqr(pool);
     pooledMedian[b] = { avg_valor: round(mean(vals), 2), median_valor: round(median(vals), 2), n: vals.length };
   });
+
+  // Etapa 3 (2026-09-29): preço por m² pago x pedido, por bairro + tipo de
+  // imóvel + faixa de metragem — ver scripts/engine.py._compute_preco_m2.
+  const precoM2 = {};
+  TARGETS.forEach((b) => (precoM2[b] = []));
+  {
+    const pago = {}, pedido = {};
+    for (const r of itbiRecords) {
+      if (!r.isCleanSale || !(r.bairro in yearlyCount)) continue;
+      const f = faixaMetragem(r.area, C.faixas_metragem);
+      if (f == null) continue;
+      const key = `${r.bairro}\u0001${r.tipoImovel}\u0001${f}`;
+      (pago[key] ||= []).push([round(r.valor / r.area, 2), r.day]);
+    }
+    for (const r of usnRecords) {
+      if (!(r.bairro in yearlyCount) || r.tipoImovel == null) continue;
+      if (!r.valor || !r.area) continue;
+      const f = faixaMetragem(r.area, C.faixas_metragem);
+      if (f == null) continue;
+      const key = `${r.bairro}\u0001${r.tipoImovel}\u0001${f}`;
+      (pedido[key] ||= []).push(r.valor / r.area);
+    }
+    const allKeys = new Set([...Object.keys(pago), ...Object.keys(pedido)]);
+    for (const key of allKeys) {
+      const [bairro, tipo, faixa] = key.split("\u0001");
+      const pagoPairs = pago[key] || [];
+      const pagoVals = pagoPairs.map(([v]) => v);
+      const n12m = pagoPairs.filter(([, d]) => d != null && (C.hoje_serial - d) >= 0 && (C.hoje_serial - d) <= C.janela_preco_m2_dias).length;
+      const medianaPago = pagoVals.length ? round(median(pagoVals), 2) : null;
+      const p25Pago = pagoVals.length ? round(percentile(25, pagoVals), 2) : null;
+      const p75Pago = pagoVals.length ? round(percentile(75, pagoVals), 2) : null;
+
+      const pedidoVals = trimOutliersIqr(pedido[key] || []);
+      const medianaPedido = pedidoVals.length ? round(median(pedidoVals), 2) : null;
+
+      let gapPct = null;
+      if (medianaPago && medianaPedido) gapPct = round(((medianaPedido - medianaPago) / medianaPago) * 100, 1);
+
+      precoM2[bairro].push({
+        tipo_imovel: tipo, faixa,
+        mediana_pago_m2: medianaPago, mediana_pedido_m2: medianaPedido, gap_pct: gapPct,
+        p25_pago_m2: p25Pago, p75_pago_m2: p75Pago,
+        n_transacoes: pagoVals.length, n_transacoes_12m: n12m, n_anuncios: (pedido[key] || []).length,
+        amostra_pequena: n12m < C.min_transacoes_preco_m2_12m,
+      });
+    }
+  }
+
+  const segmentoRepresentativo = (segmentos) => {
+    const candidatos = segmentos.filter((s) => s.gap_pct != null && !s.amostra_pequena);
+    if (!candidatos.length) return null;
+    return candidatos.sort((a, b) => b.n_transacoes_12m - a.n_transacoes_12m)[0];
+  };
+
+  const lookupMedianaPagoM2 = (segmentosBairro, tipoImovel, area) => {
+    if (tipoImovel == null || !area) return null;
+    const f = faixaMetragem(area, C.faixas_metragem);
+    if (f == null) return null;
+    const s = segmentosBairro.find((s) => s.tipo_imovel === tipoImovel && s.faixa === f);
+    if (!s || s.amostra_pequena || !s.mediana_pago_m2) return null;
+    return s.mediana_pago_m2;
+  };
 
   const h1Count = (mc, year) => {
     let s = 0;
@@ -515,12 +588,17 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     const ratio = demand > 0 ? stockMatch / demand : (stockMatch > 0 ? 999 : 0);
     const paidMedian = pooledMedian[b].median_valor;
     const asking = askingMedian[b];
-    const priceGapPct = paidMedian && asking ? round(((asking - paidMedian) / paidMedian) * 100) : null;
+    // Gap Preço / flag_alerta (Etapa 3, 2026-09-29): segmento (tipo+faixa)
+    // mais representativo do bairro, não bairro inteiro x bairro inteiro
+    // — ver scripts/engine.py.compute.
+    const segmentoRep = segmentoRepresentativo(precoM2[b]);
+    const priceGapPct = segmentoRep ? segmentoRep.gap_pct : null;
 
     bairrosOut[b] = {
       yearly: { [yearPrev]: yearly[b][yearPrev], [yearFull]: yearly[b][yearFull], [yearCurr]: yearly[b][yearCurr] },
       ...trend[b],
       volume_primary_year: volumePrimary,
+      preco_m2_segmentos: precoM2[b],
       area_band: profile[b].area_band, price_band: profile[b].price_band, price_band_median: profile[b].price_band_median,
       profile_quartos: profile[b].profile_quartos, profile_vagas: profile[b].profile_vagas,
       profile_sample_size: profile[b].profile_sample_size,
@@ -593,9 +671,9 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   const resumoImovel = (price, aderenciaFinal, areaConf, scoreRevendaBairro, temCaptacao) => {
     const frases = [];
     const ratio = price.ratio;
-    if (price.zone === "cautela" && ratio != null) frases.push(`Preço ${Math.round((1 - ratio) * 100)}% abaixo do histórico do bairro — vale checar antes de anunciar`);
-    else if (price.zone === "acima" && price.score < 60 && ratio != null) frases.push(`Preço ${Math.round((ratio - 1) * 100)}% acima do que o bairro historicamente pagou`);
-    else if (price.zone === "normal" && ratio != null && ratio < 0.97) frases.push(`Preço ${Math.round((1 - ratio) * 100)}% abaixo da mediana paga no bairro`);
+    if (price.zone === "cautela" && ratio != null) frases.push(`R$/m² ${Math.round((1 - ratio) * 100)}% abaixo do histórico de imóveis do mesmo tipo/tamanho — vale checar antes de anunciar`);
+    else if (price.zone === "acima" && price.score < 60 && ratio != null) frases.push(`R$/m² ${Math.round((ratio - 1) * 100)}% acima do que se pagou em imóveis do mesmo tipo/tamanho`);
+    else if (price.zone === "normal" && ratio != null && ratio < 0.97) frases.push(`R$/m² ${Math.round((1 - ratio) * 100)}% abaixo da mediana paga em imóveis do mesmo tipo/tamanho`);
     if (aderenciaFinal >= 80) frases.push(`Bate com o perfil vencedor do bairro${areaConf < 1 ? " (estimativa regional)" : ""}`);
     if (scoreRevendaBairro >= 70) frases.push("Bairro com liquidez de revenda alta");
     if (temCaptacao) frases.push("Prédio com histórico de giro comprovado");
@@ -609,7 +687,12 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     const b = bairrosOut[u.bairro];
     if (!b) continue;
 
-    const price = priceAlignmentScore(u.valor, b.paid_median_valor_primary_year);
+    // Etapa 3 (2026-09-29): R$/m² do anúncio x mediana do MESMO tipo de
+    // imóvel + faixa de metragem, não valor total x mediana do bairro
+    // inteiro — ver scripts/engine.py._compute_imoveis_prioritarios.
+    const valorM2 = u.area ? u.valor / u.area : null;
+    const medianaM2 = lookupMedianaPagoM2(b.preco_m2_segmentos, u.tipoImovel, u.area);
+    const price = priceAlignmentScore(valorM2, medianaM2);
     const areaBand = b.area_band, areaConf = confidence(b.area_band_reliability);
     let areaRaw = 50;
     if (areaBand && u.area != null) {
@@ -633,7 +716,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
 
     imoveisPrioritarios.push({
       bairro: u.bairro, endereco: u.addrDisplay, codigo: u.codigo, link: u.link,
-      valor: u.valor, area: u.area, quartos: u.quartos, vagas: u.vagas, addr_key: u.addrKey,
+      valor: u.valor, area: u.area, quartos: u.quartos, vagas: u.vagas, tipo_imovel: u.tipoImovel, addr_key: u.addrKey,
       score_bairro_revenda: round(b.score_revenda), price_alignment: round(price.score),
       profile_adherence: round(aderencia), tem_captacao_ativa: temCaptacao,
       area_band_reliability: b.area_band_reliability, profile_reliability: b.profile_reliability,
@@ -655,17 +738,27 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   const imoveisByBairro = {};
   for (const im of imoveisPrioritarios) (imoveisByBairro[im.bairro] ||= []).push(im);
 
+  // Etapa 3 (2026-09-29): desconto compara R$/m² do anúncio x mediana R$/m²
+  // do MESMO tipo de imóvel + faixa de metragem — não mais valor total x
+  // mediana de todos os tamanhos do bairro. "amostra pequena" do segmento
+  // (lookupMedianaPagoM2 já devolve null nesse caso) substitui o antigo
+  // gate por volume do bairro inteiro — ver
+  // scripts/engine.py._compute_valor_oportunidade.
   const valorOportunidadeImoveis = [];
+  const elegivelByBairro = {};
   for (const im of imoveisPrioritarios) {
     const b = bairrosOut[im.bairro];
-    if (b.volume_primary_year < C.valor_oportunidade_min_vendas_primary) continue;
-    const mediana = b.paid_median_valor_primary_year;
-    if (!mediana || mediana <= 0) continue;
-    const ratio = im.valor / mediana, desconto = 1 - ratio;
+    const medianaM2 = lookupMedianaPagoM2(b.preco_m2_segmentos, im.tipo_imovel, im.area);
+    if (medianaM2 == null) continue;
+    elegivelByBairro[im.bairro] = (elegivelByBairro[im.bairro] || 0) + 1;
+    const valorM2 = im.valor / im.area;
+    const ratio = valorM2 / medianaM2, desconto = 1 - ratio;
     if (desconto < C.valor_oportunidade_min_desconto) continue;
     valorOportunidadeImoveis.push({
-      bairro: im.bairro, endereco: im.endereco, codigo: im.codigo, link: im.link, valor: im.valor,
-      mediana_paga_bairro: mediana, desconto_pct: round(desconto * 100), atencao: desconto >= C.valor_oportunidade_atencao_desconto,
+      bairro: im.bairro, endereco: im.endereco, codigo: im.codigo, link: im.link,
+      valor: im.valor, area: im.area, tipo_imovel: im.tipo_imovel, faixa: faixaMetragem(im.area, C.faixas_metragem),
+      valor_m2: round(valorM2, 2), mediana_pago_m2: medianaM2,
+      desconto_pct: round(desconto * 100), atencao: desconto >= C.valor_oportunidade_atencao_desconto,
     });
   }
   valorOportunidadeImoveis.sort((a, b) => b.desconto_pct - a.desconto_pct || cmpLower(a.endereco || "", b.endereco || "") || String(a.codigo || "").localeCompare(String(b.codigo || "")));
@@ -686,12 +779,14 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     const coverage = Math.min(1, nIm / 10);
     const f5 = meanTop10 * coverage;
 
+    // f6 usa a MESMA elegibilidade por segmento do Valor de Oportunidade
+    // (antes recalculava com o gate antigo por volume do bairro inteiro).
+    const estoqueEleg = elegivelByBairro[b] || 0;
     let f6;
-    if (bo.volume_primary_year < C.valor_oportunidade_min_vendas_primary) f6 = 50;
+    if (estoqueEleg === 0) f6 = 50;
     else {
-      const estoqueEleg = (imoveisByBairro[b] || []).filter((im) => bairrosOut[im.bairro].volume_primary_year >= C.valor_oportunidade_min_vendas_primary).length;
       const achadosBairro = achadosByBairro[b] || 0;
-      f6 = estoqueEleg === 0 ? 0 : (100 * achadosBairro) / estoqueEleg;
+      f6 = (100 * achadosBairro) / estoqueEleg;
     }
 
     const prontidao = C.pesos_prontidao.f1 * f1 + C.pesos_prontidao.f2 * f2 + C.pesos_prontidao.f3 * f3
@@ -701,7 +796,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
 
   const prontidaoRanking = [...scope].sort((a, b) => bairrosOut[b].prontidao_campanha - bairrosOut[a].prontidao_campanha);
   const valorOportunidadePorBairro = Object.entries(achadosByBairro).map(([bairro, n]) => {
-    const total = (imoveisByBairro[bairro] || []).filter((im) => bairrosOut[im.bairro].volume_primary_year >= C.valor_oportunidade_min_vendas_primary).length;
+    const total = elegivelByBairro[bairro] || 0;
     return { bairro, n_achados: n, estoque_total: total, pct_do_estoque: total ? round((100 * n) / total) : null };
   }).sort((a, b) => b.n_achados - a.n_achados || cmpLower(a.bairro, b.bairro));
 

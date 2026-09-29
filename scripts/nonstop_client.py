@@ -31,6 +31,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from clean_itbi import AREA_CAP_NONSTOP, TIPO_IMOVEL_NONSTOP
 from normalize import address_key, bairro_canon
 
 BASE_URL = "https://www.usenonstop.com/api"
@@ -112,6 +113,14 @@ def card_to_record(card):
     geo = (address.get("geo") or {}).get("coordinates") or [None, None]
     lon, lat = (geo + [None, None])[:2]
 
+    # Área privativa às vezes vem com erro de digitação grosseiro (achado
+    # de 2026-09-29: um anúncio com "130000" — 130 mil m² — gerava R$/m²
+    # de R$13 e um falso "99,8% de desconto" no Valor de Oportunidade).
+    # Ver clean_itbi.AREA_CAP_NONSTOP.
+    area_privativa = areas.get("private")
+    if area_privativa is not None and area_privativa > AREA_CAP_NONSTOP:
+        area_privativa = None
+
     # O campo `url` do CardProperty é só um slug descritivo (não resolve
     # sozinho — testado, dá 404). A página real do imóvel é
     # /imoveis/{user.slug}/{base36Id}, mesmo padrão da coluna "Link nonstop"
@@ -126,12 +135,13 @@ def card_to_record(card):
         "addr_display": adisp,
         "addr_display_building": adisp_building,
         "valor": values.get("sale"),
-        "area": areas.get("private"),
+        "area": area_privativa,
         "quartos": card.get("rooms"),
         "vagas": card.get("parkingLots"),
         "lat": lat,
         "lon": lon,
         "situacao_code": _situacao_code_from_card(card),
+        "tipo_imovel": TIPO_IMOVEL_NONSTOP.get(card.get("type")),
         "codigo": card.get("base36Id"),
         "link": link,
     }

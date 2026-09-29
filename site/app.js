@@ -528,24 +528,33 @@ function renderVisaoGeral() {
   tiles.appendChild(statTile("Bairros Prioridade Máxima", fmtInt(prioritariosBairros.size)));
 
   const alertBox = document.getElementById("visao-alertas");
-  const alertas = DATA.ranking
-    .map((name) => ({ name, b: DATA.bairros[name] }))
-    .filter((x) => x.b.flag_alerta)
-    .sort((a, b) => Math.abs(b.b.price_gap_pct) - Math.abs(a.b.price_gap_pct))
-    .slice(0, 12);
+  // Etapa 3 (2026-09-29): alerta é por SEGMENTO (bairro + tipo de imóvel +
+  // faixa de metragem), não por bairro inteiro — comparar "tudo que se
+  // pede" contra "tudo que se pagou" misturava apartamento pequeno com
+  // casa grande. amostra_pequena (menos de 10 transações pagas nos
+  // últimos 12 meses nesse segmento) nunca vira alerta.
+  const segmentosAlerta = [];
+  DATA.ranking.forEach((name) => {
+    (DATA.bairros[name].preco_m2_segmentos || []).forEach((s) => {
+      if (s.gap_pct == null || s.amostra_pequena || Math.abs(s.gap_pct) < 20) return;
+      segmentosAlerta.push({ bairro: name, ...s });
+    });
+  });
+  segmentosAlerta.sort((a, b) => Math.abs(b.gap_pct) - Math.abs(a.gap_pct));
+  const alertas = segmentosAlerta.slice(0, 12);
   if (!alertas.length) {
-    alertBox.appendChild(el("div", { class: "placeholder-block" }, "Nenhum bairro com gap de preço acima do limiar no momento."));
+    alertBox.appendChild(el("div", { class: "placeholder-block" }, "Nenhum segmento (bairro + tipo + faixa) com gap de R$/m² acima do limiar e amostra suficiente no momento."));
   } else {
     barRows(
       alertBox,
       alertas.map((a) => ({
-        label: a.name,
-        value: Math.abs(a.b.price_gap_pct),
-        colorVar: a.b.price_gap_pct > 0 ? "--status-warning" : "--series-blue",
+        label: `${a.bairro} · ${a.tipo_imovel === "casa" ? "Casa" : "Apartamento"} · ${a.faixa}`,
+        value: Math.abs(a.gap_pct),
+        colorVar: a.gap_pct > 0 ? "--status-warning" : "--series-blue",
       })),
       { valueFmt: (v) => fmtPct(v), colorVar: "--status-warning" }
     );
-    alertBox.appendChild(el("div", { class: "note" }, "Pedido acima do pago (laranja) = estoque anunciado caro demais pro histórico do bairro; pedido abaixo do pago (azul) = estoque anunciado barato demais (pode ser subprecificação real, pode ser dado de amostra pequena — confira o painel Perfil por Bairro)."));
+    alertBox.appendChild(el("div", { class: "note" }, "Gap de R$/m², dentro do mesmo tipo de imóvel e faixa de metragem (nunca valor total nem tamanhos diferentes). Pedido acima do pago (laranja) = estoque anunciado caro demais pro histórico desse segmento; pedido abaixo do pago (azul) = estoque anunciado barato demais (pode ser subprecificação real, pode ser amostra de anúncios pequena)."));
   }
 }
 
@@ -662,8 +671,6 @@ function renderPerfilContent(name) {
       reliabilityTag(b.area_band_reliability),
     ]);
     perfilBox.appendChild(line);
-    perfilBox.appendChild(el("div", { class: "small muted", style: "margin-top:4px" },
-      `Faixa de preço pago (P25–P75): ${fmtMoneyCompact(b.price_band[0])} – ${fmtMoneyCompact(b.price_band[1])} · mediana ${fmtMoneyCompact(b.price_band_median)}`));
     if (b.area_band_neighbors.length) {
       perfilBox.appendChild(el("div", { class: "small muted", style: "margin-top:4px" },
         `Estimado a partir de: ${b.area_band_neighbors.map((n) => `${n.bairro} (${n.distancia_km}km, ${n.n_pares} transações)`).join(", ")}`));
@@ -689,14 +696,35 @@ function renderPerfilContent(name) {
   box.appendChild(stockBox);
 
   const priceBox = el("section", { class: "card", style: "margin:0; padding:16px 18px;" });
-  priceBox.appendChild(el("h2", { style: "font-size:14.5px" }, "Faixa de Preço que Converte"));
-  barRows(priceBox, [
-    { label: `Mediana paga (${anosRefLabel()})`, value: b.paid_median_valor_primary_year || 0, colorVar: "--series-aqua" },
-    { label: "Mediana pedida (hoje)", value: b.asking_median_valor || 0, colorVar: "--series-orange" },
-  ], { valueFmt: (v) => fmtMoneyCompact(v), maxOverride: Math.max(b.paid_median_valor_primary_year || 0, b.asking_median_valor || 0, 1) });
-  if (b.price_gap_pct != null) {
-    priceBox.appendChild(el("div", { class: "small muted", style: "margin-top:8px" },
-      `Gap: pedido está ${fmtPct(Math.abs(b.price_gap_pct))} ${b.price_gap_pct >= 0 ? "acima" : "abaixo"} do que o bairro historicamente pagou.`));
+  priceBox.appendChild(el("h2", { style: "font-size:14.5px" }, "Preço por m² — Pago × Pedido"));
+  priceBox.appendChild(el("div", { class: "card-sub", style: "margin-bottom:10px" },
+    `Mediana de R$/m² pago (${anosRefLabel()}) × pedido (hoje), dentro do mesmo tipo de imóvel e faixa de metragem — nunca valor total, nunca tamanhos diferentes.`));
+  const segmentos = (b.preco_m2_segmentos || [])
+    .filter((s) => s.mediana_pago_m2 != null || s.mediana_pedido_m2 != null)
+    .sort((s1, s2) => (s2.n_transacoes_12m - s1.n_transacoes_12m) || cmpLower(s1.tipo_imovel, s2.tipo_imovel) || cmpLower(s1.faixa, s2.faixa));
+  if (!segmentos.length) {
+    priceBox.appendChild(el("div", { class: "placeholder-block" }, "Sem transações pagas nem anúncios suficientes pra segmentar preço por tipo/tamanho nesse bairro."));
+  } else {
+    segmentos.forEach((s) => {
+      const nomeLine = [`${s.tipo_imovel === "casa" ? "Casa" : "Apartamento"} · ${s.faixa}`];
+      if (s.amostra_pequena) nomeLine.push(badge("Amostra pequena", "neutral"));
+      const faixaPago = s.p25_pago_m2 != null
+        ? `${fmtMoneyCompact(s.p25_pago_m2)} – ${fmtMoneyCompact(s.p75_pago_m2)}/m² (P25–P75) · mediana ${fmtMoneyCompact(s.mediana_pago_m2)}/m²`
+        : "sem venda paga na amostra";
+      const metaLine = [
+        `Pago: ${faixaPago}`,
+        `Pedido: ${s.mediana_pedido_m2 != null ? fmtMoneyCompact(s.mediana_pedido_m2) + "/m² (mediana)" : "sem anúncio na amostra"}`,
+        `${fmtInt(s.n_transacoes)} venda(s) (${fmtInt(s.n_transacoes_12m)} nos últimos 12 meses) · ${fmtInt(s.n_anuncios)} anúncio(s)`,
+      ];
+      const row = el("div", { class: "addr-row", style: "align-items:flex-start" }, [
+        el("div", {}, [
+          el("div", { class: "addr-name" }, nomeLine),
+          ...metaLine.map((t) => el("div", { class: "addr-meta" }, t)),
+        ]),
+        el("div", { class: "addr-price" }, s.gap_pct != null ? `${s.gap_pct >= 0 ? "+" : ""}${fmtPct(s.gap_pct)}` : "—"),
+      ]);
+      priceBox.appendChild(row);
+    });
   }
   box.appendChild(priceBox);
 }
@@ -1008,8 +1036,12 @@ function renderValorOportunidade() {
     columns: [
       { key: "bairro", label: "Bairro" },
       { key: "endereco", label: "Endereço", key2: "desc" },
-      { key: "valor", label: "Valor pedido", fmt: (v) => fmtMoneyCompact(v) },
-      { key: "mediana_paga_bairro", label: "Mediana paga", fmt: (v) => fmtMoneyCompact(v) },
+      {
+        key: "tipo_imovel", label: "Tipo · Faixa", sortable: false,
+        render: (r) => el("div", {}, `${r.tipo_imovel === "casa" ? "Casa" : "Apartamento"} · ${r.faixa}`),
+      },
+      { key: "valor_m2", label: "R$/m² anúncio", fmt: (v) => fmtMoneyCompact(v) },
+      { key: "mediana_pago_m2", label: "R$/m² mediana (mesmo tipo/faixa)", fmt: (v) => fmtMoneyCompact(v) },
       {
         key: "desconto_pct", label: "Desconto", render: (r) => el("div", {}, [
           fmtPct(r.desconto_pct) + " ",

@@ -342,6 +342,69 @@ JavaScript: 0 divergências reais em 4.393 endereços de Captação Ativa (1
 mistura de acento num texto de exibição, sem efeito em nenhum número) e
 em todos os outros painéis.
 
+## Preço por R$/m², segmentado (Etapa 3 da auditoria de 2026-09-29)
+
+Toda comparação de preço pedido × pago do motor passou a ser em **R$/m²**,
+dentro do **mesmo tipo de imóvel** (apartamento/casa — código "Uso (IPTU)"
+do ITBI e campo `type` da nonStop, mapeados pra 2 categorias em
+`clean_itbi.TIPO_IMOVEL_POR_USO`/`TIPO_IMOVEL_NONSTOP`) e da **mesma faixa
+de metragem** (até 50m², 50–80m², 80–120m², acima de 120m²), sempre com
+**mediana**, nunca média nem valor total. `engine._compute_preco_m2()`
+calcula isso uma vez por bairro (todas as combinações tipo+faixa que têm
+pelo menos uma venda paga OU um anúncio) e alimenta os 5 pontos abaixo:
+
+- **Alertas** (Visão Geral) — virou lista de SEGMENTOS (bairro + tipo +
+  faixa), não mais de bairros inteiros. Ex: Ibirapuera aparecia com gap de
+  988% comparando a mediana pedida de TODOS os tamanhos com a paga de
+  apartamentos de 120-140m²; hoje o gap de 598% é "Ibirapuera ·
+  Apartamento · acima de 120m²" — mesmo tipo, mesma faixa (ver limitação
+  conhecida abaixo).
+- **Valor de Oportunidade** — desconto compara R$/m² do anúncio com a
+  mediana R$/m² do MESMO segmento, não mais o valor total com a mediana de
+  todos os tamanhos do bairro. Corrigiu o caso relatado (4 studios de
+  23-32m² no Alto da Boa Vista apareciam como "70-77% abaixo" comparados
+  com apartamentos de 100-120m²; hoje não geram achado nenhum, porque não
+  há venda paga registrada de apartamento até 50m² nesse bairro — sem
+  referência confiável, sem achado forçado).
+- **Gap Preço do Ranking de Oportunidade** — vira o gap do segmento mais
+  representativo do bairro (mais transações pagas nos últimos 12 meses,
+  entre os que não são amostra pequena), não mais bairro inteiro × bairro
+  inteiro.
+- **Perfil por Bairro** — "Faixa de preço pago (P25-P75)" e "Mediana paga
+  × pedida" viraram uma tabela com uma linha por segmento (tipo + faixa)
+  que tem dado, com P25-P75 pago, mediana pedida, gap e tamanho da
+  amostra — substituindo a comparação única do "bucket de metragem
+  vencedora" do bairro inteiro.
+- **Alinhamento de preço** (Prontidão para Campanha e Imóveis
+  Prioritários) — compara R$/m² do anúncio com a mediana do MESMO
+  segmento, em vez do valor total do imóvel com a mediana de todos os
+  tamanhos do bairro.
+
+**Regra de amostra**: um segmento (bairro + tipo + faixa) com menos de 10
+vendas pagas nos ÚLTIMOS 12 MESES (`MIN_TRANSACOES_PRECO_M2_12M`, distinto
+do pool de 3 anos usado pra calcular a própria mediana — a janela de 12
+meses é só o portão de confiança "isso ainda reflete o bairro HOJE") vira
+`amostra_pequena`, e não gera alerta nem achado de Valor de Oportunidade.
+
+**Achado extra testando isso**: um anúncio da nonStop tinha área
+"130000" (130 mil m² — erro de digitação, provavelmente 130m² com 3
+zeros a mais), gerando R$/m² de R$13 e um falso "99,8% de desconto".
+`clean_itbi.AREA_CAP_NONSTOP = 2000` descarta área de anúncio acima
+disso (maior área legítima na amostra real: 895m²).
+
+**Limitação conhecida**: a faixa "acima de 120m²" é aberta (sem teto) —
+um apartamento de 130m² e uma cobertura de 500m² caem no mesmo segmento.
+Em bairros de altíssimo padrão (Ibirapuera, Itaim Bibi) isso ainda pode
+gerar gaps grandes mesmo comparando "mesmo tipo, mesma faixa", porque o
+estoque anunciado nessa faixa pode ser sistematicamente mais luxuoso que
+o que historicamente se vendeu. As faixas de metragem usadas são as que
+foram pedidas explicitamente; não criei uma faixa adicional pra
+"altíssimo padrão" sem confirmar com o usuário.
+
+Revalidado Python × JavaScript depois de toda a Etapa 3: 0 divergências
+em `preco_m2_segmentos` (49 bairros), Valor de Oportunidade (41
+achados) e Imóveis Prioritários (1.820 imóveis).
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`

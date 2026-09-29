@@ -41,10 +41,12 @@ from normalize import (
     nearest_neighbors,
     normalize_0_100,
     percentile,
+    today_excel_serial,
     trim_outliers_iqr,
     zscore_map,
 )
 from normalize import TARGETS
+from clean_itbi import FAIXAS_METRAGEM, faixa_metragem
 
 # ---------------------------------------------------------------------------
 # Constantes (idênticas ao Perl — ver itbi_methodology_spec.md §19)
@@ -69,6 +71,16 @@ VALOR_OPORTUNIDADE_ATENCAO_DESCONTO = 0.30
 VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY = 10
 CAPTACAO_ESTRATEGICA_MAX_STOCK_MATCH = 2
 CAPTACAO_ESTRATEGICA_MIN_ENDERECOS = 5
+
+# Etapa 3 da auditoria de 2026-09-29: toda comparação pedido×pago passa a
+# ser em R$/m², dentro da mesma faixa de metragem e do mesmo tipo de
+# imóvel, com mediana (não média). Um segmento (bairro+tipo+faixa) com
+# menos de 10 transações pagas nos ÚLTIMOS 12 MESES é "amostra pequena" —
+# não gera alerta nem achado de Valor de Oportunidade (mediana pago usa o
+# pool de 3 anos de qualquer forma, ver pooled_median; os 12 meses são só
+# o portão de confiança "isso ainda reflete o bairro HOJE").
+MIN_TRANSACOES_PRECO_M2_12M = 10
+JANELA_PRECO_M2_DIAS = 365
 
 PESOS_PAINEL8 = {"revenda": 0.35, "preco": 0.30, "aderencia": 0.25, "captacao": 0.10}
 PESOS_PRONTIDAO = {"f1": 0.15, "f2": 0.20, "f3": 0.15, "f4": 0.15, "f5": 0.25, "f6": 0.10}
@@ -468,6 +480,100 @@ def _tem_unidade_a_venda_hoje(usn_recs_no_addr):
 
 
 # ---------------------------------------------------------------------------
+# 4b. Etapa 3 (2026-09-29) — Preço por m² pago × pedido, por bairro + tipo
+# de imóvel + faixa de metragem. Toda comparação de preço do motor usa
+# isso: Alertas, Valor de Oportunidade, Gap Preço do Ranking, Perfil por
+# Bairro, alinhamento de preço de Prontidão/Imóveis Prioritários.
+# ---------------------------------------------------------------------------
+def _compute_preco_m2(itbi_records, usn_records, hoje_serial):
+    """Retorna dict[bairro] = [ {tipo_imovel, faixa, mediana_pago_m2,
+    mediana_pedido_m2, gap_pct, n_transacoes, n_transacoes_12m,
+    n_anuncios, amostra_pequena}, ... ] — uma entrada por combinação
+    (tipo_imovel, faixa) que teve pelo menos uma venda paga OU um anúncio
+    pedido nesse bairro."""
+    pago = {}  # (bairro, tipo, faixa) -> [(valor_m2, day), ...]
+    for r in itbi_records:
+        if not r["is_clean_sale"] or r["bairro"] not in TARGETS:
+            continue
+        f = faixa_metragem(r["area"])
+        if f is None:
+            continue
+        pago.setdefault((r["bairro"], r["tipo_imovel"], f), []).append((r["valor_m2"], r["day"]))
+
+    pedido = {}  # (bairro, tipo, faixa) -> [valor_m2, ...]
+    for r in usn_records:
+        if r["bairro"] not in TARGETS or r.get("tipo_imovel") is None:
+            continue
+        if not r["valor"] or not r["area"]:
+            continue
+        f = faixa_metragem(r["area"])
+        if f is None:
+            continue
+        pedido.setdefault((r["bairro"], r["tipo_imovel"], f), []).append(r["valor"] / r["area"])
+
+    out = {b: [] for b in TARGETS}
+    for key in sorted(set(pago) | set(pedido)):
+        bairro, tipo, f = key
+        pago_pairs = pago.get(key, [])
+        pago_vals = [v for v, _d in pago_pairs]
+        n_12m = sum(1 for _v, d in pago_pairs if d is not None and 0 <= (hoje_serial - d) <= JANELA_PRECO_M2_DIAS)
+        mediana_pago = _round(median(pago_vals), 2) if pago_vals else None
+        # P25-P75 de R$/m² pago do segmento — substitui a antiga "Faixa de
+        # preço pago (P25-P75)" do Perfil Vencedor (que misturava qualquer
+        # tamanho dentro do bucket de metragem vencedora); agora é por
+        # tipo+faixa, igual ao resto da Etapa 3.
+        p25_pago = _round(percentile(25, pago_vals), 2) if pago_vals else None
+        p75_pago = _round(percentile(75, pago_vals), 2) if pago_vals else None
+
+        pedido_vals = trim_outliers_iqr(pedido.get(key, []))
+        mediana_pedido = _round(median(pedido_vals), 2) if pedido_vals else None
+
+        gap_pct = None
+        if mediana_pago and mediana_pedido:
+            gap_pct = _round((mediana_pedido - mediana_pago) / mediana_pago * 100, 1)
+
+        out[bairro].append({
+            "tipo_imovel": tipo, "faixa": f,
+            "mediana_pago_m2": mediana_pago, "mediana_pedido_m2": mediana_pedido, "gap_pct": gap_pct,
+            "p25_pago_m2": p25_pago, "p75_pago_m2": p75_pago,
+            "n_transacoes": len(pago_vals), "n_transacoes_12m": n_12m, "n_anuncios": len(pedido.get(key, [])),
+            "amostra_pequena": n_12m < MIN_TRANSACOES_PRECO_M2_12M,
+        })
+    return out
+
+
+def _segmento_representativo(segmentos):
+    """Segmento (tipo+faixa) mais confiável de um bairro pra reduzir a
+    matriz de segmentos a UM número por bairro (Gap Preço do Ranking,
+    flag_alerta) — o de maior amostra recente entre os que têm os dois
+    lados (pago e pedido) e não são amostra pequena. None se nenhum
+    qualificar (bairro vira "—", não gera alerta)."""
+    candidatos = [s for s in segmentos if s["gap_pct"] is not None and not s["amostra_pequena"]]
+    if not candidatos:
+        return None
+    return sorted(candidatos, key=lambda s: -s["n_transacoes_12m"])[0]
+
+
+def _lookup_mediana_pago_m2(segmentos_bairro, tipo_imovel, area):
+    """Mediana de R$/m² pago do segmento (tipo+faixa) de UM imóvel
+    específico — usado no alinhamento de preço (Prontidão/Imóveis
+    Prioritários) e no Valor de Oportunidade. None quando o imóvel não tem
+    tipo/área classificável ou o segmento é amostra pequena demais pra
+    confiar (mesma regra dos Alertas)."""
+    if tipo_imovel is None or not area:
+        return None
+    f = faixa_metragem(area)
+    if f is None:
+        return None
+    for s in segmentos_bairro:
+        if s["tipo_imovel"] == tipo_imovel and s["faixa"] == f:
+            if s["amostra_pequena"] or not s["mediana_pago_m2"]:
+                return None
+            return s["mediana_pago_m2"]
+    return None
+
+
+# ---------------------------------------------------------------------------
 # 5. Painel 1 — Ranking de Oportunidade (score de bairro)
 # ---------------------------------------------------------------------------
 def _minmax_rescale_0_100(combined):
@@ -516,11 +622,11 @@ def _resumo_imovel(price, aderencia_final, area_conf, score_revenda_bairro, tem_
     frases = []
     ratio = price["ratio"]
     if price["zone"] == "cautela" and ratio is not None:
-        frases.append(f"Preço {round((1 - ratio) * 100)}% abaixo do histórico do bairro — vale checar antes de anunciar")
+        frases.append(f"R$/m² {round((1 - ratio) * 100)}% abaixo do histórico de imóveis do mesmo tipo/tamanho — vale checar antes de anunciar")
     elif price["zone"] == "acima" and price["score"] < 60 and ratio is not None:
-        frases.append(f"Preço {round((ratio - 1) * 100)}% acima do que o bairro historicamente pagou")
+        frases.append(f"R$/m² {round((ratio - 1) * 100)}% acima do que se pagou em imóveis do mesmo tipo/tamanho")
     elif price["zone"] == "normal" and ratio is not None and ratio < 0.97:
-        frases.append(f"Preço {round((1 - ratio) * 100)}% abaixo da mediana paga no bairro")
+        frases.append(f"R$/m² {round((1 - ratio) * 100)}% abaixo da mediana paga em imóveis do mesmo tipo/tamanho")
 
     if aderencia_final >= 80:
         sufixo = " (estimativa regional)" if area_conf < 1 else ""
@@ -542,7 +648,13 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, addr_in_captacao_ati
         if not b:
             continue
 
-        price = _price_alignment_score(u["valor"], b["paid_median_valor_primary_year"])
+        # Etapa 3 (2026-09-29): alinhamento de preço compara R$/m² do
+        # anúncio contra a mediana paga do MESMO tipo de imóvel + faixa de
+        # metragem, não o valor total contra a mediana do bairro inteiro
+        # (comparava apto pequeno com casa grande, por ex.).
+        valor_m2 = (u["valor"] / u["area"]) if u["area"] else None
+        mediana_m2 = _lookup_mediana_pago_m2(b["preco_m2_segmentos"], u.get("tipo_imovel"), u["area"])
+        price = _price_alignment_score(valor_m2, mediana_m2)
 
         area_band = b["area_band"]
         area_conf = _confidence(b["area_band_reliability"])
@@ -579,6 +691,7 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, addr_in_captacao_ati
         out.append({
             "bairro": u["bairro"], "endereco": u["addr_display"], "codigo": u["codigo"], "link": u["link"],
             "valor": u["valor"], "area": u["area"], "quartos": u["quartos"], "vagas": u["vagas"],
+            "tipo_imovel": u.get("tipo_imovel"),
             "addr_key": u["addr_key"],
             "score_bairro_revenda": _round(b["score_revenda"]), "price_alignment": _round(price["score"]),
             "profile_adherence": _round(aderencia), "tem_captacao_ativa": tem_captacao,
@@ -597,32 +710,40 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, addr_in_captacao_ati
 # 7. Painel 10 — Valor de Oportunidade
 # ---------------------------------------------------------------------------
 def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
+    # Etapa 3 (2026-09-29): desconto compara R$/m² do anúncio contra a
+    # mediana R$/m² do MESMO tipo de imóvel + faixa de metragem no bairro
+    # — não mais o valor total contra a mediana de TODOS os tamanhos do
+    # bairro (achado real: apartamentos de 23-32m² no Alto da Boa Vista
+    # apareciam como "77% abaixo" comparados com a mediana de 100-120m²,
+    # quando na verdade R$/m² deles era CARO pro próprio tamanho). O
+    # "amostra pequena" do segmento (_lookup_mediana_pago_m2 já devolve
+    # None nesse caso) substitui o antigo gate por volume do bairro
+    # inteiro — a regra de amostra agora é por segmento, não por bairro.
     achados = []
+    elegivel_by_bairro = {}
     for im in imoveis_prioritarios:
         b = bairros_out[im["bairro"]]
-        if b["volume_primary_year"] < VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY:
+        mediana_m2 = _lookup_mediana_pago_m2(b["preco_m2_segmentos"], im.get("tipo_imovel"), im.get("area"))
+        if mediana_m2 is None:
             continue
-        mediana = b["paid_median_valor_primary_year"]
-        if not mediana or mediana <= 0:
-            continue
-        ratio = im["valor"] / mediana
+        elegivel_by_bairro[im["bairro"]] = elegivel_by_bairro.get(im["bairro"], 0) + 1
+        valor_m2 = im["valor"] / im["area"]
+        ratio = valor_m2 / mediana_m2
         desconto = 1 - ratio
         if desconto < VALOR_OPORTUNIDADE_MIN_DESCONTO:
             continue
         achados.append({
             "bairro": im["bairro"], "endereco": im["endereco"], "codigo": im["codigo"], "link": im["link"],
-            "valor": im["valor"], "mediana_paga_bairro": mediana,
+            "valor": im["valor"], "area": im["area"], "tipo_imovel": im.get("tipo_imovel"),
+            "faixa": faixa_metragem(im["area"]),
+            "valor_m2": _round(valor_m2, 2), "mediana_pago_m2": mediana_m2,
             "desconto_pct": _round(desconto * 100, 1),
             "atencao": desconto >= VALOR_OPORTUNIDADE_ATENCAO_DESCONTO,
         })
     achados.sort(key=lambda a: (-a["desconto_pct"], (a["endereco"] or "").lower(), a["codigo"] or ""))
 
-    stock_eleg = {}
+    stock_eleg = elegivel_by_bairro
     achados_by_bairro = {}
-    for im in imoveis_prioritarios:
-        b = bairros_out[im["bairro"]]
-        if b["volume_primary_year"] >= VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY:
-            stock_eleg[im["bairro"]] = stock_eleg.get(im["bairro"], 0) + 1
     for a in achados:
         achados_by_bairro[a["bairro"]] = achados_by_bairro.get(a["bairro"], 0) + 1
 
@@ -635,7 +756,12 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
         })
     por_bairro.sort(key=lambda x: (-x["n_achados"], x["bairro"].lower()))
 
-    return {"imoveis": achados, "por_bairro": por_bairro}
+    # estoque_elegivel_por_bairro cobre TODOS os bairros com estoque
+    # elegível (não só os com achado) — usado pelo f6 da Prontidão pra não
+    # recalcular elegibilidade com um critério diferente (achado real: até
+    # 2026-09-29 o f6 usava o gate antigo por volume do bairro inteiro,
+    # inconsistente com o gate por segmento usado aqui).
+    return {"imoveis": achados, "por_bairro": por_bairro, "estoque_elegivel_por_bairro": elegivel_by_bairro}
 
 
 # ---------------------------------------------------------------------------
@@ -715,6 +841,7 @@ def compute(itbi_records, usn_records, years):
     trend = _compute_trend(yearly, month_counts, year_prev, year_full, year_curr)
     usn_by_bairro, centroids, stock_total, asking_median = _aggregate_usn(usn_records)
     profile = _compute_profile(pairs_all_years, usn_by_bairro, centroids)
+    preco_m2 = _compute_preco_m2(itbi_records, usn_records, today_excel_serial())
 
     usn_by_addr_key = {}
     for r in usn_records:
@@ -741,12 +868,19 @@ def compute(itbi_records, usn_records, years):
 
         paid_median = pooled_median[b]["median_valor"]
         asking = asking_median[b]
-        price_gap_pct = _round((asking - paid_median) / paid_median * 100, 1) if (paid_median and asking) else None
+        # Gap Preço do Ranking / flag_alerta (Etapa 3, 2026-09-29): não é
+        # mais "pedido do bairro inteiro" x "pago do bairro inteiro" — é o
+        # gap do segmento (tipo+faixa) mais representativo desse bairro
+        # (mais transações recentes, entre os que não são amostra pequena).
+        # Ver preco_m2_segmentos pra granularidade completa por segmento.
+        segmento_rep = _segmento_representativo(preco_m2[b])
+        price_gap_pct = segmento_rep["gap_pct"] if segmento_rep else None
 
         bairros_out[b] = {
             "yearly": {str(y): yearly[b][y] for y in years},
             **trend[b],
             "volume_primary_year": volume_primary,
+            "preco_m2_segmentos": preco_m2[b],
             "area_band": profile[b]["area_band"], "price_band": profile[b]["price_band"],
             "price_band_median": profile[b]["price_band_median"],
             "profile_quartos": profile[b]["profile_quartos"], "profile_vagas": profile[b]["profile_vagas"],
@@ -832,14 +966,6 @@ def compute(itbi_records, usn_records, years):
         coverage = min(1, n_im / 10)
         f5 = mean_top10 * coverage
 
-        vendas_primary = bairros_out[b]["volume_primary_year"]
-        if vendas_primary < VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY:
-            f6 = 50
-        else:
-            estoque_eleg = sum(1 for im in imoveis_by_bairro.get(b, []) if bairros_out[im["bairro"]]["volume_primary_year"] >= VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY)
-            achados_bairro = 0  # preenchido abaixo após valor_oportunidade
-            f6 = None  # placeholder, resolvido após calcular valor_oportunidade
-
         bairros_out[b]["_f1_f5"] = (f1, f2, f3, f4, f5)
 
     valor_oportunidade = _compute_valor_oportunidade(imoveis_prioritarios, bairros_out)
@@ -847,15 +973,19 @@ def compute(itbi_records, usn_records, years):
     for a in valor_oportunidade["imoveis"]:
         achados_by_bairro_count[a["bairro"]] = achados_by_bairro_count.get(a["bairro"], 0) + 1
 
+    estoque_elegivel = valor_oportunidade["estoque_elegivel_por_bairro"]
     for b in TARGETS:
         f1, f2, f3, f4, f5 = bairros_out[b].pop("_f1_f5")
-        vendas_primary = bairros_out[b]["volume_primary_year"]
-        if vendas_primary < VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY:
+        # f6 usa a MESMA elegibilidade por segmento do Valor de
+        # Oportunidade (Etapa 3, 2026-09-29) — antes recalculava com o
+        # gate antigo por volume do bairro inteiro, inconsistente com o
+        # critério real usado pra gerar os achados.
+        estoque_eleg = estoque_elegivel.get(b, 0)
+        if estoque_eleg == 0:
             f6 = 50
         else:
-            estoque_eleg = sum(1 for im in imoveis_by_bairro.get(b, []) if bairros_out[im["bairro"]]["volume_primary_year"] >= VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY)
             achados_bairro = achados_by_bairro_count.get(b, 0)
-            f6 = 0 if estoque_eleg == 0 else 100 * achados_bairro / estoque_eleg
+            f6 = 100 * achados_bairro / estoque_eleg
 
         prontidao = (
             PESOS_PRONTIDAO["f1"] * f1 + PESOS_PRONTIDAO["f2"] * f2 + PESOS_PRONTIDAO["f3"] * f3

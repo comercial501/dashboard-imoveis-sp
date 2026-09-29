@@ -261,6 +261,14 @@ def excel_serial_to_ym(serial):
     return d.year, d.month
 
 
+def today_excel_serial():
+    """Data de hoje no mesmo sistema serial do Excel usado pela coluna J
+    do ITBI — pra comparar "quantos dias atrás" sem converter pra
+    calendário toda vez (ver regra de amostra da Etapa 3, 2026-09-29:
+    quantas transações nos últimos 12 meses)."""
+    return (date.today() - _EXCEL_EPOCH).days
+
+
 def coord_is_valid_sp(lat, lon):
     """Bounding box grosseiro da Grande São Paulo."""
     if lat is None or lon is None:

@@ -95,7 +95,7 @@
         </section>
         <section class="card">
           <h2>Alertas</h2>
-          <div class="card-sub">Bairros com gap de preço pedido × pago acima de 20 pontos percentuais, em qualquer direção.</div>
+          <div class="card-sub">Segmentos (bairro + tipo de imóvel + faixa de metragem) com gap de R$/m² pedido × pago acima de 20 pontos percentuais, em qualquer direção — nunca valor total nem tamanhos diferentes. Segmentos com menos de 10 vendas pagas nos últimos 12 meses não entram aqui (amostra pequena demais pra confiar).</div>
           <div id="visao-alertas"></div>
         </section>
       </div>
@@ -131,7 +131,7 @@
       <div class="panel" data-panel="perfil">
         <section class="card">
           <h2>Perfil por Bairro</h2>
-          <div class="card-sub">Metragem/preço/dormitórios/vagas que mais vendeu, estoque compatível e faixa de preço que converte. Escolha um bairro.</div>
+          <div class="card-sub">Metragem/dormitórios/vagas que mais vendeu, estoque compatível, e preço por m² pago × pedido por tipo de imóvel e faixa de metragem. Escolha um bairro.</div>
           <select id="perfil-select" class="bairro-select"></select>
           <div id="perfil-content" style="margin-top:16px"></div>
         </section>
@@ -178,7 +178,7 @@
       <div class="panel" data-panel="valor-oportunidade">
         <section class="card">
           <h2>Valor de Oportunidade</h2>
-          <div class="card-sub">Imóveis anunciados 20%+ abaixo da mediana paga no bairro (só em bairros com 10+ vendas/ano em média, 2024–2026 — mediana confiável). Badge "Atenção" = 30%+ de desconto, vale checar antes de anunciar.</div>
+          <div class="card-sub">Imóveis anunciados 20%+ abaixo da mediana de R$/m² paga em imóveis do MESMO tipo (apartamento/casa) e faixa de metragem no bairro — nunca comparado com o valor total nem com tamanhos diferentes. Só entra quando esse segmento tem 10+ vendas pagas nos últimos 12 meses (amostra confiável). Badge "Atenção" = 30%+ de desconto, vale checar antes de anunciar.</div>
           <div id="valor-oportunidade-table"></div>
         </section>
         <section class="card">
