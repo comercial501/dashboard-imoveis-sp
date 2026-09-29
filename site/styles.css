@@ -105,6 +105,7 @@ header.app-header .updated { color: var(--text-muted); font-size: 12px; }
 
 .panel { display: none; }
 .panel.active { display: block; }
+.panel-print-title { display: none; }
 
 section.card {
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
@@ -366,4 +367,14 @@ svg.map-svg { width: 100%; height: auto; display: block; }
 
   /* Painel só de Captação Ativa: só o grupo marcado aparece. */
   body.printing-captacao-group .captacao-group:not(.print-only-this) { display: none !important; }
+
+  /* "Baixar PDF" do cabeçalho = dashboard inteira, painel por painel, cada
+     um numa página nova (todos já estão renderizados no DOM o tempo todo —
+     ver renderAll() em app.js — só escondidos por display:none). */
+  body.printing-all .panel { display: block !important; }
+  body.printing-all .panel + .panel { break-before: page; }
+  body.printing-all .panel-print-title {
+    display: block; font-size: 22px; margin: 0 0 14px; padding-bottom: 8px;
+    border-bottom: 2px solid var(--gold);
+  }
 }

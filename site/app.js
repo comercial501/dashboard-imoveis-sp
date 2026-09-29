@@ -292,6 +292,13 @@ function setupTabs() {
     const btn = el("button", { "data-panel": p.id, class: i === 0 ? "active" : "" }, p.label);
     btn.addEventListener("click", () => showPanel(p.id));
     nav.appendChild(btn);
+
+    // Título só visível na impressão (ver @media print / .panel-print-title
+    // em styles.css) — na tela o nome já está na aba lateral; no PDF
+    // completo os painéis viram páginas sequenciais e precisam de um
+    // cabeçalho próprio pra identificar qual análise é qual.
+    const panelEl = document.querySelector(`.panel[data-panel="${p.id}"]`);
+    if (panelEl) panelEl.prepend(el("h1", { class: "panel-print-title" }, p.label));
   });
 }
 
@@ -304,31 +311,28 @@ document.addEventListener("DOMContentLoaded", () => showPanel("visao-geral"));
 
 // ---------------------------------------------------------------------------
 // "Baixar PDF" — impressão nativa do navegador (sem lib de PDF em JS: ver
-// @media print em styles.css). Um botão global baixa o painel ativo
-// inteiro; a Captação Ativa também tem um link por bairro (ver
-// renderCaptacao) que isola só aquele grupo antes de imprimir.
+// @media print em styles.css). O botão global do cabeçalho baixa a
+// dashboard INTEIRA (todos os painéis, um por página — todos já estão
+// renderizados no DOM o tempo todo por renderAll(), só escondidos); a
+// Captação Ativa também tem um link por bairro (ver renderCaptacao) que
+// isola só aquele grupo antes de imprimir.
 // ---------------------------------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
   const btn = document.getElementById("pdf-btn");
-  if (btn) btn.addEventListener("click", () => window.print());
+  if (btn) btn.addEventListener("click", () => printFullDashboard());
 });
 
-window.addEventListener("beforeprint", () => {
-  if (document.body.classList.contains("printing-captacao-group")) return; // printCaptacaoGroup já cuida disso
-  const activePanel = document.querySelector(".panel.active");
-  if (!activePanel || activePanel.dataset.panel !== "captacao") return;
-  // Imprimindo a Captação Ativa inteira: expande todo mundo (senão um
-  // <details> fechado ou um "ver todos" não expandido não aparece no PDF).
-  activePanel.querySelectorAll(".captacao-group").forEach((d) => {
+function expandAllCaptacao(root = document) {
+  root.querySelectorAll(".captacao-group").forEach((d) => {
     d.dataset.wasOpen = d.open ? "1" : "0";
     d.open = true;
   });
-  activePanel.querySelectorAll(".captacao-rest").forEach((r) => {
+  root.querySelectorAll(".captacao-rest").forEach((r) => {
     r.dataset.prevDisplay = r.style.display;
     r.style.display = "";
   });
-});
-window.addEventListener("afterprint", () => {
+}
+function restoreAllCaptacao() {
   document.querySelectorAll(".captacao-group[data-was-open]").forEach((d) => {
     d.open = d.dataset.wasOpen === "1";
     delete d.dataset.wasOpen;
@@ -337,7 +341,41 @@ window.addEventListener("afterprint", () => {
     r.style.display = r.dataset.prevDisplay;
     delete r.dataset.prevDisplay;
   });
+}
+
+// Impressão direta (Cmd/Ctrl+P) fora dos botões da dashboard: se a Captação
+// Ativa for o painel visível, expande do mesmo jeito (senão um <details>
+// fechado não aparece no PDF).
+window.addEventListener("beforeprint", () => {
+  if (document.body.classList.contains("printing-captacao-group") || document.body.classList.contains("printing-all")) return;
+  const activePanel = document.querySelector(".panel.active");
+  if (!activePanel || activePanel.dataset.panel !== "captacao") return;
+  expandAllCaptacao(activePanel);
 });
+window.addEventListener("afterprint", () => {
+  if (document.body.classList.contains("printing-captacao-group") || document.body.classList.contains("printing-all")) return;
+  restoreAllCaptacao();
+});
+
+async function printFullDashboard() {
+  // Estoque × Demanda só busca engine.js/raw.json (e enche
+  // DATA._matchingListingsByBairro) na primeira vez que alguém entra nessa
+  // aba ou mexe num filtro — sem isso, o PDF completo podia sair com
+  // "Carregando lista detalhada de estoque…" se baixado logo após abrir a
+  // página. Garante que já carregou antes de imprimir.
+  await ensureEngineLoaded();
+  recomputeAndRenderAll();
+
+  document.body.classList.add("printing-all");
+  expandAllCaptacao();
+  const cleanup = () => {
+    document.body.classList.remove("printing-all");
+    restoreAllCaptacao();
+    window.removeEventListener("afterprint", cleanup);
+  };
+  window.addEventListener("afterprint", cleanup);
+  window.print();
+}
 
 function printCaptacaoGroup(detailsEl) {
   const wasOpen = detailsEl.open;
