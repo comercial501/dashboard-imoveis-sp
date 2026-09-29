@@ -46,13 +46,13 @@ jobs:
           GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
         run: python3 scripts/build_data.py
 
-      - name: Commitar site/data.json e site/raw.json se mudou
+      - name: Commitar site/data.json, site/raw.json e site/itbi_clean_log.json se mudou
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add site/data.json site/raw.json
+          git add site/data.json site/raw.json site/itbi_clean_log.json
           if git diff --cached --quiet; then
-            echo "Sem mudanças em site/data.json / site/raw.json."
+            echo "Sem mudanças em site/data.json / site/raw.json / site/itbi_clean_log.json."
           else
             git commit -m "chore: atualizar data.json ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
             git push

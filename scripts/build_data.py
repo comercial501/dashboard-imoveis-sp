@@ -25,6 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import clean_itbi
 import engine
 import itbi_source
 from normalize import TARGETS
@@ -33,6 +34,10 @@ from parse_itbi import parse_itbi_years
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "site" / "data.json"
 OUT_RAW = ROOT / "site" / "raw.json"
+# Fica em site/ (não em data/, que é ignorado pelo git) de propósito — o
+# usuário pediu pra poder auditar esse log, então ele precisa ser
+# versionado/committed junto com data.json e raw.json a cada execução.
+OUT_CLEAN_LOG = ROOT / "site" / "itbi_clean_log.json"
 ENV_FILE = ROOT / ".env"
 
 
@@ -101,7 +106,7 @@ def build_raw_payload(itbi_records, usn_records, years):
         aidx = intern_addr(r["addr_key"], r["addr_display"])
         itbi_out.append([
             bairro_idx[r["bairro"]], r["sheet_year"], r["day"], r["valor"], r["area"], aidx,
-            r["is_compra_venda"], r["is_full_transfer"],
+            r["is_compra_venda"], r["is_full_transfer"], r["tipo_imovel"], r["is_clean_sale"],
         ])
 
     usn_out = []
@@ -143,6 +148,7 @@ def build_raw_payload(itbi_records, usn_records, years):
             "area_cap": 600,
             "pesos_painel8": engine.PESOS_PAINEL8,
             "pesos_prontidao": engine.PESOS_PRONTIDAO,
+            "faixas_metragem": [[lo, (hi if hi != float("inf") else None), label] for lo, hi, label in clean_itbi.FAIXAS_METRAGEM],
         },
     }
 
@@ -209,8 +215,29 @@ def main():
             "Prefeitura falhou — não há nada pra processar. Rode de novo manualmente "
             "ou confira se o cache do workflow foi perdido."
         )
-    itbi_records, itbi_stats = parse_itbi_years(year_to_path)
+    itbi_raw_records, itbi_stats = parse_itbi_years(year_to_path)
     print(f"[build] ITBI parseado: {itbi_stats}")
+
+    # Camada de dados limpa (Etapa 2 da auditoria de 2026-09-29, ver
+    # clean_itbi.py e README): bairro resolvido por maioria + deduplicação
+    # por SQL (volume/liquidez usam esse conjunto) e, por cima dele, os
+    # filtros de PREÇO (natureza, % transmitido, tipo de imóvel, outlier de
+    # R$/m² por bairro+tipo+faixa de metragem — usado por todo painel de
+    # preço). Log completo de quanto saiu em cada etapa vai pra
+    # data/itbi_clean_log.json, auditável fora do build.
+    itbi_resolved, resolve_stats = clean_itbi.resolve_bairros(itbi_raw_records)
+    itbi_deduped, dedup_stats = clean_itbi.dedup_by_sql(itbi_resolved)
+    itbi_records, clean_stats = clean_itbi.build_clean_layer(itbi_deduped)
+
+    clean_log = {
+        "gerado_em": datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S %Y UTC"),
+        "resolucao_bairro": resolve_stats,
+        "deduplicacao_sql": dedup_stats,
+        "camada_limpa_preco": clean_stats,
+    }
+    OUT_CLEAN_LOG.parent.mkdir(parents=True, exist_ok=True)
+    OUT_CLEAN_LOG.write_text(json.dumps(clean_log, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[build] {OUT_CLEAN_LOG} escrito")
 
     usn_records, usn_meta = _get_usn_records()
     print(f"[build] estoque: {len(usn_records)} anúncios válidos")
@@ -229,7 +256,8 @@ def main():
     }
     data["meta"]["total_itbi_rows_seen"] = itbi_stats["total_rows_seen"]
     data["meta"]["total_itbi_rows_matched"] = itbi_stats["total_rows_matched"]
-    data["meta"]["total_itbi_duplicates_removed"] = itbi_stats["duplicates_removed"]
+    data["meta"]["total_itbi_duplicates_removed"] = dedup_stats["duplicatas_removidas"]
+    data["meta"]["total_itbi_bairro_recuperados"] = resolve_stats["recuperados_por_maioria_do_endereco"]
     data["meta"]["usn"] = usn_meta
 
     OUT.parent.mkdir(parents=True, exist_ok=True)

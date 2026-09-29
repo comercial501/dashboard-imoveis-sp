@@ -270,6 +270,78 @@ venda genuinamente distressed (leilão, favor familiar) que a Prefeitura
 registrou como compra e venda comum. Vale conferir esses casos residuais
 pessoalmente (Google/QuintoAndar) antes de usar como referência de preço.
 
+## Camada de dados limpa (auditoria de 2026-09-29, pré-conteúdo público)
+
+Antes de a dashboard passar a alimentar posts públicos (Instagram), uma
+revisão encontrou dois problemas de fundo — um deles bem maior que
+qualquer achado anterior desta auditoria. `scripts/clean_itbi.py` resolve
+os dois; `site/itbi_clean_log.json` é o log completo, auditável, de
+quantas linhas saíram em cada filtro a cada execução do pipeline.
+
+**1. Bairro (coluna E do ITBI) some ou vem errado em ~91% das linhas —
+inclusive de prédios que já rastreamos.** É texto livre preenchido por
+transação no cartório, não um dado fixo do imóvel: pode faltar numa linha
+e estar correto em outra do MESMO endereço. Filtrar por bairro linha a
+linha (como o pipeline fazia até 2026-09-27) descartava a venda inteira.
+Exemplo real: Av. Ibirapuera, 2927 (Moema) é um lançamento com 36 vendas
+registradas entre 2024-2026 — só 8 tinham bairro preenchido, poucas demais
+espalhadas em 2 anos pra disparar o detector de lançamento (5+ vendas em
+182 dias), então o endereço aparecia na Captação Ativa como se fosse um
+prédio comum com uma faixa de preço "implausível" (R$139mil-R$730mil).
+**Decisão**: `clean_itbi.resolve_bairros()` decide o bairro de um endereço
+pela MAIORIA entre as linhas do mesmo endereço que já têm bairro
+reconhecido, recuperando as que vieram sem — **21.731 vendas residenciais
+recuperadas** em produção. Endereços sem NENHUMA linha com bairro
+reconhecido continuam fora (de verdade fora da carteira de 49 bairros).
+
+**2. Deduplicação por rua+número+valor+data (usada até 2026-09-27)
+confundia unidades DIFERENTES com preço e data coincidentes** — comum em
+lançamento com tabela de preço padronizada (várias unidades idênticas,
+mesmo dia, mesmo valor, `SQL` do cadastro diferente). **Decisão**: dedup
+agora usa o SQL (coluna A, "N° do Cadastro do Imóvel" — identificador
+oficial e inequívoco), com fallback pra chave antiga só quando o SQL está
+ausente (raro). Em produção: **565 duplicatas reais** (contra ~2,6%
+medido com a chave antiga, que superestimava por contar unidades
+diferentes como se fossem a mesma).
+
+**3. Camada de preço limpa, usada por todo cálculo de R$ do motor**
+(mediana de bairro, Perfil Vencedor, e a partir da próxima etapa também
+Alertas/Valor de Oportunidade/Ranking) — em cima do bairro já resolvido e
+deduplicado, filtra em sequência:
+   - só uso residencial de UNIDADE (exclui código 21/22 do IPTU — "prédio
+     de apartamento não em condomínio", ou seja, o **prédio inteiro**
+     vendido de uma vez, sem equivalente em nenhum anúncio da nonStop);
+   - só "1.Compra e venda" (exclui herança/doação/integralização de
+     capital — valor contábil, não preço de mercado);
+   - só 100% do imóvel transmitido (proporção transmitida < 100% é
+     transferência de fração entre coproprietários — valor da fração, não
+     do imóvel inteiro);
+   - só com Área Construída (IPTU) válida;
+   - sem outlier de R$/m² pro seu segmento **bairro + tipo de imóvel
+     (apartamento/casa) + faixa de metragem** (até 50m², 50–80m², 80–120m²,
+     acima de 120m²) — cerca de percentil P5–P95, calculada uma vez por
+     segmento com 10+ transações (segmentos menores não têm poder
+     estatístico pra um corte de cauda confiável, ficam sem trim).
+
+Volume/liquidez (Ranking de Oportunidade, Estoque×Demanda) continuam
+usando o conjunto residencial bruto já resolvido/deduplicado, sem os
+filtros de preço acima — giro é giro, mesmo com natureza não comercial ou
+transferência parcial (decisão do usuário, mantida desde a 1ª rodada desta
+auditoria). Captação Ativa (histórico de UM endereço) usa natureza +
+100% transmitido + tipo de unidade, mas **não** o corte de outlier por
+segmento — um endereço específico já tem sua própria checagem de
+coerência (`ADDR_MAX_RATIO`), e aplicar ali um corte calibrado pelo bairro
+inteiro esconderia vendas genuínas de um prédio específico.
+
+Impacto em produção dessa rodada: `total_itbi_rows_matched` foi de
+185.930 pra 304.262 (+64%, a maior parte é bairro fora da carteira ou
+recuperado — não inflação de dado ruim); Captação Ativa foi de 2.905 pra
+4.393 endereços; endereços descartados como lançamento foram de 163 pra
+618 (o detector agora vê o histórico completo). Revalidado Python ×
+JavaScript: 0 divergências reais em 4.393 endereços de Captação Ativa (1
+mistura de acento num texto de exibição, sem efeito em nenhum número) e
+em todos os outros painéis.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`

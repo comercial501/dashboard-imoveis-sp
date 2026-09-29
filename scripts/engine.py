@@ -86,21 +86,28 @@ def _round(v, digits=1):
 # 1. Agregação por bairro/ano + pares (área, valor) pra faixa de metragem
 # ---------------------------------------------------------------------------
 def _is_valid_sale(r):
-    """Só conta pra preço/metragem quando é (a) "1.Compra e venda" de
-    mercado E (b) transferência de 100% do imóvel (coluna L do ITBI —
-    ~20% das linhas "compra e venda" são transferência de FRAÇÃO ideal
-    entre coproprietários — herança, divórcio, doação de parte — cujo
-    `valor` corresponde só à fração, não ao imóvel inteiro; ver
-    parse_itbi.py). Volume/liquidez continua contando qualquer transação
-    residencial válida, cheia ou fracionária — giro é giro."""
-    return r["is_compra_venda"] and r["is_full_transfer"]
+    """Só conta pra preço/metragem de ENDEREÇO específico (Captação Ativa)
+    quando é (a) "1.Compra e venda" de mercado, (b) transferência de 100%
+    do imóvel (coluna L — ~21% das "compra e venda" são transferência de
+    FRAÇÃO ideal entre coproprietários, cujo `valor` corresponde só à
+    fração) e (c) uma unidade de verdade, não o prédio inteiro (uso 21/22 —
+    ver clean_itbi.TIPO_IMOVEL_POR_USO). NÃO aplica o corte de outlier por
+    bairro+tipo+faixa da camada limpa (`is_clean_sale`) — o histórico de UM
+    endereço já tem sua própria checagem de coerência (`_price_incoherent`),
+    e aplicar ali um corte calibrado pelo bairro inteiro esconderia vendas
+    genuínas de um prédio específico. Volume/liquidez continua contando
+    qualquer transação residencial válida, cheia ou fracionária — giro é
+    giro."""
+    return r["is_compra_venda"] and r["is_full_transfer"] and r["tipo_imovel"] is not None
 
 
 def _aggregate_itbi(itbi_records, years):
     """Volume (`count`) conta QUALQUER transação residencial válida — giro
     do bairro é giro, mesmo quando o valor não é confiável pra preço.
     `avg_valor`/`median_valor` e `pairs_all_years` (faixa de metragem/preço,
-    Perfil Vencedor) usam só vendas válidas (ver `_is_valid_sale`) —
+    Perfil Vencedor) usam a camada de dados limpa (`is_clean_sale` — ver
+    clean_itbi.py: natureza, % transmitido, tipo de imóvel, deduplicado por
+    SQL e sem outlier de R$/m² pro seu segmento bairro+tipo+faixa) —
     decisão explícita do usuário de não deixar isso contaminar
     preço/metragem, mas manter contando pra volume/liquidez."""
     yearly_count = {b: {y: 0 for y in years} for b in TARGETS}
@@ -113,7 +120,7 @@ def _aggregate_itbi(itbi_records, years):
         if b not in yearly_count:
             continue
         y = r["sheet_year"]
-        valid = _is_valid_sale(r)
+        valid = r["is_clean_sale"]
         if y in yearly_count[b]:
             yearly_count[b][y] += 1
             if valid:

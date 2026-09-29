@@ -9,6 +9,24 @@ ano inteiro (todas as abas MES-ANO daquele ano), baixado direto da
 Prefeitura — não há mais o cenário de múltiplos arquivos manuais
 sobrepondo o mesmo mês (§4.1 do spec), então não precisamos da resolução
 de duplicidade por mtime: cada ano tem exatamente 1 arquivo autoritativo.
+
+Este módulo faz só a extração linha-a-linha (uso residencial + valor
+válido) — NÃO filtra por bairro, NÃO deduplica. Essas duas etapas dependem
+de olhar o conjunto inteiro de linhas de um mesmo endereço/imóvel, então
+ficam em clean_itbi.py (auditoria de 2026-09-29, ver README):
+  - bairro (coluna E) é texto livre preenchido por transação, não é um
+    dado fixo do imóvel — pode vir vazio/não-padronizado numa linha e
+    correto em outra do MESMO endereço. Filtrar aqui, linha a linha,
+    descartava ~16 mil vendas válidas de prédios que já rastreamos (uma
+    delas: Av. Ibirapuera 2927, um lançamento com 36 vendas onde só 8
+    sobreviviam — poucas demais pro detector de lançamento disparar).
+    clean_itbi.resolve_bairros() decide o bairro por MAIORIA entre as
+    linhas do mesmo endereço, recuperando as que vieram sem bairro.
+  - duplicidade exata por rua+número+valor+data (chave antiga) confundia
+    unidades DIFERENTES de um mesmo prédio com preço/data coincidentes
+    (comum em lançamento com tabela de preço padronizada). O SQL (coluna
+    A, "N° do Cadastro") é o identificador oficial e inequívoco do imóvel
+    — clean_itbi.dedup_by_sql() deduplica por SQL+valor+data.
 """
 import re
 
@@ -21,9 +39,16 @@ MONTH_MAP = {
 }
 SHEET_RE = re.compile(r"^(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)-(\d{4})$")
 
-# Códigos de "Uso (IPTU)" residenciais — ver spec §1.1 (metade das linhas
-# do ITBI são garagem/terreno/comercial e distorcem muito a mediana se
-# misturadas).
+# Códigos de "Uso (IPTU)" residenciais (coluna X) — confirmado 1:1 contra a
+# "Descrição do uso (IPTU)" (coluna Y) do próprio arquivo em 2026-09-29:
+#   10 RESIDÊNCIA (casa) · 12 RESIDÊNCIA COLETIVA, exclusive cortiço (casa)
+#   14 RESIDÊNCIA E OUTRO USO, predominância residencial (casa)
+#   20 APARTAMENTO EM CONDOMÍNIO (exige fração ideal) — a maioria disparada
+#   21 PRÉDIO DE APARTAMENTO, não em condomínio, exclusivamente residencial
+#   22 idem, uso misto (apartamentos e escritórios/consultórios)
+#   25 FLAT RESIDENCIAL EM CONDOMÍNIO (exige fração ideal)
+# 21/22 são o PRÉDIO INTEIRO vendido de uma vez (não uma unidade) — ver
+# clean_itbi.TIPO_IMOVEL_POR_USO, ficam fora da classificação apto/casa.
 USO_RESIDENCIAL_RE = re.compile(r"^(?:10|12|14|20|21|22|25)(?:\.0+)?$")
 VALOR_RE = re.compile(r"^-?\d+(\.\d+)?$")
 
@@ -31,26 +56,25 @@ AREA_CAP = 600  # m² — ver spec §6.2: "Área Construída" às vezes guarda a
 
 # Coluna H = "Natureza de Transação". Só "1.Compra e venda" é venda de
 # mercado de verdade — o resto (integralização de capital, leilão, herança,
-# divórcio, permuta, etc — ~11,6% das linhas residenciais em 2025) usa
-# valor contábil/simbólico, sistematicamente mais baixo que preço de
-# mercado (mediana R$605mil em "compra e venda" vs. R$150-460mil nas
-# outras naturezas, medido em produção). `is_compra_venda` é usado pelo
-# motor de cálculo pra filtrar SÓ a mediana de preço e a faixa de
-# metragem — volume/liquidez continuam contando qualquer transação
-# residencial válida (decisão do usuário: giro do bairro é giro, mesmo
-# quando não é um preço confiável).
+# divórcio, permuta, etc — ~11,6% das linhas residenciais) usa valor
+# contábil/simbólico, sistematicamente mais baixo que preço de mercado.
+# `is_compra_venda` é usado pelo motor de cálculo pra filtrar SÓ a mediana
+# de preço e a faixa de metragem — volume/liquidez continuam contando
+# qualquer transação residencial válida (decisão do usuário: giro do
+# bairro é giro, mesmo quando não é um preço confiável).
 NATUREZA_COMPRA_VENDA_RE = re.compile(r"^1\.")
 
 
 def parse_itbi_file(path):
-    """Retorna (records, stats) onde cada record é:
-    {bairro, sheet_year, day, valor, area, addr_key, addr_display, is_compra_venda}
-    e stats = {"rows_seen": int, "rows_matched": int, "duplicates_removed": int, "sheets": [nomes]}."""
+    """Retorna (records, stats). Cada record:
+    {bairro, bairro_raw, sheet_year, day, valor, area, sql, uso_code,
+     addr_key, addr_display, is_compra_venda, is_full_transfer}
+    `bairro` é o resultado de bairro_canon() — pode ser None aqui (a
+    resolução por maioria acontece depois, em clean_itbi.py).
+    stats = {"rows_seen", "rows_matched", "sheets"}."""
     records = []
     rows_seen = 0
     rows_matched = 0
-    duplicates_removed = 0
-    seen_exact = set()
     sheet_names = []
 
     with Workbook(path) as wb:
@@ -63,13 +87,17 @@ def parse_itbi_file(path):
 
             for row_num, cells in wb.rows(sheet["target"]):
                 b_raw = cells.get("E")
-                if not b_raw:
+                # Linha de cabeçalho (2025/2026 repetem em algumas abas) —
+                # "Bairro" nunca é um bairro de verdade, só descarta. NÃO
+                # descarta bairro vazio/None aqui — é exatamente o que
+                # resolve_bairros() precisa ver pra recuperar a linha pela
+                # maioria das outras linhas do mesmo endereço (auditoria de
+                # 2026-09-29: ~91% das linhas residenciais têm bairro em
+                # branco ou fora da carteira; boa parte tem o MESMO
+                # endereço de uma linha com bairro certo).
+                if b_raw == "Bairro":
                     continue
                 rows_seen += 1
-
-                bairro = bairro_canon(b_raw)
-                if not bairro:
-                    continue
 
                 uso = (cells.get("X") or "").strip()
                 if not USO_RESIDENCIAL_RE.match(uso):
@@ -82,6 +110,8 @@ def parse_itbi_file(path):
                 if valor <= 0:
                     continue
 
+                rows_matched += 1
+
                 day = None
                 data_raw = cells.get("J")
                 if data_raw is not None:
@@ -92,22 +122,6 @@ def parse_itbi_file(path):
 
                 street = cells.get("B")
                 number = cells.get("C")
-
-                # Deduplicação de linhas EXATAMENTE idênticas (mesmo bairro +
-                # rua + número + valor + data) — medido em produção: ~2,6%
-                # das linhas residenciais válidas de 2025 são duplicatas
-                # exatas assim, provavelmente registro repetido da própria
-                # Prefeitura (não dá pra saber com certeza — em teoria 2
-                # unidades idênticas vendidas no mesmo prédio no mesmo dia
-                # pelo mesmo preço também bateria essa chave, mas é bem
-                # menos provável que duplicidade de registro).
-                dedup_key = (bairro, (street or "").strip().upper(), (number or "").strip(), round(valor, 2), day)
-                if dedup_key in seen_exact:
-                    duplicates_removed += 1
-                    continue
-                seen_exact.add(dedup_key)
-
-                rows_matched += 1
 
                 area = None
                 area_raw = cells.get("W")
@@ -123,20 +137,14 @@ def parse_itbi_file(path):
                 is_compra_venda = bool(NATUREZA_COMPRA_VENDA_RE.match(natureza))
 
                 # Coluna L = % do imóvel efetivamente transacionado (auditoria
-                # de 2026-09-24: confirmado comparando com as colunas K/M —
-                # K é o valor venal de referência do imóvel INTEIRO, M = K *
-                # L/100). ~20% das linhas "1.Compra e venda" residenciais têm
-                # L < 100 — são transferências de FRAÇÃO ideal (partilha de
-                # herança/divórcio entre coproprietários, doação de parte,
-                # etc.), não venda do imóvel inteiro. O `valor` (coluna I)
-                # dessas linhas é o preço só da fração, não do imóvel — misturar
-                # com vendas de 100% é comparar maçã com pedaço de maçã (ex:
-                # Rua Jose Maria Lisboa 356: uma venda de R$1,5M virou 2 linhas,
-                # 79,82% por R$1,405mil + 20,18% por R$95mil — sem esse filtro
-                # o R$95mil parecia um preço real do apartamento inteiro).
-                # `is_full_transfer` é usado igual `is_compra_venda`: só filtra
-                # preço/metragem, nunca volume/liquidez (giro é giro mesmo numa
-                # transferência parcial).
+                # de 2026-09-24/29: confirmado contra K/M ("Valor Venal de
+                # Referência" e sua proporção) e contra o nome oficial da
+                # coluna, "Proporção Transmitida (%)"). ~21% das linhas
+                # residenciais "1.Compra e venda" nos 49 bairros têm L < 100
+                # — transferência de FRAÇÃO ideal (partilha de herança/
+                # divórcio entre coproprietários, doação de parte), não
+                # venda do imóvel inteiro. `is_full_transfer` só filtra
+                # preço/metragem, nunca volume/liquidez.
                 pct_raw = cells.get("L")
                 is_full_transfer = True
                 if pct_raw is not None:
@@ -150,12 +158,17 @@ def parse_itbi_file(path):
                 if akey:
                     adisp = f"{display_street(street)}, {normalize_number(number)}"
 
+                uso_code = uso.split(".")[0] if uso else None
+
                 records.append({
-                    "bairro": bairro,
+                    "bairro": bairro_canon(b_raw),
+                    "bairro_raw": b_raw,
                     "sheet_year": sheet_year,
                     "day": day,
                     "valor": valor,
                     "area": area,
+                    "sql": (cells.get("A") or "").strip() or None,
+                    "uso_code": uso_code,
                     "addr_key": akey,
                     "addr_display": adisp,
                     "is_compra_venda": is_compra_venda,
@@ -163,8 +176,7 @@ def parse_itbi_file(path):
                 })
 
     return records, {
-        "rows_seen": rows_seen, "rows_matched": rows_matched,
-        "duplicates_removed": duplicates_removed, "sheets": sheet_names,
+        "rows_seen": rows_seen, "rows_matched": rows_matched, "sheets": sheet_names,
     }
 
 
@@ -173,7 +185,6 @@ def parse_itbi_years(year_to_path):
     all_records = []
     total_seen = 0
     total_matched = 0
-    total_duplicates = 0
     sheets_found = 0
     for year in sorted(year_to_path):
         path = year_to_path[year]
@@ -183,12 +194,10 @@ def parse_itbi_years(year_to_path):
         all_records.extend(records)
         total_seen += stats["rows_seen"]
         total_matched += stats["rows_matched"]
-        total_duplicates += stats["duplicates_removed"]
         sheets_found += len(stats["sheets"])
     return all_records, {
         "total_rows_seen": total_seen,
         "total_rows_matched": total_matched,
-        "duplicates_removed": total_duplicates,
         "sheets_found": sheets_found,
     }
 
@@ -200,9 +209,4 @@ if __name__ == "__main__":
     year_to_path = {y: root / "data" / "itbi_raw" / f"{y}.xlsx" for y in (2024, 2025, 2026)}
     records, stats = parse_itbi_years(year_to_path)
     print(stats)
-    print(f"{len(records)} transações residenciais válidas nos 47 bairros")
-    by_bairro = {}
-    for r in records:
-        by_bairro[r["bairro"]] = by_bairro.get(r["bairro"], 0) + 1
-    for b, n in sorted(by_bairro.items(), key=lambda x: -x[1])[:10]:
-        print(f"  {b}: {n}")
+    print(f"{len(records)} transações residenciais válidas (qualquer bairro, antes da resolução/limpeza)")

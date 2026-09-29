@@ -190,10 +190,10 @@ function decodeRecords(raw, priceMin, priceMax) {
   };
 
   const itbi = [];
-  for (const [bIdx, sheetYear, day, valor, area, addrIdx, isCompraVenda, isFullTransfer] of raw.itbi) {
+  for (const [bIdx, sheetYear, day, valor, area, addrIdx, isCompraVenda, isFullTransfer, tipoImovel, isCleanSale] of raw.itbi) {
     if (!inPriceRange(valor)) continue;
     itbi.push({
-      bairro: raw.bairros[bIdx], sheetYear, day, valor, area, isCompraVenda, isFullTransfer,
+      bairro: raw.bairros[bIdx], sheetYear, day, valor, area, isCompraVenda, isFullTransfer, tipoImovel, isCleanSale,
       addrKey: addrIdx, addrDisplay: addrIdx != null ? raw.addr_display[addrIdx] : null,
     });
   }
@@ -222,18 +222,19 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
 
   const { itbi: itbiRecords, usn: usnRecords } = decodeRecords(raw, priceMin, priceMax);
 
-  // Só conta pra preço/metragem quando é (a) "1.Compra e venda" de mercado
-  // E (b) transferência de 100% do imóvel — ~20% das linhas "compra e
-  // venda" são transferência de FRAÇÃO ideal entre coproprietários (coluna
-  // L do ITBI), cujo valor corresponde só à fração — ver
-  // scripts/engine.py._is_valid_sale.
-  const isValidSale = (r) => r.isCompraVenda && r.isFullTransfer;
+  // Captação Ativa (histórico de UM endereço) só filtra natureza + %
+  // transmitido + tipo de imóvel (não prédio inteiro) — NÃO aplica o
+  // outlier por bairro+tipo+faixa da camada limpa, que já é considerado no
+  // isCleanSale de cada linha (esse é usado só na agregação por bairro,
+  // abaixo) — ver scripts/engine.py._is_valid_sale.
+  const isValidSale = (r) => r.isCompraVenda && r.isFullTransfer && r.tipoImovel != null;
 
   // --- 1. Agregação ITBI por bairro/ano + pares (área,valor) ---
   // count = QUALQUER transação residencial válida (giro do bairro é giro,
   // mesmo com valor não confiável pra preço). avg_valor/median_valor e
-  // pairsAllYears (faixa de metragem/preço) usam SÓ venda válida — ver
-  // comentário equivalente em scripts/engine.py._aggregate_itbi.
+  // pairsAllYears (faixa de metragem/preço) usam a camada de dados limpa
+  // (isCleanSale — ver scripts/clean_itbi.py) — comentário equivalente em
+  // scripts/engine.py._aggregate_itbi.
   const yearlyCount = {}, yearlyValoresVenda = {}, pairsAllYears = {}, monthCounts = {};
   TARGETS.forEach((b) => {
     yearlyCount[b] = { [yearPrev]: 0, [yearFull]: 0, [yearCurr]: 0 };
@@ -244,7 +245,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
 
   for (const r of itbiRecords) {
     if (!(r.bairro in yearlyCount)) continue;
-    const valid = isValidSale(r);
+    const valid = r.isCleanSale;
     if (r.sheetYear in yearlyCount[r.bairro]) {
       yearlyCount[r.bairro][r.sheetYear]++;
       if (valid) yearlyValoresVenda[r.bairro][r.sheetYear].push(r.valor);
