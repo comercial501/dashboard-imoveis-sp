@@ -2,7 +2,7 @@ bairro,faixa_metragem,mediana_pago_r_m2,mediana_pedido_r_m2,gap_pct,n_transacoes
 Vila Madalena,até 50m²,8031.64,17505.23,118.0,4,4,sim
 Vila Madalena,50–80m²,7142.86,17839.29,149.7,5,13,sim
 Vila Madalena,80–120m²,7471.26,12848.69,72.0,23,10,nao
-Vila Madalena,acima de 120m²,7244.44,16966.97,134.2,60,9,nao
+Vila Madalena,acima de 120m²,7244.44,18816.82,159.7,60,10,nao
 Lapa,até 50m²,7027.03,,,5,0,sim
 Lapa,50–80m²,5263.16,,,63,0,nao
 Lapa,80–120m²,5115.65,,,76,0,nao
@@ -14,11 +14,11 @@ Pinheiros,acima de 120m²,7209.3,16871.17,134.0,179,29,nao
 Itaim Bibi,até 50m²,9492.17,23944.74,152.3,5,8,sim
 Itaim Bibi,50–80m²,7698.96,20500.0,166.3,22,8,nao
 Itaim Bibi,80–120m²,7981.76,14573.54,82.6,83,25,nao
-Itaim Bibi,acima de 120m²,9302.33,19580.42,110.5,185,30,nao
+Itaim Bibi,acima de 120m²,9302.33,19663.31,111.4,185,31,nao
 Vila Olímpia,até 50m²,,20194.05,,0,6,sim
 Vila Olímpia,50–80m²,7518.59,16530.05,119.9,20,22,nao
 Vila Olímpia,80–120m²,6880.73,12924.76,87.8,93,16,nao
-Vila Olímpia,acima de 120m²,6497.41,22164.09,241.1,86,18,nao
+Vila Olímpia,acima de 120m²,6497.41,21730.77,234.5,86,17,nao
 Brooklin,até 50m²,6489.36,16925.93,160.8,15,30,nao
 Brooklin,50–80m²,7272.73,17164.18,136.0,29,21,nao
 Brooklin,80–120m²,6500.0,15500.0,138.5,137,19,nao

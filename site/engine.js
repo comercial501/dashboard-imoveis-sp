@@ -383,8 +383,11 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     }
   }
 
+  // Etapa 5 (validação, 2026-09-29): também exige 3+ anúncios
+  // (C.min_anuncios_alerta) — sem isso, um gap podia se sustentar sozinho
+  // em 1 anúncio do lado pedido.
   const segmentoRepresentativo = (segmentos) => {
-    const candidatos = segmentos.filter((s) => s.gap_pct != null && !s.amostra_pequena);
+    const candidatos = segmentos.filter((s) => s.gap_pct != null && !s.amostra_pequena && s.n_anuncios >= C.min_anuncios_alerta);
     if (!candidatos.length) return null;
     return candidatos.sort((a, b) => b.n_transacoes_12m - a.n_transacoes_12m)[0];
   };

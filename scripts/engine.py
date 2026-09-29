@@ -81,6 +81,15 @@ CAPTACAO_ESTRATEGICA_MIN_ENDERECOS = 5
 # o portão de confiança "isso ainda reflete o bairro HOJE").
 MIN_TRANSACOES_PRECO_M2_12M = 10
 JANELA_PRECO_M2_DIAS = 365
+# Achado da Etapa 5 (validação, 2026-09-29): metade dos 10 maiores gaps de
+# Alertas vinham de 1-4 anúncios só do lado pedido — a regra de amostra
+# acima protege só o lado pago. Um segmento só vira alerta/"representativo"
+# do bairro (Gap Preço do Ranking, flag_alerta) quando TAMBÉM tem 3+
+# anúncios — não mexe em amostra_pequena (que continua só sobre o lado
+# pago, usada também pelo Valor de Oportunidade, que nem olha pro lado
+# pedido) nem nas tabelas de exibição (Perfil por Bairro, painel de R$/m²),
+# que mostram o dado como está, com o badge, sem decidir por quem lê.
+MIN_ANUNCIOS_ALERTA = 3
 
 PESOS_PAINEL8 = {"revenda": 0.35, "preco": 0.30, "aderencia": 0.25, "captacao": 0.10}
 PESOS_PRONTIDAO = {"f1": 0.15, "f2": 0.20, "f3": 0.15, "f4": 0.15, "f5": 0.25, "f6": 0.10}
@@ -601,9 +610,14 @@ def _segmento_representativo(segmentos):
     """Segmento (tipo+faixa) mais confiável de um bairro pra reduzir a
     matriz de segmentos a UM número por bairro (Gap Preço do Ranking,
     flag_alerta) — o de maior amostra recente entre os que têm os dois
-    lados (pago e pedido) e não são amostra pequena. None se nenhum
-    qualificar (bairro vira "—", não gera alerta)."""
-    candidatos = [s for s in segmentos if s["gap_pct"] is not None and not s["amostra_pequena"]]
+    lados (pago e pedido), não são amostra pequena, E têm 3+ anúncios
+    (MIN_ANUNCIOS_ALERTA — achado da Etapa 5: sem isso, um gap podia se
+    sustentar sozinho em 1 anúncio). None se nenhum qualificar (bairro vira
+    "—", não gera alerta)."""
+    candidatos = [
+        s for s in segmentos
+        if s["gap_pct"] is not None and not s["amostra_pequena"] and s["n_anuncios"] >= MIN_ANUNCIOS_ALERTA
+    ]
     if not candidatos:
         return None
     return sorted(candidatos, key=lambda s: -s["n_transacoes_12m"])[0]

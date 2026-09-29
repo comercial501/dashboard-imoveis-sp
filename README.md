@@ -430,6 +430,42 @@ também se beneficia do `AREA_CAP_NONSTOP` descrito acima.
 
 Revalidado Python × JavaScript: 0 divergências nas 157 linhas do painel.
 
+## Validação e correção do lado pedido (Etapa 5 da auditoria de 2026-09-29)
+
+Na validação final da Etapa 3/4, um achado novo: a `amostra_pequena`
+(10+ vendas pagas nos últimos 12 meses) só protege o lado PAGO da
+comparação. O lado PEDIDO (`n_anuncios`) não tinha piso nenhum — um único
+anúncio da nonStop conseguia sozinho sustentar um "gap" de centenas de
+pontos percentuais contra a mediana paga.
+
+Antes da correção, 19 dos 105 segmentos que passavam no filtro de gap
+(±20 p.p.) e não eram `amostra_pequena` tinham **1 ou 2 anúncios** do lado
+pedido — por exemplo "Santa Cecília · apartamento · 80–120m²" com gap de
++236,6% sustentado por 1 único anúncio, ou "Mooca · apartamento ·
+50–80m²" com +243,4% também sobre 1 anúncio. Esses são ruído de amostra,
+não sinal de mercado.
+
+Adicionada constante `MIN_ANUNCIOS_ALERTA = 3` (`scripts/engine.py`,
+espelhada em `site/engine.js` via `C.min_anuncios_alerta`): um segmento só
+vira alerta, ou "segmento representativo" de um bairro no Ranking (Gap
+Preço/`flag_alerta`), se tiver **3 ou mais anúncios ativos** além de
+passar na regra de amostra paga já existente. Aplicado em:
+
+- `_segmento_representativo()` — usado pelo Gap Preço do Ranking e por
+  `flag_alerta`.
+- Alertas (Visão Geral) — filtro em `site/app.js`, mesmo critério.
+
+`_lookup_mediana_pago_m2()` (Valor de Oportunidade e Imóveis
+Prioritários) **não** ganhou esse piso — ela só lê a mediana do lado
+pago, nunca calcula nada a partir do lado pedido, então o risco de
+amostra fina do lado pedido não se aplica ali.
+
+Resultado: de 105 segmentos elegíveis pra alerta antes da correção, 86
+sobraram depois (19 removidos, todos com 1-2 anúncios). Revalidado Python
+× JavaScript: 0 divergências em `price_gap_pct`/`flag_alerta` (49
+bairros) e na lista de Alertas recomputada (86 segmentos nos dois
+motores).
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`

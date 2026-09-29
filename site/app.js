@@ -535,10 +535,13 @@ function renderVisaoGeral() {
   // pede" contra "tudo que se pagou" misturava apartamento pequeno com
   // casa grande. amostra_pequena (menos de 10 transações pagas nos
   // últimos 12 meses nesse segmento) nunca vira alerta.
+  // Etapa 5 (validação, 2026-09-29): também exige 3+ anúncios ativos no
+  // segmento — sem isso, um único anúncio do lado pedido podia sustentar
+  // um alerta sozinho.
   const segmentosAlerta = [];
   DATA.ranking.forEach((name) => {
     (DATA.bairros[name].preco_m2_segmentos || []).forEach((s) => {
-      if (s.gap_pct == null || s.amostra_pequena || Math.abs(s.gap_pct) < 20) return;
+      if (s.gap_pct == null || s.amostra_pequena || Math.abs(s.gap_pct) < 20 || s.n_anuncios < 3) return;
       segmentosAlerta.push({ bairro: name, ...s });
     });
   });

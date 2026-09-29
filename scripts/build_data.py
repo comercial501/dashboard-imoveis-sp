@@ -153,6 +153,7 @@ def build_raw_payload(itbi_records, usn_records, years):
             "pesos_prontidao": engine.PESOS_PRONTIDAO,
             "faixas_metragem": [[lo, (hi if hi != float("inf") else None), label] for lo, hi, label in clean_itbi.FAIXAS_METRAGEM],
             "min_transacoes_preco_m2_12m": engine.MIN_TRANSACOES_PRECO_M2_12M,
+            "min_anuncios_alerta": engine.MIN_ANUNCIOS_ALERTA,
             "janela_preco_m2_dias": engine.JANELA_PRECO_M2_DIAS,
             # Congelado no momento do build — o recompute no navegador (ao
             # aplicar um filtro) usa esse valor, não a data real do
