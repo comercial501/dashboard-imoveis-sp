@@ -925,7 +925,7 @@ function renderPrioritarios() {
   const top = DATA.imoveis_prioritarios.slice(0, 50);
   top.forEach((im, i) => box.appendChild(imovelRow(im, i)));
   box.appendChild(el("div", { class: "note methodology" },
-    `Mostrando os 50 melhores de ${DATA.imoveis_prioritarios.length} imóveis pontuados. Fórmula: 35% liquidez de revenda do bairro + 30% alinhamento de preço + 25% aderência ao perfil vencedor (metragem/dormitórios/vagas) + 10% bônus de captação ativa.`));
+    `Mostrando os 50 melhores de ${DATA.imoveis_prioritarios.length} imóveis pontuados. Fórmula: 35% liquidez de revenda do bairro + 30% alinhamento de preço (R$/m² do anúncio × mediana paga do mesmo tipo de imóvel e faixa de metragem) + 25% aderência ao perfil vencedor (metragem/dormitórios/vagas) + 10% bônus de captação ativa.`));
 }
 
 // ---------------------------------------------------------------------------
