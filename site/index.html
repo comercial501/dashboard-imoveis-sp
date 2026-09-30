@@ -85,7 +85,7 @@
         </section>
         <section class="card">
           <h2>Onde anunciar agora</h2>
-          <div class="card-sub">Os 10 bairros no topo do Ranking de Oportunidade (liquidez de vendas + tendência de crescimento).</div>
+          <div class="card-sub">Os 10 bairros no topo do Ranking de Oportunidade (liquidez de vendas + tendência de crescimento). <span class="badge warning">Nota calculada com a metodologia anterior — revisão pendente</span></div>
           <div id="visao-ranking"></div>
         </section>
         <section class="card">
@@ -104,7 +104,8 @@
       <div class="panel" data-panel="ranking">
         <section class="card">
           <h2>Ranking de Oportunidade</h2>
-          <div class="card-sub">Score 0–100: 50% liquidez de vendas residenciais (média anual 2024–2026, por ano-calendário do arquivo da Prefeitura) + 50% tendência de crescimento (ano cheio anterior × ano cheio, e 1º semestre ano corrente × ano anterior), normalizado entre os 49 bairros. As colunas "Vendas" e "Tendência" mostram um número mais atual e mais preciso — janela rolante dos últimos 12 meses completos pela data real da transação (período exato no cabeçalho da coluna, atualiza a cada execução) — mas ainda não alimentam o Score (item pendente de aprovação: recalcular o Score com essa mesma base). A coluna "Gap Preço" e o badge "Alerta preço" não entram no score: mostram o gap de R$/m² pedido × pago do segmento (tipo de imóvel + faixa de metragem) mais representativo do bairro — "—" quando nenhum segmento tem amostra confiável (10+ vendas pagas nos últimos 12 meses e 3+ anúncios ativos).</div>
+          <div class="card-sub">Score 0–100: 50% liquidez de vendas residenciais (média anual 2024–2026, por ano-calendário do arquivo da Prefeitura) + 50% tendência de crescimento (ano cheio anterior × ano cheio, e 1º semestre ano corrente × ano anterior), normalizado entre os 49 bairros. As colunas "Vendas" e "Tendência" mostram um número mais atual e mais preciso — janela rolante dos últimos 12 meses completos pela data real da transação, terminando 2 meses antes do mês mais recente com dado (período exato no cabeçalho da coluna, atualiza a cada execução) — mas ainda não alimentam o Score. A coluna "Gap Preço" e o badge "Alerta preço" não entram no score: mostram o gap de R$/m² pedido × pago do segmento (tipo de imóvel + faixa de metragem) mais representativo do bairro — "—" quando nenhum segmento tem amostra confiável (10+ vendas pagas nos últimos 12 meses e 3+ anúncios ativos).</div>
+          <div style="margin:6px 0 10px"><span class="badge warning">Nota calculada com a metodologia anterior — revisão pendente</span></div>
           <div id="ranking-table"></div>
         </section>
       </div>

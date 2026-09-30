@@ -558,19 +558,25 @@ até uma remoção futura aprovada pelo usuário) porque:
 `engine.js`) corrigem isso:
   - agrupam pela data REAL da transação, excluindo tudo antes de
     2024-01-01;
-  - janela rolante de 12 meses completos, terminando no último mês que
-    não é um "lote incompleto" (heurística: um mês com menos de 50% da
-    mediana dos 3 meses anteriores é descartado — hoje isso pega 173
-    linhas com data real de agosto/2026 que vazaram pra dentro da aba
-    JUL-2026, a mais recente que existe; sem essa proteção, a janela
-    terminaria num mês quase vazio);
-  - tendência = mesmo intervalo de 12 meses, comparado ano contra ano
-    (não mais ano-cheio + 1º semestre);
+  - acham o último mês com dado real que não é um "lote incompleto"
+    (heurística: um mês com menos de 50% da mediana dos 3 meses
+    anteriores é descartado — protege contra guia que vaza pra dentro da
+    aba do mês seguinte, ex: linhas com data real de agosto/2026
+    aparecendo na aba JUL-2026 antes de a aba AGO-2026 existir);
+  - **os 2 meses mais recentes com dado ficam de FORA da janela inteira**
+    (ajuste de 2026-09-30 — a versão original desta seção deixava eles
+    DENTRO da janela, só marcados; o usuário corrigiu: defasagem de guia
+    paga com atraso significa que mesmo o mês "mais recente com dado"
+    ainda está subcontado, e não deve entrar nem no volume nem na
+    tendência). A janela de 12 meses termina 2 meses antes do mês mais
+    recente com dado;
+  - tendência = mesmo intervalo de 12 meses, comparado com os 12 meses
+    imediatamente anteriores (não mais ano-cheio + 1º semestre);
   - `periodo_12m` (novo campo no topo do `data.json`) expõe
-    `{inicio, fim, meses_incompletos}` — os 2 meses mais recentes da
-    janela ficam marcados como tendo dado ainda incompleto (defasagem de
-    guia paga com atraso), exibido na tela junto com o número, nunca
-    escondido.
+    `{inicio, fim, meses_incompletos}`;
+  - `volume_recente_parcial` (novo campo por bairro) — contagem dos 2
+    meses excluídos, só como indicador informativo separado; nunca entra
+    em `volume_12m`/`trend_pct_12m`.
 
 **Onde a dashboard passou a mostrar o quê**: Ranking, Visão Geral, Perfil
 por Bairro e Mapa de Oportunidade agora exibem `volume_12m`/
@@ -582,16 +588,30 @@ mostrada ao lado. Pelo mesmo motivo, o **Score** do Ranking de
 Oportunidade continua usando a base antiga (`volume_primary_year`/
 `trend_pct_for_score`) — recalcular o Score com a base de 12 meses é uma
 mudança maior, registrada como pendente de decisão do usuário, não feita
-silenciosamente aqui.
+silenciosamente aqui. Badge visível "Nota calculada com a metodologia
+anterior — revisão pendente" no Ranking e na Visão Geral, enquanto isso
+não for decidido.
 
-**Achado notável**: com a base nova, Pinheiros mostra tendência de -7,0%
-(caindo) contra +2,6% (subindo) da base antiga — sinais opostos pro mesmo
-bairro, dependendo de qual coluna se olha. Isso é esperado enquanto o
-Score não for recalculado (item pendente), mas reforça que os dois
-números não devem ser lidos como equivalentes.
+**Achado notável, investigado a fundo**: Pinheiros mostra tendência
+negativa na base nova (-5,4%) contra positiva na base antiga (+12,8% de
+`growth_prev_pct`, mediado com -7,1% de `growth_h1_pct` = +2,8% final) —
+a inversão de sinal **permanece** mesmo depois do ajuste da janela.
+Causa raiz, confirmada mês a mês com a data real de transação: Pinheiros
+teve um crescimento real e forte de vendas entre 2024 (~690/ano) e 2025
+(~778/ano, +12,8%) — é esse salto que `growth_prev_pct` captura. Só que
+esse crescimento **já tinha passado do pico** por volta de dez/2025 (85
+vendas naquele mês, o maior do período) e vem desacelerando desde então —
+os 12 meses mais recentes fechados (jul/2025-jun/2026, 746 vendas) já são
+menores que os 12 meses imediatamente anteriores (jul/2024-jun/2025, 789
+vendas). O método antigo mistura um comparativo ano-cheio já superado com
+um comparativo de 1º semestre mais recente, e a média dos dois ainda dá
+positivo porque o salto de 2024→2025 foi grande; o método novo olha só a
+janela mais recente contra a anterior e captura a desaceleração que já
+está em curso. As duas leituras são "verdadeiras" na própria janela — a
+nova é mais atual.
 
 Revalidado Python × JavaScript: 0 divergências em `volume_12m`,
-`trend_pct_12m` e `periodo_12m` nos 49 bairros.
+`trend_pct_12m`, `periodo_12m` e `volume_recente_parcial` nos 49 bairros.
 
 ## Metodologia dos painéis
 

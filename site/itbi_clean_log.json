@@ -1,436 +1,446 @@
 {
-  "gerado_em": "Wed Sep 30 13:40:35 2026 UTC",
+  "gerado_em": "Wed Sep 30 15:12:51 2026 UTC",
   "resolucao_bairro": {
-    "total_entrada": 304262,
+    "total_entrada": 315658,
     "sem_addr_key_descartados": 28,
-    "sem_bairro_direto_na_propria_linha": 277709,
-    "recuperados_por_maioria_do_endereco": 21731,
-    "descartados_endereco_sem_nenhum_bairro_reconhecido": 255978,
-    "total_saida": 48256
+    "sem_bairro_direto_na_propria_linha": 288032,
+    "recuperados_por_maioria_do_endereco": 22734,
+    "descartados_endereco_sem_nenhum_bairro_reconhecido": 265298,
+    "total_saida": 50332
   },
   "deduplicacao_sql": {
-    "total_entrada": 48256,
+    "total_entrada": 50332,
     "sem_sql_usou_chave_antiga": 0,
-    "duplicatas_removidas": 565,
-    "total_saida": 47691
+    "duplicatas_removidas": 622,
+    "total_saida": 49710
   },
   "camada_limpa_preco": {
-    "total_entrada": 47691,
-    "excluidos_predio_inteiro_uso_21_22": 276,
-    "excluidos_natureza_nao_compra_venda": 5499,
-    "excluidos_transferencia_parcial": 5452,
-    "excluidos_sem_area_construida_valida": 273,
-    "excluidos_outlier_valor_m2_fora_p5_p95": 3718,
-    "total_saida_clean_sale": 32473,
+    "total_entrada": 49710,
+    "excluidos_predio_inteiro_uso_21_22": 443,
+    "excluidos_natureza_nao_compra_venda": 5654,
+    "excluidos_transferencia_parcial": 5662,
+    "excluidos_sem_area_construida_valida": 282,
+    "excluidos_outlier_valor_m2_fora_p5_p95": 3868,
+    "total_saida_clean_sale": 33801,
     "segmentos_bairro_tipo_faixa": [
       {
         "bairro": "Perdizes",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 1348,
+        "n": 1395,
         "amostra_pequena": false,
-        "p5_valor_m2": 3084.95,
-        "p95_valor_m2": 8724.44,
-        "removidos": 136
+        "p5_valor_m2": 3204.28,
+        "p95_valor_m2": 8752.6,
+        "removidos": 140
       },
       {
         "bairro": "Tatuapé",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 1242,
+        "n": 1291,
         "amostra_pequena": false,
-        "p5_valor_m2": 1233.42,
-        "p95_valor_m2": 7427.24,
-        "removidos": 126
+        "p5_valor_m2": 1211.87,
+        "p95_valor_m2": 7443.65,
+        "removidos": 130
       },
       {
         "bairro": "Vila Mariana",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 1082,
+        "n": 1130,
         "amostra_pequena": false,
-        "p5_valor_m2": 3226.28,
-        "p95_valor_m2": 9804.53,
-        "removidos": 110
+        "p5_valor_m2": 3230.08,
+        "p95_valor_m2": 9760.0,
+        "removidos": 113
       },
       {
         "bairro": "Tatuapé",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 1008,
+        "n": 1046,
         "amostra_pequena": false,
-        "p5_valor_m2": 1612.9,
-        "p95_valor_m2": 6324.37,
-        "removidos": 101
+        "p5_valor_m2": 1626.34,
+        "p95_valor_m2": 6325.24,
+        "removidos": 106
       },
       {
         "bairro": "Jardim Paulista",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 938,
+        "n": 988,
         "amostra_pequena": false,
-        "p5_valor_m2": 4954.67,
-        "p95_valor_m2": 14801.7,
-        "removidos": 94
+        "p5_valor_m2": 4958.68,
+        "p95_valor_m2": 14685.92,
+        "removidos": 99
       },
       {
         "bairro": "Bela Vista",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 853,
+        "n": 893,
         "amostra_pequena": false,
-        "p5_valor_m2": 2916.67,
-        "p95_valor_m2": 8718.52,
-        "removidos": 85
-      },
-      {
-        "bairro": "Ipiranga",
-        "tipo_imovel": "apartamento",
-        "faixa": "80–120m²",
-        "n": 813,
-        "amostra_pequena": false,
-        "p5_valor_m2": 1539.5,
-        "p95_valor_m2": 7039.03,
-        "removidos": 82
+        "p5_valor_m2": 2914.56,
+        "p95_valor_m2": 8591.13,
+        "removidos": 90
       },
       {
         "bairro": "Bela Vista",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 797,
+        "n": 836,
         "amostra_pequena": false,
-        "p5_valor_m2": 2714.51,
-        "p95_valor_m2": 8813.38,
-        "removidos": 80
+        "p5_valor_m2": 2700.73,
+        "p95_valor_m2": 8793.29,
+        "removidos": 84
+      },
+      {
+        "bairro": "Ipiranga",
+        "tipo_imovel": "apartamento",
+        "faixa": "80–120m²",
+        "n": 841,
+        "amostra_pequena": false,
+        "p5_valor_m2": 1389.81,
+        "p95_valor_m2": 7028.3,
+        "removidos": 84
       },
       {
         "bairro": "Mooca",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 727,
+        "n": 756,
         "amostra_pequena": false,
-        "p5_valor_m2": 1396.66,
-        "p95_valor_m2": 7647.5,
-        "removidos": 74
+        "p5_valor_m2": 1425.89,
+        "p95_valor_m2": 7594.66,
+        "removidos": 76
       },
       {
         "bairro": "Indianópolis",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 666,
+        "n": 695,
         "amostra_pequena": false,
-        "p5_valor_m2": 3657.43,
-        "p95_valor_m2": 12690.45,
-        "removidos": 68
+        "p5_valor_m2": 3676.08,
+        "p95_valor_m2": 12633.87,
+        "removidos": 70
       },
       {
         "bairro": "Brooklin",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 670,
+        "n": 698,
         "amostra_pequena": false,
-        "p5_valor_m2": 2660.47,
-        "p95_valor_m2": 10513.23,
-        "removidos": 68
+        "p5_valor_m2": 2667.99,
+        "p95_valor_m2": 10367.69,
+        "removidos": 70
       },
       {
         "bairro": "Itaim Bibi",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 646,
+        "n": 673,
         "amostra_pequena": false,
-        "p5_valor_m2": 4804.9,
-        "p95_valor_m2": 19104.51,
-        "removidos": 66
-      },
-      {
-        "bairro": "Pinheiros",
-        "tipo_imovel": "apartamento",
-        "faixa": "acima de 120m²",
-        "n": 632,
-        "amostra_pequena": false,
-        "p5_valor_m2": 4079.96,
-        "p95_valor_m2": 11932.78,
-        "removidos": 64
+        "p5_valor_m2": 4821.67,
+        "p95_valor_m2": 19074.86,
+        "removidos": 68
       },
       {
         "bairro": "Vila Mariana",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 639,
+        "n": 666,
         "amostra_pequena": false,
-        "p5_valor_m2": 3601.57,
-        "p95_valor_m2": 8431.5,
+        "p5_valor_m2": 3602.36,
+        "p95_valor_m2": 8408.46,
+        "removidos": 68
+      },
+      {
+        "bairro": "Pinheiros",
+        "tipo_imovel": "apartamento",
+        "faixa": "acima de 120m²",
+        "n": 660,
+        "amostra_pequena": false,
+        "p5_valor_m2": 4113.92,
+        "p95_valor_m2": 12081.78,
+        "removidos": 65
+      },
+      {
+        "bairro": "Campo Belo",
+        "tipo_imovel": "apartamento",
+        "faixa": "acima de 120m²",
+        "n": 622,
+        "amostra_pequena": false,
+        "p5_valor_m2": 3109.67,
+        "p95_valor_m2": 11005.73,
         "removidos": 64
       },
       {
         "bairro": "Ipiranga",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 593,
+        "n": 611,
         "amostra_pequena": false,
-        "p5_valor_m2": 1928.98,
-        "p95_valor_m2": 7237.69,
-        "removidos": 60
-      },
-      {
-        "bairro": "Campo Belo",
-        "tipo_imovel": "apartamento",
-        "faixa": "acima de 120m²",
-        "n": 596,
-        "amostra_pequena": false,
-        "p5_valor_m2": 3076.13,
-        "p95_valor_m2": 10900.94,
-        "removidos": 60
+        "p5_valor_m2": 1947.03,
+        "p95_valor_m2": 7238.51,
+        "removidos": 62
       },
       {
         "bairro": "Higienópolis",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 573,
+        "n": 592,
         "amostra_pequena": false,
-        "p5_valor_m2": 4248.84,
-        "p95_valor_m2": 11946.46,
+        "p5_valor_m2": 4255.32,
+        "p95_valor_m2": 11912.42,
+        "removidos": 59
+      },
+      {
+        "bairro": "Perdizes",
+        "tipo_imovel": "apartamento",
+        "faixa": "80–120m²",
+        "n": 566,
+        "amostra_pequena": false,
+        "p5_valor_m2": 4209.82,
+        "p95_valor_m2": 8797.8,
         "removidos": 58
       },
       {
         "bairro": "Moema",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 546,
+        "n": 578,
         "amostra_pequena": false,
-        "p5_valor_m2": 3685.5,
-        "p95_valor_m2": 11336.22,
-        "removidos": 55
+        "p5_valor_m2": 3700.97,
+        "p95_valor_m2": 11331.86,
+        "removidos": 58
       },
       {
-        "bairro": "Perdizes",
+        "bairro": "Bela Vista",
         "tipo_imovel": "apartamento",
-        "faixa": "80–120m²",
-        "n": 533,
+        "faixa": "até 50m²",
+        "n": 573,
         "amostra_pequena": false,
-        "p5_valor_m2": 4144.86,
-        "p95_valor_m2": 8752.85,
+        "p5_valor_m2": 2500.0,
+        "p95_valor_m2": 10647.85,
+        "removidos": 56
+      },
+      {
+        "bairro": "Bela Vista",
+        "tipo_imovel": "apartamento",
+        "faixa": "acima de 120m²",
+        "n": 543,
+        "amostra_pequena": false,
+        "p5_valor_m2": 2764.55,
+        "p95_valor_m2": 8909.63,
+        "removidos": 56
+      },
+      {
+        "bairro": "Consolação",
+        "tipo_imovel": "apartamento",
+        "faixa": "50–80m²",
+        "n": 534,
+        "amostra_pequena": false,
+        "p5_valor_m2": 1555.67,
+        "p95_valor_m2": 8458.91,
+        "removidos": 54
+      },
+      {
+        "bairro": "Paraíso",
+        "tipo_imovel": "apartamento",
+        "faixa": "acima de 120m²",
+        "n": 534,
+        "amostra_pequena": false,
+        "p5_valor_m2": 3355.56,
+        "p95_valor_m2": 10076.65,
         "removidos": 54
       },
       {
         "bairro": "Brooklin",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 523,
+        "n": 541,
         "amostra_pequena": false,
-        "p5_valor_m2": 3242.85,
-        "p95_valor_m2": 9676.94,
+        "p5_valor_m2": 3396.23,
+        "p95_valor_m2": 9681.82,
         "removidos": 54
       },
       {
-        "bairro": "Bela Vista",
-        "tipo_imovel": "apartamento",
-        "faixa": "até 50m²",
-        "n": 533,
-        "amostra_pequena": false,
-        "p5_valor_m2": 2500.0,
-        "p95_valor_m2": 10647.85,
-        "removidos": 52
-      },
-      {
-        "bairro": "Bela Vista",
-        "tipo_imovel": "apartamento",
-        "faixa": "acima de 120m²",
-        "n": 521,
-        "amostra_pequena": false,
-        "p5_valor_m2": 2755.91,
-        "p95_valor_m2": 8898.31,
-        "removidos": 52
-      },
-      {
-        "bairro": "Consolação",
-        "tipo_imovel": "apartamento",
-        "faixa": "50–80m²",
-        "n": 516,
-        "amostra_pequena": false,
-        "p5_valor_m2": 1525.66,
-        "p95_valor_m2": 8456.56,
-        "removidos": 52
-      },
-      {
-        "bairro": "Paraíso",
-        "tipo_imovel": "apartamento",
-        "faixa": "acima de 120m²",
-        "n": 517,
-        "amostra_pequena": false,
-        "p5_valor_m2": 3339.77,
-        "p95_valor_m2": 10072.79,
-        "removidos": 52
-      },
-      {
         "bairro": "Consolação",
         "tipo_imovel": "apartamento",
         "faixa": "até 50m²",
-        "n": 485,
+        "n": 510,
         "amostra_pequena": false,
-        "p5_valor_m2": 2333.23,
-        "p95_valor_m2": 11069.57,
-        "removidos": 50
+        "p5_valor_m2": 2385.35,
+        "p95_valor_m2": 10975.68,
+        "removidos": 52
       },
       {
         "bairro": "Santa Cecília",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 486,
+        "n": 515,
         "amostra_pequena": false,
-        "p5_valor_m2": 3174.39,
-        "p95_valor_m2": 9293.79,
-        "removidos": 50
+        "p5_valor_m2": 3187.78,
+        "p95_valor_m2": 9338.43,
+        "removidos": 52
       },
       {
         "bairro": "Lapa",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 495,
+        "n": 511,
         "amostra_pequena": false,
-        "p5_valor_m2": 3424.39,
-        "p95_valor_m2": 8824.61,
-        "removidos": 50
+        "p5_valor_m2": 3406.45,
+        "p95_valor_m2": 8837.03,
+        "removidos": 52
       },
       {
         "bairro": "Jardim América",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 478,
+        "n": 496,
         "amostra_pequena": false,
-        "p5_valor_m2": 4508.95,
-        "p95_valor_m2": 19368.54,
-        "removidos": 48
+        "p5_valor_m2": 4521.65,
+        "p95_valor_m2": 19460.39,
+        "removidos": 50
       },
       {
         "bairro": "Santa Cecília",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 439,
+        "n": 459,
         "amostra_pequena": false,
         "p5_valor_m2": 2534.12,
         "p95_valor_m2": 7553.05,
+        "removidos": 46
+      },
+      {
+        "bairro": "Santa Cecília",
+        "tipo_imovel": "apartamento",
+        "faixa": "80–120m²",
+        "n": 430,
+        "amostra_pequena": false,
+        "p5_valor_m2": 2726.77,
+        "p95_valor_m2": 7901.04,
+        "removidos": 44
+      },
+      {
+        "bairro": "Mooca",
+        "tipo_imovel": "apartamento",
+        "faixa": "80–120m²",
+        "n": 430,
+        "amostra_pequena": false,
+        "p5_valor_m2": 1782.23,
+        "p95_valor_m2": 5973.66,
         "removidos": 44
       },
       {
         "bairro": "Consolação",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 407,
+        "n": 416,
         "amostra_pequena": false,
-        "p5_valor_m2": 3697.49,
-        "p95_valor_m2": 11433.87,
+        "p5_valor_m2": 3680.21,
+        "p95_valor_m2": 11456.53,
         "removidos": 42
       },
       {
         "bairro": "Pinheiros",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 404,
+        "n": 419,
         "amostra_pequena": false,
-        "p5_valor_m2": 3570.13,
-        "p95_valor_m2": 11069.15,
+        "p5_valor_m2": 3687.99,
+        "p95_valor_m2": 11038.56,
         "removidos": 42
-      },
-      {
-        "bairro": "Mooca",
-        "tipo_imovel": "apartamento",
-        "faixa": "80–120m²",
-        "n": 415,
-        "amostra_pequena": false,
-        "p5_valor_m2": 1783.86,
-        "p95_valor_m2": 5968.95,
-        "removidos": 42
-      },
-      {
-        "bairro": "Santa Cecília",
-        "tipo_imovel": "apartamento",
-        "faixa": "80–120m²",
-        "n": 401,
-        "amostra_pequena": false,
-        "p5_valor_m2": 2560.98,
-        "p95_valor_m2": 7872.34,
-        "removidos": 40
       },
       {
         "bairro": "Cambuci",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 373,
+        "n": 389,
         "amostra_pequena": false,
-        "p5_valor_m2": 2170.49,
-        "p95_valor_m2": 5850.92,
-        "removidos": 38
-      },
-      {
-        "bairro": "Consolação",
-        "tipo_imovel": "apartamento",
-        "faixa": "80–120m²",
-        "n": 365,
-        "amostra_pequena": false,
-        "p5_valor_m2": 1888.44,
-        "p95_valor_m2": 19171.93,
-        "removidos": 38
+        "p5_valor_m2": 2179.66,
+        "p95_valor_m2": 5937.2,
+        "removidos": 40
       },
       {
         "bairro": "Indianópolis",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 368,
+        "n": 384,
         "amostra_pequena": false,
-        "p5_valor_m2": 2308.9,
-        "p95_valor_m2": 11557.47,
+        "p5_valor_m2": 2430.3,
+        "p95_valor_m2": 11530.61,
+        "removidos": 40
+      },
+      {
+        "bairro": "Consolação",
+        "tipo_imovel": "apartamento",
+        "faixa": "80–120m²",
+        "n": 381,
+        "amostra_pequena": false,
+        "p5_valor_m2": 1976.74,
+        "p95_valor_m2": 16949.15,
         "removidos": 38
       },
       {
         "bairro": "Campo Belo",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 345,
+        "n": 364,
         "amostra_pequena": false,
-        "p5_valor_m2": 2924.23,
-        "p95_valor_m2": 8801.16,
-        "removidos": 36
+        "p5_valor_m2": 2920.21,
+        "p95_valor_m2": 8844.22,
+        "removidos": 38
       },
       {
         "bairro": "Perdizes",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 333,
+        "n": 342,
         "amostra_pequena": false,
-        "p5_valor_m2": 3731.11,
-        "p95_valor_m2": 8793.8,
-        "removidos": 33
+        "p5_valor_m2": 3734.43,
+        "p95_valor_m2": 8776.74,
+        "removidos": 36
       },
       {
-        "bairro": "Santa Cecília",
+        "bairro": "Jardim Paulista",
         "tipo_imovel": "apartamento",
-        "faixa": "até 50m²",
-        "n": 310,
+        "faixa": "80–120m²",
+        "n": 331,
         "amostra_pequena": false,
-        "p5_valor_m2": 2208.67,
-        "p95_valor_m2": 7739.03,
-        "removidos": 32
+        "p5_valor_m2": 4780.33,
+        "p95_valor_m2": 11552.75,
+        "removidos": 34
       },
       {
         "bairro": "Vila Mariana",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 321,
+        "n": 337,
         "amostra_pequena": false,
-        "p5_valor_m2": 3049.66,
-        "p95_valor_m2": 7868.85,
-        "removidos": 32
+        "p5_valor_m2": 3141.58,
+        "p95_valor_m2": 7877.17,
+        "removidos": 34
       },
       {
         "bairro": "Moema",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 320,
+        "n": 336,
         "amostra_pequena": false,
-        "p5_valor_m2": 4135.12,
-        "p95_valor_m2": 9779.96,
+        "p5_valor_m2": 4123.86,
+        "p95_valor_m2": 9925.74,
+        "removidos": 34
+      },
+      {
+        "bairro": "Santa Cecília",
+        "tipo_imovel": "apartamento",
+        "faixa": "até 50m²",
+        "n": 319,
+        "amostra_pequena": false,
+        "p5_valor_m2": 2289.69,
+        "p95_valor_m2": 7673.17,
         "removidos": 32
       },
       {
@@ -439,297 +449,297 @@
         "faixa": "80–120m²",
         "n": 308,
         "amostra_pequena": false,
-        "p5_valor_m2": 4937.32,
+        "p5_valor_m2": 4910.53,
         "p95_valor_m2": 12650.41,
         "removidos": 32
-      },
-      {
-        "bairro": "Jardim Paulista",
-        "tipo_imovel": "apartamento",
-        "faixa": "80–120m²",
-        "n": 299,
-        "amostra_pequena": false,
-        "p5_valor_m2": 4673.81,
-        "p95_valor_m2": 11607.11,
-        "removidos": 30
-      },
-      {
-        "bairro": "Lapa",
-        "tipo_imovel": "apartamento",
-        "faixa": "80–120m²",
-        "n": 284,
-        "amostra_pequena": false,
-        "p5_valor_m2": 1275.07,
-        "p95_valor_m2": 8045.59,
-        "removidos": 30
       },
       {
         "bairro": "Tatuapé",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 295,
+        "n": 308,
         "amostra_pequena": false,
-        "p5_valor_m2": 2393.01,
-        "p95_valor_m2": 6611.82,
-        "removidos": 30
+        "p5_valor_m2": 2394.37,
+        "p95_valor_m2": 6650.17,
+        "removidos": 31
       },
       {
-        "bairro": "Itaim Bibi",
+        "bairro": "Lapa",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 254,
+        "n": 295,
         "amostra_pequena": false,
-        "p5_valor_m2": 4475.3,
-        "p95_valor_m2": 15634.26,
-        "removidos": 26
+        "p5_valor_m2": 1805.7,
+        "p95_valor_m2": 8163.33,
+        "removidos": 30
       },
       {
         "bairro": "Ipiranga",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 256,
+        "n": 266,
         "amostra_pequena": false,
-        "p5_valor_m2": 584.48,
-        "p95_valor_m2": 6523.03,
+        "p5_valor_m2": 624.97,
+        "p95_valor_m2": 6542.76,
+        "removidos": 28
+      },
+      {
+        "bairro": "Cambuci",
+        "tipo_imovel": "apartamento",
+        "faixa": "50–80m²",
+        "n": 244,
+        "amostra_pequena": false,
+        "p5_valor_m2": 2567.77,
+        "p95_valor_m2": 6344.58,
+        "removidos": 26
+      },
+      {
+        "bairro": "Pompéia",
+        "tipo_imovel": "apartamento",
+        "faixa": "acima de 120m²",
+        "n": 248,
+        "amostra_pequena": false,
+        "p5_valor_m2": 2959.62,
+        "p95_valor_m2": 7370.81,
+        "removidos": 26
+      },
+      {
+        "bairro": "Itaim Bibi",
+        "tipo_imovel": "apartamento",
+        "faixa": "80–120m²",
+        "n": 258,
+        "amostra_pequena": false,
+        "p5_valor_m2": 4559.5,
+        "p95_valor_m2": 15536.37,
+        "removidos": 26
+      },
+      {
+        "bairro": "Mooca",
+        "tipo_imovel": "apartamento",
+        "faixa": "50–80m²",
+        "n": 253,
+        "amostra_pequena": false,
+        "p5_valor_m2": 2162.33,
+        "p95_valor_m2": 7925.66,
         "removidos": 26
       },
       {
         "bairro": "Vila Olímpia",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 247,
+        "n": 254,
         "amostra_pequena": false,
-        "p5_valor_m2": 3991.96,
-        "p95_valor_m2": 10292.01,
+        "p5_valor_m2": 4000.11,
+        "p95_valor_m2": 10804.4,
         "removidos": 26
-      },
-      {
-        "bairro": "Cambuci",
-        "tipo_imovel": "apartamento",
-        "faixa": "50–80m²",
-        "n": 223,
-        "amostra_pequena": false,
-        "p5_valor_m2": 2562.3,
-        "p95_valor_m2": 6347.13,
-        "removidos": 24
-      },
-      {
-        "bairro": "Pompéia",
-        "tipo_imovel": "apartamento",
-        "faixa": "acima de 120m²",
-        "n": 236,
-        "amostra_pequena": false,
-        "p5_valor_m2": 2826.24,
-        "p95_valor_m2": 7286.29,
-        "removidos": 24
-      },
-      {
-        "bairro": "Mooca",
-        "tipo_imovel": "apartamento",
-        "faixa": "50–80m²",
-        "n": 231,
-        "amostra_pequena": false,
-        "p5_valor_m2": 2156.11,
-        "p95_valor_m2": 7926.56,
-        "removidos": 24
       },
       {
         "bairro": "Ibirapuera",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 235,
+        "n": 255,
         "amostra_pequena": false,
-        "p5_valor_m2": 2837.99,
+        "p5_valor_m2": 2692.31,
         "p95_valor_m2": 11986.73,
-        "removidos": 24
+        "removidos": 25
       },
       {
         "bairro": "Tatuapé",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 217,
+        "n": 224,
         "amostra_pequena": false,
-        "p5_valor_m2": 2066.66,
-        "p95_valor_m2": 10238.1,
+        "p5_valor_m2": 2012.5,
+        "p95_valor_m2": 10625.0,
+        "removidos": 24
+      },
+      {
+        "bairro": "Pompéia",
+        "tipo_imovel": "apartamento",
+        "faixa": "80–120m²",
+        "n": 204,
+        "amostra_pequena": false,
+        "p5_valor_m2": 3085.29,
+        "p95_valor_m2": 7832.42,
+        "removidos": 22
+      },
+      {
+        "bairro": "Vila Nova Conceição",
+        "tipo_imovel": "apartamento",
+        "faixa": "acima de 120m²",
+        "n": 203,
+        "amostra_pequena": false,
+        "p5_valor_m2": 7391.23,
+        "p95_valor_m2": 19709.8,
         "removidos": 22
       },
       {
         "bairro": "Vila Madalena",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 205,
+        "n": 214,
         "amostra_pequena": false,
-        "p5_valor_m2": 3978.98,
-        "p95_valor_m2": 11944.94,
+        "p5_valor_m2": 4108.16,
+        "p95_valor_m2": 11795.91,
         "removidos": 22
       },
       {
         "bairro": "Cambuci",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 188,
+        "n": 198,
         "amostra_pequena": false,
-        "p5_valor_m2": 1018.63,
-        "p95_valor_m2": 6160.24,
-        "removidos": 20
-      },
-      {
-        "bairro": "Pompéia",
-        "tipo_imovel": "apartamento",
-        "faixa": "80–120m²",
-        "n": 197,
-        "amostra_pequena": false,
-        "p5_valor_m2": 3601.76,
-        "p95_valor_m2": 7885.71,
-        "removidos": 20
-      },
-      {
-        "bairro": "Vila Nova Conceição",
-        "tipo_imovel": "apartamento",
-        "faixa": "acima de 120m²",
-        "n": 186,
-        "amostra_pequena": false,
-        "p5_valor_m2": 7412.49,
-        "p95_valor_m2": 19654.42,
-        "removidos": 20
-      },
-      {
-        "bairro": "Lapa",
-        "tipo_imovel": "apartamento",
-        "faixa": "50–80m²",
-        "n": 186,
-        "amostra_pequena": false,
-        "p5_valor_m2": 3468.42,
-        "p95_valor_m2": 7282.08,
+        "p5_valor_m2": 1022.01,
+        "p95_valor_m2": 6146.0,
         "removidos": 20
       },
       {
         "bairro": "Jardim Paulista",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 182,
+        "n": 186,
         "amostra_pequena": false,
-        "p5_valor_m2": 4242.82,
-        "p95_valor_m2": 12307.69,
-        "removidos": 18
+        "p5_valor_m2": 4264.93,
+        "p95_valor_m2": 11203.12,
+        "removidos": 20
       },
       {
         "bairro": "Jardim América",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 180,
+        "n": 193,
         "amostra_pequena": false,
-        "p5_valor_m2": 4528.69,
-        "p95_valor_m2": 12077.93,
-        "removidos": 18
+        "p5_valor_m2": 4293.65,
+        "p95_valor_m2": 11733.12,
+        "removidos": 20
+      },
+      {
+        "bairro": "Lapa",
+        "tipo_imovel": "apartamento",
+        "faixa": "50–80m²",
+        "n": 188,
+        "amostra_pequena": false,
+        "p5_valor_m2": 3469.12,
+        "p95_valor_m2": 7268.88,
+        "removidos": 20
       },
       {
         "bairro": "Paraíso",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 179,
+        "n": 185,
         "amostra_pequena": false,
-        "p5_valor_m2": 3841.0,
-        "p95_valor_m2": 9322.28,
+        "p5_valor_m2": 3846.15,
+        "p95_valor_m2": 9244.14,
+        "removidos": 19
+      },
+      {
+        "bairro": "Moema",
+        "tipo_imovel": "apartamento",
+        "faixa": "50–80m²",
+        "n": 163,
+        "amostra_pequena": false,
+        "p5_valor_m2": 1710.06,
+        "p95_valor_m2": 9983.33,
+        "removidos": 18
+      },
+      {
+        "bairro": "Ipiranga",
+        "tipo_imovel": "casa",
+        "faixa": "acima de 120m²",
+        "n": 163,
+        "amostra_pequena": false,
+        "p5_valor_m2": 1193.77,
+        "p95_valor_m2": 8028.34,
         "removidos": 18
       },
       {
         "bairro": "Pinheiros",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 151,
+        "n": 158,
         "amostra_pequena": false,
-        "p5_valor_m2": 3804.45,
-        "p95_valor_m2": 10244.53,
+        "p5_valor_m2": 3904.5,
+        "p95_valor_m2": 10324.85,
         "removidos": 16
       },
       {
         "bairro": "Indianópolis",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 150,
+        "n": 157,
         "amostra_pequena": false,
-        "p5_valor_m2": 4703.02,
-        "p95_valor_m2": 10499.97,
-        "removidos": 16
-      },
-      {
-        "bairro": "Ipiranga",
-        "tipo_imovel": "casa",
-        "faixa": "acima de 120m²",
-        "n": 156,
-        "amostra_pequena": false,
-        "p5_valor_m2": 1215.17,
-        "p95_valor_m2": 8114.8,
+        "p5_valor_m2": 4720.02,
+        "p95_valor_m2": 10494.31,
         "removidos": 16
       },
       {
         "bairro": "Vila Gumercindo",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 152,
+        "n": 156,
         "amostra_pequena": false,
-        "p5_valor_m2": 917.09,
-        "p95_valor_m2": 5892.62,
+        "p5_valor_m2": 928.05,
+        "p95_valor_m2": 5888.06,
         "removidos": 16
       },
       {
         "bairro": "Vila Gumercindo",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 156,
+        "n": 158,
         "amostra_pequena": false,
-        "p5_valor_m2": 1084.15,
-        "p95_valor_m2": 6786.61,
+        "p5_valor_m2": 1090.97,
+        "p95_valor_m2": 6785.34,
         "removidos": 16
       },
       {
         "bairro": "Tatuapé",
         "tipo_imovel": "casa",
         "faixa": "80–120m²",
-        "n": 159,
+        "n": 161,
         "amostra_pequena": false,
-        "p5_valor_m2": 2705.35,
-        "p95_valor_m2": 11166.67,
+        "p5_valor_m2": 2708.33,
+        "p95_valor_m2": 11111.11,
         "removidos": 16
       },
       {
         "bairro": "Brooklin",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 153,
+        "n": 154,
         "amostra_pequena": false,
-        "p5_valor_m2": 4200.07,
-        "p95_valor_m2": 23614.03,
+        "p5_valor_m2": 4209.7,
+        "p95_valor_m2": 23588.0,
+        "removidos": 16
+      },
+      {
+        "bairro": "Brooklin",
+        "tipo_imovel": "apartamento",
+        "faixa": "50–80m²",
+        "n": 142,
+        "amostra_pequena": false,
+        "p5_valor_m2": 4416.06,
+        "p95_valor_m2": 9240.76,
         "removidos": 16
       },
       {
         "bairro": "Alto da Boa Vista",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 146,
+        "n": 147,
         "amostra_pequena": false,
-        "p5_valor_m2": 3605.25,
-        "p95_valor_m2": 7189.64,
+        "p5_valor_m2": 3606.87,
+        "p95_valor_m2": 7186.53,
         "removidos": 16
-      },
-      {
-        "bairro": "Moema",
-        "tipo_imovel": "apartamento",
-        "faixa": "50–80m²",
-        "n": 143,
-        "amostra_pequena": false,
-        "p5_valor_m2": 1942.35,
-        "p95_valor_m2": 10000.0,
-        "removidos": 15
       },
       {
         "bairro": "Chácara Inglesa",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 150,
+        "n": 157,
         "amostra_pequena": false,
-        "p5_valor_m2": 2733.04,
+        "p5_valor_m2": 2838.54,
         "p95_valor_m2": 7692.31,
         "removidos": 15
       },
@@ -747,180 +757,170 @@
         "bairro": "Mirandópolis",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 129,
+        "n": 133,
         "amostra_pequena": false,
-        "p5_valor_m2": 2580.29,
-        "p95_valor_m2": 8217.14,
+        "p5_valor_m2": 2587.24,
+        "p95_valor_m2": 8308.57,
         "removidos": 14
       },
       {
         "bairro": "Mirandópolis",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 134,
+        "n": 137,
         "amostra_pequena": false,
-        "p5_valor_m2": 3184.16,
-        "p95_valor_m2": 6454.78,
-        "removidos": 14
-      },
-      {
-        "bairro": "Brooklin",
-        "tipo_imovel": "apartamento",
-        "faixa": "50–80m²",
-        "n": 131,
-        "amostra_pequena": false,
-        "p5_valor_m2": 4448.78,
-        "p95_valor_m2": 9025.21,
+        "p5_valor_m2": 3202.01,
+        "p95_valor_m2": 6453.42,
         "removidos": 14
       },
       {
         "bairro": "Mooca",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 103,
+        "n": 106,
         "amostra_pequena": false,
-        "p5_valor_m2": 2125.46,
-        "p95_valor_m2": 8097.3,
+        "p5_valor_m2": 2143.56,
+        "p95_valor_m2": 8081.08,
+        "removidos": 12
+      },
+      {
+        "bairro": "Jardim América",
+        "tipo_imovel": "apartamento",
+        "faixa": "50–80m²",
+        "n": 111,
+        "amostra_pequena": false,
+        "p5_valor_m2": 5289.72,
+        "p95_valor_m2": 14509.5,
+        "removidos": 12
+      },
+      {
+        "bairro": "Perdizes",
+        "tipo_imovel": "apartamento",
+        "faixa": "até 50m²",
+        "n": 106,
+        "amostra_pequena": false,
+        "p5_valor_m2": 2399.55,
+        "p95_valor_m2": 13825.0,
+        "removidos": 12
+      },
+      {
+        "bairro": "Sumaré",
+        "tipo_imovel": "apartamento",
+        "faixa": "acima de 120m²",
+        "n": 102,
+        "amostra_pequena": false,
+        "p5_valor_m2": 3740.11,
+        "p95_valor_m2": 8069.23,
         "removidos": 12
       },
       {
         "bairro": "Paraíso",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 105,
+        "n": 110,
         "amostra_pequena": false,
-        "p5_valor_m2": 3374.12,
-        "p95_valor_m2": 8814.94,
+        "p5_valor_m2": 3385.05,
+        "p95_valor_m2": 8794.64,
         "removidos": 12
       },
       {
         "bairro": "Vila Mariana",
         "tipo_imovel": "apartamento",
         "faixa": "até 50m²",
-        "n": 102,
+        "n": 110,
         "amostra_pequena": false,
-        "p5_valor_m2": 5400.31,
-        "p95_valor_m2": 10566.8,
+        "p5_valor_m2": 5225.1,
+        "p95_valor_m2": 10549.76,
         "removidos": 12
       },
       {
         "bairro": "Vila Madalena",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 108,
+        "n": 116,
         "amostra_pequena": false,
-        "p5_valor_m2": 4365.68,
-        "p95_valor_m2": 10845.85,
+        "p5_valor_m2": 4232.54,
+        "p95_valor_m2": 10679.54,
         "removidos": 12
       },
       {
         "bairro": "Bosque da Saúde",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 110,
+        "n": 112,
         "amostra_pequena": false,
-        "p5_valor_m2": 2578.17,
-        "p95_valor_m2": 7649.83,
+        "p5_valor_m2": 2583.72,
+        "p95_valor_m2": 7630.49,
         "removidos": 12
       },
       {
         "bairro": "Vila da Saúde",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 105,
+        "n": 117,
         "amostra_pequena": false,
         "p5_valor_m2": 3146.07,
-        "p95_valor_m2": 7276.59,
+        "p95_valor_m2": 7244.68,
         "removidos": 11
       },
       {
         "bairro": "Jardins",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 90,
+        "n": 83,
         "amostra_pequena": false,
-        "p5_valor_m2": 4694.08,
-        "p95_valor_m2": 17314.58,
-        "removidos": 10
-      },
-      {
-        "bairro": "Jardim América",
-        "tipo_imovel": "apartamento",
-        "faixa": "50–80m²",
-        "n": 100,
-        "amostra_pequena": false,
-        "p5_valor_m2": 5189.24,
-        "p95_valor_m2": 12738.62,
-        "removidos": 10
-      },
-      {
-        "bairro": "Perdizes",
-        "tipo_imovel": "apartamento",
-        "faixa": "até 50m²",
-        "n": 101,
-        "amostra_pequena": false,
-        "p5_valor_m2": 3695.65,
-        "p95_valor_m2": 14000.0,
-        "removidos": 10
-      },
-      {
-        "bairro": "Pinheiros",
-        "tipo_imovel": "apartamento",
-        "faixa": "até 50m²",
-        "n": 92,
-        "amostra_pequena": false,
-        "p5_valor_m2": 5517.55,
-        "p95_valor_m2": 12451.74,
-        "removidos": 10
-      },
-      {
-        "bairro": "Sumaré",
-        "tipo_imovel": "apartamento",
-        "faixa": "acima de 120m²",
-        "n": 101,
-        "amostra_pequena": false,
-        "p5_valor_m2": 3730.77,
-        "p95_valor_m2": 8076.92,
+        "p5_valor_m2": 3985.29,
+        "p95_valor_m2": 17573.17,
         "removidos": 10
       },
       {
         "bairro": "Vila Mariana",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 90,
+        "n": 93,
         "amostra_pequena": false,
-        "p5_valor_m2": 2723.81,
-        "p95_valor_m2": 20581.07,
+        "p5_valor_m2": 2728.96,
+        "p95_valor_m2": 20556.18,
         "removidos": 10
       },
       {
         "bairro": "Mirandópolis",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 90,
+        "n": 91,
         "amostra_pequena": false,
-        "p5_valor_m2": 3402.64,
-        "p95_valor_m2": 7309.65,
+        "p5_valor_m2": 3404.64,
+        "p95_valor_m2": 7307.01,
         "removidos": 10
       },
       {
         "bairro": "Planalto Paulista",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 94,
+        "n": 96,
         "amostra_pequena": false,
-        "p5_valor_m2": 2403.51,
-        "p95_valor_m2": 11463.95,
+        "p5_valor_m2": 2431.39,
+        "p95_valor_m2": 11385.82,
         "removidos": 10
       },
       {
         "bairro": "Chácara Inglesa",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 86,
+        "n": 89,
         "amostra_pequena": false,
-        "p5_valor_m2": 3026.96,
-        "p95_valor_m2": 6880.25,
+        "p5_valor_m2": 3078.43,
+        "p95_valor_m2": 6848.74,
+        "removidos": 10
+      },
+      {
+        "bairro": "Ibirapuera",
+        "tipo_imovel": "apartamento",
+        "faixa": "80–120m²",
+        "n": 83,
+        "amostra_pequena": false,
+        "p5_valor_m2": 2968.91,
+        "p95_valor_m2": 9777.8,
         "removidos": 10
       },
       {
@@ -944,12 +944,22 @@
         "removidos": 10
       },
       {
+        "bairro": "Pinheiros",
+        "tipo_imovel": "apartamento",
+        "faixa": "até 50m²",
+        "n": 98,
+        "amostra_pequena": false,
+        "p5_valor_m2": 5527.12,
+        "p95_valor_m2": 12941.18,
+        "removidos": 9
+      },
+      {
         "bairro": "Mooca",
         "tipo_imovel": "casa",
         "faixa": "80–120m²",
-        "n": 88,
+        "n": 89,
         "amostra_pequena": false,
-        "p5_valor_m2": 2445.84,
+        "p5_valor_m2": 2450.0,
         "p95_valor_m2": 8333.33,
         "removidos": 9
       },
@@ -957,30 +967,30 @@
         "bairro": "Itaim Bibi",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 80,
+        "n": 81,
         "amostra_pequena": false,
-        "p5_valor_m2": 1339.43,
-        "p95_valor_m2": 11566.35,
+        "p5_valor_m2": 1347.4,
+        "p95_valor_m2": 11800.0,
         "removidos": 8
       },
       {
         "bairro": "Ipiranga",
         "tipo_imovel": "casa",
         "faixa": "80–120m²",
-        "n": 75,
+        "n": 77,
         "amostra_pequena": false,
-        "p5_valor_m2": 1980.07,
-        "p95_valor_m2": 7908.59,
+        "p5_valor_m2": 1781.16,
+        "p95_valor_m2": 7902.02,
         "removidos": 8
       },
       {
         "bairro": "Vila Nova Conceição",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 78,
+        "n": 79,
         "amostra_pequena": false,
-        "p5_valor_m2": 5369.27,
-        "p95_valor_m2": 11078.18,
+        "p5_valor_m2": 5390.99,
+        "p95_valor_m2": 11072.32,
         "removidos": 8
       },
       {
@@ -994,113 +1004,103 @@
         "removidos": 8
       },
       {
-        "bairro": "Ibirapuera",
-        "tipo_imovel": "apartamento",
-        "faixa": "50–80m²",
-        "n": 68,
+        "bairro": "Indianópolis",
+        "tipo_imovel": "casa",
+        "faixa": "acima de 120m²",
+        "n": 65,
         "amostra_pequena": false,
-        "p5_valor_m2": 2133.32,
-        "p95_valor_m2": 9522.03,
+        "p5_valor_m2": 2044.44,
+        "p95_valor_m2": 20297.88,
         "removidos": 8
       },
       {
-        "bairro": "Planalto Paulista",
-        "tipo_imovel": "apartamento",
-        "faixa": "acima de 120m²",
-        "n": 68,
+        "bairro": "Ipiranga",
+        "tipo_imovel": "casa",
+        "faixa": "50–80m²",
+        "n": 62,
         "amostra_pequena": false,
-        "p5_valor_m2": 2789.56,
-        "p95_valor_m2": 9380.08,
+        "p5_valor_m2": 2778.1,
+        "p95_valor_m2": 7743.75,
         "removidos": 8
       },
       {
         "bairro": "Tatuapé",
         "tipo_imovel": "apartamento",
         "faixa": "até 50m²",
-        "n": 65,
+        "n": 71,
         "amostra_pequena": false,
-        "p5_valor_m2": 3488.66,
-        "p95_valor_m2": 7298.1,
+        "p5_valor_m2": 3489.09,
+        "p95_valor_m2": 7553.89,
         "removidos": 8
       },
       {
         "bairro": "Lapa",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 66,
+        "n": 68,
         "amostra_pequena": false,
-        "p5_valor_m2": 3193.13,
-        "p95_valor_m2": 15635.39,
+        "p5_valor_m2": 3194.31,
+        "p95_valor_m2": 15322.23,
         "removidos": 8
       },
       {
         "bairro": "Pinheiros",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 70,
+        "n": 71,
         "amostra_pequena": false,
-        "p5_valor_m2": 4018.93,
-        "p95_valor_m2": 28103.36,
+        "p5_valor_m2": 4056.98,
+        "p95_valor_m2": 28100.96,
         "removidos": 8
       },
       {
         "bairro": "Campo Belo",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 68,
+        "n": 73,
         "amostra_pequena": false,
-        "p5_valor_m2": 3787.34,
-        "p95_valor_m2": 7807.93,
-        "removidos": 8
-      },
-      {
-        "bairro": "Ibirapuera",
-        "tipo_imovel": "apartamento",
-        "faixa": "80–120m²",
-        "n": 75,
-        "amostra_pequena": false,
-        "p5_valor_m2": 2820.31,
-        "p95_valor_m2": 9896.74,
+        "p5_valor_m2": 3879.82,
+        "p95_valor_m2": 8135.14,
         "removidos": 8
       },
       {
         "bairro": "Alto da Boa Vista",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 72,
+        "n": 74,
         "amostra_pequena": false,
-        "p5_valor_m2": 3121.83,
-        "p95_valor_m2": 8412.32,
+        "p5_valor_m2": 3132.99,
+        "p95_valor_m2": 8385.59,
         "removidos": 8
       },
       {
         "bairro": "Bosque da Saúde",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 70,
+        "n": 72,
         "amostra_pequena": false,
-        "p5_valor_m2": 3102.5,
-        "p95_valor_m2": 8852.15,
+        "p5_valor_m2": 3114.17,
+        "p95_valor_m2": 9021.5,
         "removidos": 8
       },
       {
         "bairro": "Cambuci",
         "tipo_imovel": "apartamento",
         "faixa": "até 50m²",
-        "n": 44,
+        "n": 49,
         "amostra_pequena": false,
-        "p5_valor_m2": 3458.21,
-        "p95_valor_m2": 6234.37,
+        "p5_valor_m2": 3477.35,
+        "p95_valor_m2": 7011.58,
         "removidos": 6
       },
       {
         "bairro": "Jardim Paulistano",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 55,
+        "n": 56,
         "amostra_pequena": false,
-        "p5_valor_m2": 3955.57,
-        "p95_valor_m2": 18746.91,
+        "p5_valor_m2": 3991.8,
+        "p95_valor_m2": 18731.88,
         "removidos": 6
       },
       {
@@ -1114,13 +1114,33 @@
         "removidos": 6
       },
       {
-        "bairro": "Indianópolis",
-        "tipo_imovel": "casa",
+        "bairro": "Jardim da Glória",
+        "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 61,
+        "n": 42,
         "amostra_pequena": false,
-        "p5_valor_m2": 2000.0,
-        "p95_valor_m2": 20656.37,
+        "p5_valor_m2": 2691.71,
+        "p95_valor_m2": 8845.59,
+        "removidos": 6
+      },
+      {
+        "bairro": "Ibirapuera",
+        "tipo_imovel": "apartamento",
+        "faixa": "50–80m²",
+        "n": 56,
+        "amostra_pequena": false,
+        "p5_valor_m2": 1755.19,
+        "p95_valor_m2": 9430.07,
+        "removidos": 6
+      },
+      {
+        "bairro": "Planalto Paulista",
+        "tipo_imovel": "apartamento",
+        "faixa": "acima de 120m²",
+        "n": 60,
+        "amostra_pequena": false,
+        "p5_valor_m2": 2783.72,
+        "p95_valor_m2": 5525.81,
         "removidos": 6
       },
       {
@@ -1137,60 +1157,50 @@
         "bairro": "Planalto Paulista",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 54,
+        "n": 48,
         "amostra_pequena": false,
-        "p5_valor_m2": 1641.18,
-        "p95_valor_m2": 9938.99,
-        "removidos": 6
-      },
-      {
-        "bairro": "Ipiranga",
-        "tipo_imovel": "casa",
-        "faixa": "50–80m²",
-        "n": 59,
-        "amostra_pequena": false,
-        "p5_valor_m2": 3112.38,
-        "p95_valor_m2": 7811.36,
+        "p5_valor_m2": 1535.29,
+        "p95_valor_m2": 5630.09,
         "removidos": 6
       },
       {
         "bairro": "Mooca",
         "tipo_imovel": "casa",
         "faixa": "50–80m²",
-        "n": 57,
+        "n": 58,
         "amostra_pequena": false,
-        "p5_valor_m2": 1203.44,
-        "p95_valor_m2": 11053.84,
+        "p5_valor_m2": 1208.34,
+        "p95_valor_m2": 11048.27,
         "removidos": 6
       },
       {
         "bairro": "Tatuapé",
         "tipo_imovel": "casa",
         "faixa": "50–80m²",
-        "n": 60,
+        "n": 61,
         "amostra_pequena": false,
-        "p5_valor_m2": 2859.72,
-        "p95_valor_m2": 14382.32,
+        "p5_valor_m2": 2861.11,
+        "p95_valor_m2": 14285.71,
         "removidos": 6
       },
       {
         "bairro": "Jardim Europa",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 48,
+        "n": 51,
         "amostra_pequena": false,
-        "p5_valor_m2": 7928.18,
-        "p95_valor_m2": 28887.1,
+        "p5_valor_m2": 7966.02,
+        "p95_valor_m2": 28548.38,
         "removidos": 6
       },
       {
         "bairro": "Brooklin",
         "tipo_imovel": "casa",
         "faixa": "80–120m²",
-        "n": 48,
+        "n": 50,
         "amostra_pequena": false,
-        "p5_valor_m2": 3989.3,
-        "p95_valor_m2": 31928.78,
+        "p5_valor_m2": 3992.73,
+        "p95_valor_m2": 31915.89,
         "removidos": 6
       },
       {
@@ -1204,6 +1214,16 @@
         "removidos": 6
       },
       {
+        "bairro": "Cambuci",
+        "tipo_imovel": "casa",
+        "faixa": "acima de 120m²",
+        "n": 42,
+        "amostra_pequena": false,
+        "p5_valor_m2": 350.23,
+        "p95_valor_m2": 8178.2,
+        "removidos": 6
+      },
+      {
         "bairro": "Jardim Vila Mariana",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
@@ -1214,53 +1234,43 @@
         "removidos": 6
       },
       {
-        "bairro": "Sumaré",
-        "tipo_imovel": "apartamento",
-        "faixa": "80–120m²",
-        "n": 46,
-        "amostra_pequena": false,
-        "p5_valor_m2": 3622.98,
-        "p95_valor_m2": 7615.74,
-        "removidos": 6
-      },
-      {
         "bairro": "Perdizes",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 57,
+        "n": 58,
         "amostra_pequena": false,
-        "p5_valor_m2": 4527.67,
-        "p95_valor_m2": 21530.49,
+        "p5_valor_m2": 4535.65,
+        "p95_valor_m2": 21520.21,
+        "removidos": 6
+      },
+      {
+        "bairro": "Mirandópolis",
+        "tipo_imovel": "casa",
+        "faixa": "acima de 120m²",
+        "n": 42,
+        "amostra_pequena": false,
+        "p5_valor_m2": 150.2,
+        "p95_valor_m2": 17035.59,
         "removidos": 6
       },
       {
         "bairro": "Higienópolis",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 39,
+        "n": 41,
         "amostra_pequena": false,
-        "p5_valor_m2": 3879.47,
-        "p95_valor_m2": 9128.93,
+        "p5_valor_m2": 3972.97,
+        "p95_valor_m2": 10000.0,
         "removidos": 4
       },
       {
         "bairro": "Jardim Paulista",
         "tipo_imovel": "apartamento",
         "faixa": "até 50m²",
-        "n": 35,
+        "n": 36,
         "amostra_pequena": false,
-        "p5_valor_m2": 5214.28,
-        "p95_valor_m2": 12287.88,
-        "removidos": 4
-      },
-      {
-        "bairro": "Jardim América",
-        "tipo_imovel": "apartamento",
-        "faixa": "até 50m²",
-        "n": 29,
-        "amostra_pequena": false,
-        "p5_valor_m2": 5940.85,
-        "p95_valor_m2": 14399.19,
+        "p5_valor_m2": 5229.59,
+        "p95_valor_m2": 12249.54,
         "removidos": 4
       },
       {
@@ -1287,40 +1297,30 @@
         "bairro": "Jardim Paulistano",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 39,
+        "n": 40,
         "amostra_pequena": false,
-        "p5_valor_m2": 7448.83,
-        "p95_valor_m2": 42057.85,
+        "p5_valor_m2": 7728.32,
+        "p95_valor_m2": 43158.64,
         "removidos": 4
       },
       {
         "bairro": "Pompéia",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 25,
+        "n": 28,
         "amostra_pequena": false,
-        "p5_valor_m2": 4980.99,
-        "p95_valor_m2": 8058.14,
-        "removidos": 4
-      },
-      {
-        "bairro": "Jardim da Glória",
-        "tipo_imovel": "apartamento",
-        "faixa": "acima de 120m²",
-        "n": 41,
-        "amostra_pequena": false,
-        "p5_valor_m2": 2687.14,
-        "p95_valor_m2": 8872.55,
+        "p5_valor_m2": 5033.9,
+        "p95_valor_m2": 8209.19,
         "removidos": 4
       },
       {
         "bairro": "Vila Uberabinha",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 29,
+        "n": 32,
         "amostra_pequena": false,
-        "p5_valor_m2": 3363.56,
-        "p95_valor_m2": 10924.14,
+        "p5_valor_m2": 3505.5,
+        "p95_valor_m2": 10669.52,
         "removidos": 4
       },
       {
@@ -1337,10 +1337,20 @@
         "bairro": "Moema",
         "tipo_imovel": "apartamento",
         "faixa": "até 50m²",
-        "n": 32,
+        "n": 34,
         "amostra_pequena": false,
-        "p5_valor_m2": 3329.17,
-        "p95_valor_m2": 7891.25,
+        "p5_valor_m2": 3404.17,
+        "p95_valor_m2": 8437.5,
+        "removidos": 4
+      },
+      {
+        "bairro": "Vila Gumercindo",
+        "tipo_imovel": "apartamento",
+        "faixa": "até 50m²",
+        "n": 22,
+        "amostra_pequena": false,
+        "p5_valor_m2": 5565.19,
+        "p95_valor_m2": 8340.74,
         "removidos": 4
       },
       {
@@ -1377,10 +1387,10 @@
         "bairro": "Vila da Saúde",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 25,
+        "n": 26,
         "amostra_pequena": false,
-        "p5_valor_m2": 3409.54,
-        "p95_valor_m2": 5963.96,
+        "p5_valor_m2": 2676.5,
+        "p95_valor_m2": 5925.41,
         "removidos": 4
       },
       {
@@ -1397,20 +1407,30 @@
         "bairro": "Lapa",
         "tipo_imovel": "apartamento",
         "faixa": "até 50m²",
-        "n": 26,
+        "n": 27,
         "amostra_pequena": false,
-        "p5_valor_m2": 4010.64,
-        "p95_valor_m2": 8364.87,
+        "p5_valor_m2": 4012.76,
+        "p95_valor_m2": 8356.76,
         "removidos": 4
       },
       {
         "bairro": "Vila Madalena",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 36,
+        "n": 38,
         "amostra_pequena": false,
-        "p5_valor_m2": 4029.42,
-        "p95_valor_m2": 17332.84,
+        "p5_valor_m2": 4033.81,
+        "p95_valor_m2": 17515.15,
+        "removidos": 4
+      },
+      {
+        "bairro": "Vila Madalena",
+        "tipo_imovel": "apartamento",
+        "faixa": "50–80m²",
+        "n": 22,
+        "amostra_pequena": false,
+        "p5_valor_m2": 5401.1,
+        "p95_valor_m2": 9351.71,
         "removidos": 4
       },
       {
@@ -1427,10 +1447,10 @@
         "bairro": "Brooklin",
         "tipo_imovel": "apartamento",
         "faixa": "até 50m²",
-        "n": 36,
+        "n": 37,
         "amostra_pequena": false,
-        "p5_valor_m2": 4990.92,
-        "p95_valor_m2": 10652.85,
+        "p5_valor_m2": 5014.01,
+        "p95_valor_m2": 10649.94,
         "removidos": 4
       },
       {
@@ -1444,33 +1464,23 @@
         "removidos": 4
       },
       {
-        "bairro": "Cambuci",
-        "tipo_imovel": "casa",
-        "faixa": "acima de 120m²",
-        "n": 39,
-        "amostra_pequena": false,
-        "p5_valor_m2": 266.45,
-        "p95_valor_m2": 8323.55,
-        "removidos": 4
-      },
-      {
         "bairro": "Mooca",
         "tipo_imovel": "apartamento",
         "faixa": "até 50m²",
-        "n": 22,
+        "n": 23,
         "amostra_pequena": false,
-        "p5_valor_m2": 3721.25,
-        "p95_valor_m2": 6733.67,
+        "p5_valor_m2": 2617.5,
+        "p95_valor_m2": 6732.65,
         "removidos": 4
       },
       {
         "bairro": "Alto da Boa Vista",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 30,
+        "n": 31,
         "amostra_pequena": false,
-        "p5_valor_m2": 5963.79,
-        "p95_valor_m2": 13102.65,
+        "p5_valor_m2": 5971.8,
+        "p95_valor_m2": 13081.38,
         "removidos": 4
       },
       {
@@ -1487,20 +1497,30 @@
         "bairro": "Jardins",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 34,
+        "n": 28,
         "amostra_pequena": false,
-        "p5_valor_m2": 5476.64,
-        "p95_valor_m2": 11891.62,
+        "p5_valor_m2": 5649.14,
+        "p95_valor_m2": 11973.47,
         "removidos": 4
       },
       {
         "bairro": "Campo Belo",
         "tipo_imovel": "casa",
         "faixa": "80–120m²",
-        "n": 30,
+        "n": 31,
         "amostra_pequena": false,
-        "p5_valor_m2": 3088.87,
-        "p95_valor_m2": 14139.72,
+        "p5_valor_m2": 3210.31,
+        "p95_valor_m2": 13971.67,
+        "removidos": 4
+      },
+      {
+        "bairro": "Sumaré",
+        "tipo_imovel": "apartamento",
+        "faixa": "80–120m²",
+        "n": 41,
+        "amostra_pequena": false,
+        "p5_valor_m2": 3514.85,
+        "p95_valor_m2": 7777.78,
         "removidos": 4
       },
       {
@@ -1511,16 +1531,6 @@
         "amostra_pequena": false,
         "p5_valor_m2": 4622.07,
         "p95_valor_m2": 28566.23,
-        "removidos": 4
-      },
-      {
-        "bairro": "Mirandópolis",
-        "tipo_imovel": "casa",
-        "faixa": "acima de 120m²",
-        "n": 41,
-        "amostra_pequena": false,
-        "p5_valor_m2": 12.8,
-        "p95_valor_m2": 17248.65,
         "removidos": 4
       },
       {
@@ -1544,13 +1554,23 @@
         "removidos": 4
       },
       {
+        "bairro": "Jardim América",
+        "tipo_imovel": "apartamento",
+        "faixa": "até 50m²",
+        "n": 33,
+        "amostra_pequena": false,
+        "p5_valor_m2": 5958.14,
+        "p95_valor_m2": 14468.09,
+        "removidos": 3
+      },
+      {
         "bairro": "Pompéia",
         "tipo_imovel": "casa",
         "faixa": "80–120m²",
-        "n": 18,
+        "n": 21,
         "amostra_pequena": false,
-        "p5_valor_m2": 1361.54,
-        "p95_valor_m2": 23849.17,
+        "p5_valor_m2": 1443.18,
+        "p95_valor_m2": 21233.9,
         "removidos": 2
       },
       {
@@ -1597,20 +1617,10 @@
         "bairro": "Vila Gumercindo",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 18,
+        "n": 19,
         "amostra_pequena": false,
-        "p5_valor_m2": 2448.35,
-        "p95_valor_m2": 7766.25,
-        "removidos": 2
-      },
-      {
-        "bairro": "Vila Gumercindo",
-        "tipo_imovel": "apartamento",
-        "faixa": "até 50m²",
-        "n": 21,
-        "amostra_pequena": false,
-        "p5_valor_m2": 5554.08,
-        "p95_valor_m2": 8350.36,
+        "p5_valor_m2": 2458.68,
+        "p95_valor_m2": 7677.5,
         "removidos": 2
       },
       {
@@ -1621,16 +1631,6 @@
         "amostra_pequena": false,
         "p5_valor_m2": 6485.33,
         "p95_valor_m2": 9430.0,
-        "removidos": 2
-      },
-      {
-        "bairro": "Vila Madalena",
-        "tipo_imovel": "apartamento",
-        "faixa": "50–80m²",
-        "n": 21,
-        "amostra_pequena": false,
-        "p5_valor_m2": 5384.62,
-        "p95_valor_m2": 9375.0,
         "removidos": 2
       },
       {
@@ -1654,13 +1654,23 @@
         "removidos": 2
       },
       {
+        "bairro": "Jardim Petrópolis",
+        "tipo_imovel": "casa",
+        "faixa": "acima de 120m²",
+        "n": 10,
+        "amostra_pequena": false,
+        "p5_valor_m2": 5447.51,
+        "p95_valor_m2": 8692.55,
+        "removidos": 2
+      },
+      {
         "bairro": "Bela Vista",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 16,
+        "n": 17,
         "amostra_pequena": false,
-        "p5_valor_m2": 3722.63,
-        "p95_valor_m2": 11716.93,
+        "p5_valor_m2": 3351.73,
+        "p95_valor_m2": 11368.73,
         "removidos": 2
       },
       {
@@ -1697,10 +1707,10 @@
         "bairro": "Jardim da Glória",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 14,
+        "n": 16,
         "amostra_pequena": false,
-        "p5_valor_m2": 2867.65,
-        "p95_valor_m2": 8737.07,
+        "p5_valor_m2": 2631.58,
+        "p95_valor_m2": 8719.05,
         "removidos": 2
       },
       {
@@ -1717,10 +1727,10 @@
         "bairro": "Vila da Saúde",
         "tipo_imovel": "apartamento",
         "faixa": "50–80m²",
-        "n": 17,
+        "n": 18,
         "amostra_pequena": false,
-        "p5_valor_m2": 4764.87,
-        "p95_valor_m2": 8160.71,
+        "p5_valor_m2": 4790.75,
+        "p95_valor_m2": 8151.79,
         "removidos": 2
       },
       {
@@ -1737,10 +1747,10 @@
         "bairro": "Pacaembu",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 10,
+        "n": 15,
         "amostra_pequena": false,
-        "p5_valor_m2": 1878.61,
-        "p95_valor_m2": 9536.73,
+        "p5_valor_m2": 1234.35,
+        "p95_valor_m2": 8818.06,
         "removidos": 2
       },
       {
@@ -1807,20 +1817,20 @@
         "bairro": "Vila Nova Conceição",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 12,
+        "n": 13,
         "amostra_pequena": false,
-        "p5_valor_m2": 4730.03,
-        "p95_valor_m2": 58237.93,
+        "p5_valor_m2": 4948.75,
+        "p95_valor_m2": 57833.95,
         "removidos": 2
       },
       {
         "bairro": "Mirandópolis",
         "tipo_imovel": "casa",
         "faixa": "80–120m²",
-        "n": 12,
+        "n": 14,
         "amostra_pequena": false,
-        "p5_valor_m2": 2732.5,
-        "p95_valor_m2": 20597.22,
+        "p5_valor_m2": 2825.28,
+        "p95_valor_m2": 19039.14,
         "removidos": 2
       },
       {
@@ -1864,6 +1874,16 @@
         "removidos": 2
       },
       {
+        "bairro": "Jardim Vila Mariana",
+        "tipo_imovel": "apartamento",
+        "faixa": "80–120m²",
+        "n": 10,
+        "amostra_pequena": false,
+        "p5_valor_m2": 3926.27,
+        "p95_valor_m2": 6141.17,
+        "removidos": 2
+      },
+      {
         "bairro": "Itaim Bibi",
         "tipo_imovel": "casa",
         "faixa": "50–80m²",
@@ -1887,10 +1907,10 @@
         "bairro": "Cambuci",
         "tipo_imovel": "casa",
         "faixa": "50–80m²",
-        "n": 13,
+        "n": 14,
         "amostra_pequena": false,
         "p5_valor_m2": 4500.0,
-        "p95_valor_m2": 9685.71,
+        "p95_valor_m2": 9457.14,
         "removidos": 1
       },
       {
@@ -1905,7 +1925,7 @@
         "bairro": "Moema",
         "tipo_imovel": "casa",
         "faixa": "80–120m²",
-        "n": 7,
+        "n": 8,
         "amostra_pequena": true,
         "removidos": 0
       },
@@ -1926,10 +1946,18 @@
         "removidos": 0
       },
       {
+        "bairro": "Vila da Saúde",
+        "tipo_imovel": "apartamento",
+        "faixa": "até 50m²",
+        "n": 7,
+        "amostra_pequena": true,
+        "removidos": 0
+      },
+      {
         "bairro": "Jardim das Bandeiras",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 9,
+        "n": 7,
         "amostra_pequena": true,
         "removidos": 0
       },
@@ -1938,14 +1966,6 @@
         "tipo_imovel": "apartamento",
         "faixa": "até 50m²",
         "n": 4,
-        "amostra_pequena": true,
-        "removidos": 0
-      },
-      {
-        "bairro": "Jardim Petrópolis",
-        "tipo_imovel": "casa",
-        "faixa": "acima de 120m²",
-        "n": 9,
         "amostra_pequena": true,
         "removidos": 0
       },
@@ -2001,7 +2021,7 @@
         "bairro": "Pompéia",
         "tipo_imovel": "apartamento",
         "faixa": "até 50m²",
-        "n": 4,
+        "n": 6,
         "amostra_pequena": true,
         "removidos": 0
       },
@@ -2025,7 +2045,7 @@
         "bairro": "Chácara Santo Antônio",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 8,
+        "n": 9,
         "amostra_pequena": true,
         "removidos": 0
       },
@@ -2038,18 +2058,10 @@
         "removidos": 0
       },
       {
-        "bairro": "Sumaré",
-        "tipo_imovel": "apartamento",
-        "faixa": "até 50m²",
-        "n": 9,
-        "amostra_pequena": true,
-        "removidos": 0
-      },
-      {
         "bairro": "Bela Vista",
         "tipo_imovel": "casa",
         "faixa": "50–80m²",
-        "n": 2,
+        "n": 3,
         "amostra_pequena": true,
         "removidos": 0
       },
@@ -2090,6 +2102,14 @@
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
         "n": 4,
+        "amostra_pequena": true,
+        "removidos": 0
+      },
+      {
+        "bairro": "Sumaré",
+        "tipo_imovel": "apartamento",
+        "faixa": "até 50m²",
+        "n": 6,
         "amostra_pequena": true,
         "removidos": 0
       },
@@ -2145,7 +2165,7 @@
         "bairro": "Vila Cordeiro",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 6,
+        "n": 7,
         "amostra_pequena": true,
         "removidos": 0
       },
@@ -2246,14 +2266,6 @@
         "removidos": 0
       },
       {
-        "bairro": "Jardins",
-        "tipo_imovel": "apartamento",
-        "faixa": "50–80m²",
-        "n": 8,
-        "amostra_pequena": true,
-        "removidos": 0
-      },
-      {
         "bairro": "Jardim da Glória",
         "tipo_imovel": "casa",
         "faixa": "80–120m²",
@@ -2274,14 +2286,6 @@
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
         "n": 2,
-        "amostra_pequena": true,
-        "removidos": 0
-      },
-      {
-        "bairro": "Jardim Vila Mariana",
-        "tipo_imovel": "apartamento",
-        "faixa": "80–120m²",
-        "n": 8,
         "amostra_pequena": true,
         "removidos": 0
       },
@@ -2366,26 +2370,18 @@
         "removidos": 0
       },
       {
-        "bairro": "Vila Cordeiro",
-        "tipo_imovel": "apartamento",
-        "faixa": "80–120m²",
-        "n": 2,
-        "amostra_pequena": true,
-        "removidos": 0
-      },
-      {
-        "bairro": "Vila Cordeiro",
-        "tipo_imovel": "apartamento",
-        "faixa": "50–80m²",
-        "n": 4,
-        "amostra_pequena": true,
-        "removidos": 0
-      },
-      {
         "bairro": "Jardim América",
         "tipo_imovel": "casa",
         "faixa": "50–80m²",
         "n": 4,
+        "amostra_pequena": true,
+        "removidos": 0
+      },
+      {
+        "bairro": "Jardins",
+        "tipo_imovel": "apartamento",
+        "faixa": "50–80m²",
+        "n": 6,
         "amostra_pequena": true,
         "removidos": 0
       },
@@ -2433,7 +2429,7 @@
         "bairro": "Jardim das Bandeiras",
         "tipo_imovel": "apartamento",
         "faixa": "80–120m²",
-        "n": 6,
+        "n": 7,
         "amostra_pequena": true,
         "removidos": 0
       },
@@ -2465,7 +2461,7 @@
         "bairro": "Chácara Santo Antônio",
         "tipo_imovel": "casa",
         "faixa": "acima de 120m²",
-        "n": 5,
+        "n": 6,
         "amostra_pequena": true,
         "removidos": 0
       },
@@ -2529,6 +2525,14 @@
         "bairro": "Jardim Europa",
         "tipo_imovel": "casa",
         "faixa": "80–120m²",
+        "n": 1,
+        "amostra_pequena": true,
+        "removidos": 0
+      },
+      {
+        "bairro": "Ibirapuera",
+        "tipo_imovel": "apartamento",
+        "faixa": "até 50m²",
         "n": 1,
         "amostra_pequena": true,
         "removidos": 0

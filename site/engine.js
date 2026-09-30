@@ -461,15 +461,20 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     }
     break;
   }
-  const mesBase = mesesOrdenados[mesesOrdenados.length - 1].ym;
-  const periodo12m = Array.from({ length: 12 }, (_, i) => ymAddMonths(mesBase, -(11 - i)));
+  // Ajuste de 2026-09-30: os meses incompletos ficam de FORA da janela —
+  // janela termina 2 meses antes do mês mais recente com dado (não no
+  // próprio mês mais recente).
+  const mesMaisRecenteComDado = mesesOrdenados[mesesOrdenados.length - 1].ym;
+  const fimJanela = ymAddMonths(mesMaisRecenteComDado, -VOLUME_12M_MESES_INCOMPLETOS);
+  const periodo12m = Array.from({ length: 12 }, (_, i) => ymAddMonths(fimJanela, -(11 - i)));
   const periodo12mAnterior = periodo12m.map((m) => ymAddMonths(m, -12));
-  const mesesIncompletos = periodo12m.slice(-VOLUME_12M_MESES_INCOMPLETOS);
+  const mesesIncompletos = Array.from({ length: VOLUME_12M_MESES_INCOMPLETOS }, (_, i) => ymAddMonths(fimJanela, i + 1));
   const periodoSet = new Set(periodo12m.map(ymKey));
   const periodoAnteriorSet = new Set(periodo12mAnterior.map(ymKey));
+  const incompletosSet = new Set(mesesIncompletos.map(ymKey));
 
-  const countAtual = {}, countAnterior = {};
-  TARGETS.forEach((b) => { countAtual[b] = 0; countAnterior[b] = 0; });
+  const countAtual = {}, countAnterior = {}, countRecenteParcial = {};
+  TARGETS.forEach((b) => { countAtual[b] = 0; countAnterior[b] = 0; countRecenteParcial[b] = 0; });
   for (const r of itbiRecords) {
     if (!(r.bairro in countAtual) || r.day == null) continue;
     const ym = excelSerialToYm(r.day);
@@ -477,6 +482,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     const k = ymKey(ym);
     if (periodoSet.has(k)) countAtual[r.bairro] += 1;
     else if (periodoAnteriorSet.has(k)) countAnterior[r.bairro] += 1;
+    else if (incompletosSet.has(k)) countRecenteParcial[r.bairro] += 1;
   }
   const trendPct12m = {};
   TARGETS.forEach((b) => {
@@ -715,6 +721,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       volume_primary_year: volumePrimary,
       volume_12m: countAtual[b],
       trend_pct_12m: trendPct12m[b],
+      volume_recente_parcial: countRecenteParcial[b],
       preco_m2_segmentos: precoM2[b],
       area_band: profile[b].area_band, price_band: profile[b].price_band, price_band_median: profile[b].price_band_median,
       profile_quartos: profile[b].profile_quartos, profile_vagas: profile[b].profile_vagas,
