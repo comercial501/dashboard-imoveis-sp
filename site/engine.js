@@ -186,6 +186,15 @@ function excelSerialToYm(serial) {
   return [d.getUTCFullYear(), d.getUTCMonth() + 1];
 }
 
+function ymAddMonths([y, m], delta) {
+  const total = y * 12 + (m - 1) + delta;
+  return [Math.floor(total / 12), (((total % 12) + 12) % 12) + 1];
+}
+
+function ymKey([y, m]) {
+  return `${y}-${m}`;
+}
+
 // ---------------------------------------------------------------------------
 // Decodifica os arrays compactos do raw.json em registros de trabalho,
 // já aplicando o filtro de preço (se houver) — o filtro de preço vale
@@ -424,6 +433,63 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     };
   });
 
+  // Item 4 da auditoria de 2026-09-30 — espelha engine.py._compute_volume_12m
+  // (ver comentário lá pro porquê). Campos NOVOS, aditivos; volume_primary_year/
+  // trend_pct acima ficam obsoletos mas com o MESMO cálculo de sempre.
+  const VOLUME_12M_MIN_YM = [2024, 1];
+  const VOLUME_12M_STUB_RATIO = 0.5;
+  const VOLUME_12M_MESES_INCOMPLETOS = 2;
+  const ymLt = (a, b) => a[0] * 12 + a[1] < b[0] * 12 + b[1];
+
+  const ymCounts = {};
+  for (const r of itbiRecords) {
+    if (r.day == null) continue;
+    const ym = excelSerialToYm(r.day);
+    if (ymLt(ym, VOLUME_12M_MIN_YM)) continue;
+    const k = ymKey(ym);
+    ymCounts[k] = ymCounts[k] || { ym, count: 0 };
+    ymCounts[k].count += 1;
+  }
+  let mesesOrdenados = Object.values(ymCounts).sort((a, b) => (a.ym[0] * 12 + a.ym[1]) - (b.ym[0] * 12 + b.ym[1]));
+  while (mesesOrdenados.length > 3) {
+    const ultimo = mesesOrdenados[mesesOrdenados.length - 1];
+    const anteriores = mesesOrdenados.slice(-4, -1).map((x) => x.count);
+    const medianaAnterior = median(anteriores);
+    if (medianaAnterior > 0 && ultimo.count < VOLUME_12M_STUB_RATIO * medianaAnterior) {
+      mesesOrdenados.pop();
+      continue;
+    }
+    break;
+  }
+  const mesBase = mesesOrdenados[mesesOrdenados.length - 1].ym;
+  const periodo12m = Array.from({ length: 12 }, (_, i) => ymAddMonths(mesBase, -(11 - i)));
+  const periodo12mAnterior = periodo12m.map((m) => ymAddMonths(m, -12));
+  const mesesIncompletos = periodo12m.slice(-VOLUME_12M_MESES_INCOMPLETOS);
+  const periodoSet = new Set(periodo12m.map(ymKey));
+  const periodoAnteriorSet = new Set(periodo12mAnterior.map(ymKey));
+
+  const countAtual = {}, countAnterior = {};
+  TARGETS.forEach((b) => { countAtual[b] = 0; countAnterior[b] = 0; });
+  for (const r of itbiRecords) {
+    if (!(r.bairro in countAtual) || r.day == null) continue;
+    const ym = excelSerialToYm(r.day);
+    if (ymLt(ym, VOLUME_12M_MIN_YM)) continue;
+    const k = ymKey(ym);
+    if (periodoSet.has(k)) countAtual[r.bairro] += 1;
+    else if (periodoAnteriorSet.has(k)) countAnterior[r.bairro] += 1;
+  }
+  const trendPct12m = {};
+  TARGETS.forEach((b) => {
+    const cAnt = countAnterior[b];
+    trendPct12m[b] = cAnt > 0 ? round((countAtual[b] - cAnt) / cAnt * 100) : null;
+  });
+  const fmtYm = ([y, m]) => `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}`;
+  const periodo12mMeta = {
+    inicio: fmtYm(periodo12m[0]),
+    fim: fmtYm(periodo12m[periodo12m.length - 1]),
+    meses_incompletos: mesesIncompletos.map(fmtYm),
+  };
+
   // --- 2. Estoque nonStop: agregação + centróides ---
   const usnByBairro = {};
   TARGETS.forEach((b) => (usnByBairro[b] = []));
@@ -647,6 +713,8 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       yearly: { [yearPrev]: yearly[b][yearPrev], [yearFull]: yearly[b][yearFull], [yearCurr]: yearly[b][yearCurr] },
       ...trend[b],
       volume_primary_year: volumePrimary,
+      volume_12m: countAtual[b],
+      trend_pct_12m: trendPct12m[b],
       preco_m2_segmentos: precoM2[b],
       area_band: profile[b].area_band, price_band: profile[b].price_band, price_band_median: profile[b].price_band_median,
       profile_quartos: profile[b].profile_quartos, profile_vagas: profile[b].profile_vagas,
@@ -907,6 +975,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
 
   return {
     meta: { years: raw.years, primary_year: yearFull, inprogress_year: yearCurr, enderecos_captacao_ativa: captacaoAtivaFinal.length },
+    periodo_12m: periodo12mMeta,
     ranking,
     prontidao_ranking: prontidaoRanking,
     bairros: bairrosFinal,

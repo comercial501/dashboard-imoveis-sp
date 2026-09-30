@@ -43,6 +43,7 @@ from normalize import (
     percentile,
     today_excel_serial,
     trim_outliers_iqr,
+    ym_add_months,
     zscore_map,
 )
 from normalize import TARGETS
@@ -215,6 +216,106 @@ def _compute_trend(yearly, month_counts, year_prev, year_full, year_curr):
             "trend_pct_for_score": trend_capped,
         }
     return trend
+
+
+# ---------------------------------------------------------------------------
+# 1b. Volume por janela rolante de 12 meses completos (item 4 da auditoria
+# de 2026-09-30) — campos NOVOS, aditivos. NÃO mexe em volume_primary_year/
+# trend_pct/_compute_trend acima, que ficam como estavam (marcados
+# obsoletos na documentação, não no código: mudar o significado de um
+# campo existente conta como quebra mesmo mantendo o nome — regra do
+# usuário). Diferenças pro cálculo antigo:
+#   - agrupa pela DATA REAL da transação (coluna J via excel_serial_to_ym),
+#     não pelo arquivo/aba de origem (sheet_year) — ver diagnóstico:
+#     2,37% das linhas têm ano real diferente do arquivo em que aparecem
+#   - exclui transações anteriores a 2024-01-01
+#   - janela = 12 meses completos terminando no último mês "fechado", não
+#     média de 3 anos-calendário (evita tratar 2026 parcial como ano cheio)
+#   - tendência = mesmo intervalo de 12 meses, um ano antes (não mais
+#     ano-cheio-vs-ano-cheio + 1º semestre)
+# ---------------------------------------------------------------------------
+VOLUME_12M_MIN_YM = (2024, 1)
+# Um mês com menos de 50% da mediana dos 3 meses anteriores é tratado como
+# lote incompleto (guias que vazaram pra frente pro arquivo do mês
+# seguinte, não um mês fechado de verdade) — ex: em 2026-09-30, a aba
+# JUL-2026 (a mais recente que existe) tem 173 linhas com data real de
+# AGO-2026, longe o suficiente de um mês cheio (~10 mil) pra não virar o
+# fim da janela.
+VOLUME_12M_STUB_RATIO = 0.5
+# Os 2 meses mais recentes de qualquer janela "fechada" ainda podem crescer
+# em execuções futuras (defasagem de guia paga com atraso — ~2% das vendas
+# de um ano só aparecem na planilha do ano seguinte, ver diagnóstico) — só
+# um aviso de exibição, não removidos do cálculo do volume_12m.
+VOLUME_12M_MESES_INCOMPLETOS = 2
+
+
+def _mes_base_e_periodo(itbi_records):
+    """Retorna (periodo_12m, periodo_12m_anterior, meses_incompletos).
+    periodo_12m/periodo_12m_anterior são listas de 12 (ano,mês) cada,
+    ascendentes; meses_incompletos são os 2 mais recentes de periodo_12m."""
+    ym_counts = {}
+    for r in itbi_records:
+        if r["day"] is None:
+            continue
+        ym = excel_serial_to_ym(r["day"])
+        if ym < VOLUME_12M_MIN_YM:
+            continue
+        ym_counts[ym] = ym_counts.get(ym, 0) + 1
+
+    meses_ordenados = sorted(ym_counts)
+    while len(meses_ordenados) > 3:
+        ultimo = meses_ordenados[-1]
+        anteriores = meses_ordenados[-4:-1]
+        mediana_anterior = median([ym_counts[m] for m in anteriores])
+        if mediana_anterior > 0 and ym_counts[ultimo] < VOLUME_12M_STUB_RATIO * mediana_anterior:
+            meses_ordenados.pop()
+            continue
+        break
+
+    mes_base = meses_ordenados[-1]
+    periodo_12m = [ym_add_months(mes_base, -i) for i in range(11, -1, -1)]
+    periodo_12m_anterior = [ym_add_months(m, -12) for m in periodo_12m]
+    meses_incompletos = periodo_12m[-VOLUME_12M_MESES_INCOMPLETOS:]
+    return periodo_12m, periodo_12m_anterior, meses_incompletos
+
+
+def _compute_volume_12m(itbi_records):
+    """volume_12m (por bairro) + trend_pct_12m (por bairro) + periodo_12m
+    (metadado único do dataset). Mesma definição de "venda válida" que
+    volume_primary_year: qualquer transação residencial conta (giro é
+    giro) — só muda COMO o período é definido."""
+    periodo_12m, periodo_12m_anterior, meses_incompletos = _mes_base_e_periodo(itbi_records)
+    periodo_set = set(periodo_12m)
+    periodo_anterior_set = set(periodo_12m_anterior)
+
+    count_atual = {b: 0 for b in TARGETS}
+    count_anterior = {b: 0 for b in TARGETS}
+    for r in itbi_records:
+        b = r["bairro"]
+        if b not in count_atual or r["day"] is None:
+            continue
+        ym = excel_serial_to_ym(r["day"])
+        if ym < VOLUME_12M_MIN_YM:
+            continue
+        if ym in periodo_set:
+            count_atual[b] += 1
+        elif ym in periodo_anterior_set:
+            count_anterior[b] += 1
+
+    trend_pct_12m = {}
+    for b in TARGETS:
+        c_ant = count_anterior[b]
+        trend_pct_12m[b] = _round((count_atual[b] - c_ant) / c_ant * 100, 1) if c_ant > 0 else None
+
+    def _fmt(ym):
+        return f"{ym[0]:04d}-{ym[1]:02d}"
+
+    periodo_meta = {
+        "inicio": _fmt(periodo_12m[0]),
+        "fim": _fmt(periodo_12m[-1]),
+        "meses_incompletos": [_fmt(m) for m in meses_incompletos],
+    }
+    return count_atual, trend_pct_12m, periodo_meta
 
 
 # ---------------------------------------------------------------------------
@@ -908,6 +1009,7 @@ def compute(itbi_records, usn_records, years):
 
     yearly, pairs_all_years, month_counts, pooled_median = _aggregate_itbi(itbi_records, years)
     trend = _compute_trend(yearly, month_counts, year_prev, year_full, year_curr)
+    volume_12m_map, trend_pct_12m_map, periodo_12m_meta = _compute_volume_12m(itbi_records)
     usn_by_bairro, centroids, stock_total, asking_median = _aggregate_usn(usn_records)
     profile = _compute_profile(pairs_all_years, usn_by_bairro, centroids)
     hoje_serial = today_excel_serial()
@@ -951,6 +1053,14 @@ def compute(itbi_records, usn_records, years):
             "yearly": {str(y): yearly[b][y] for y in years},
             **trend[b],
             "volume_primary_year": volume_primary,
+            # Item 4 da auditoria de 2026-09-30: campos novos, aditivos —
+            # volume_primary_year/trend_pct acima ficam obsoletos (mas com
+            # o MESMO cálculo de sempre, ver README) até remoção aprovada
+            # numa versão futura. volume_12m/trend_pct_12m usam data real
+            # da transação + janela rolante de 12 meses completos — ver
+            # periodo_12m no retorno de compute() pro período exato.
+            "volume_12m": volume_12m_map[b],
+            "trend_pct_12m": trend_pct_12m_map[b],
             "preco_m2_segmentos": preco_m2[b],
             "area_band": profile[b]["area_band"], "price_band": profile[b]["price_band"],
             "price_band_median": profile[b]["price_band_median"],
@@ -1075,6 +1185,7 @@ def compute(itbi_records, usn_records, years):
             "inprogress_year": year_curr,
             **liquidez_meta,
         },
+        "periodo_12m": periodo_12m_meta,
         "ranking": ranking,
         "prontidao_ranking": prontidao_ranking,
         "bairros": bairros_out,

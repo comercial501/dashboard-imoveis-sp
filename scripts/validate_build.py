@@ -70,10 +70,12 @@ EXPECTED_COLUMNS = [_col_letter(i) for i in range(1, EXPECTED_COLUMN_COUNT + 1)]
 REQUIRED_TOP_KEYS = {
     "generated_at", "bairros", "ranking", "valor_oportunidade",
     "imoveis_prioritarios", "captacao_estrategica", "preco_m2_painel", "meta",
+    "periodo_12m",
 }
 REQUIRED_BAIRRO_KEYS = {
     "score", "volume_primary_year", "trend_pct", "stock_demand_ratio",
     "price_gap_pct", "flag_alerta", "preco_m2_segmentos",
+    "volume_12m", "trend_pct_12m",
 }
 
 

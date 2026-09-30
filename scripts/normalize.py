@@ -261,6 +261,16 @@ def excel_serial_to_ym(serial):
     return d.year, d.month
 
 
+def ym_add_months(ym, delta):
+    """(ano, mês) + delta meses (delta pode ser negativo) — ver
+    engine._compute_volume_12m (item 4 da auditoria de 2026-09-30):
+    janela rolante de 12 meses completos e o mesmo período um ano antes,
+    pela data real da transação."""
+    y, m = ym
+    total = y * 12 + (m - 1) + delta
+    return total // 12, total % 12 + 1
+
+
 def today_excel_serial():
     """Data de hoje no mesmo sistema serial do Excel usado pela coluna J
     do ITBI — pra comparar "quantos dias atrás" sem converter pra
