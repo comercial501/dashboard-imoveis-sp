@@ -675,6 +675,84 @@ esse bairro pareceria "esquentando" quando na verdade está esfriando.
 Revalidado Python × JavaScript: 0 divergências em `volume_mercado_12m`,
 `trend_pct_mercado_12m` e `volume_retomadas_12m` nos 49 bairros.
 
+**Achado extra, respondendo ao ponto 1a da revisão do item 2: bug real no
+dedup por SQL.** A versão de 2026-09-29 de `dedup_by_sql()` usava a chave
+SQL+valor+data, SEM complemento — confundindo unidades DIFERENTES do
+mesmo lançamento com tabela de preço padronizada (mesmo SQL do
+lote/torre-mãe, mesmo dia de fechamento, valor coincidente, complemento
+diferente: ex. "AP 601" e "AP 1813"). Medido na base congelada: **373 das
+622 "duplicatas" (60%) tinham complemento diferente** — eram vendas de
+verdade sendo descartadas. Corrigido: `dedup_by_sql()` agora inclui
+complemento na chave (coluna D, capturada em `parse_itbi.py` como novo
+campo `complemento`), como o pedido original já especificava. Duplicatas
+de verdade (mesmo SQL+valor+data+complemento) continuam removidas
+normalmente. Por bairro (universo dos 49 bairros, 2024-2026):
+
+| Bairro | Duplicatas (chave antiga) | Duplicatas (chave nova) | Vendas recuperadas |
+|---|---:|---:|---:|
+| Moema | 6 | 5 | 1 |
+| Vila Mariana | 35 | 21 | 14 |
+| Tatuapé | 67 | 16 | 51 |
+| Pinheiros | 24 | 9 | 15 |
+| Itaim Bibi | 9 | 8 | 1 |
+| **Total (49 bairros)** | **622** | **249** | **373** |
+
+As 3 checagens de segurança continuam passando com a chave nova (nenhum
+bairro varia >30% em `volume_primary_year` — 373 linhas espalhadas em 49
+bairros × 3 anos é pequeno demais pra disparar o alarme).
+
+**Outliers de preço (P5-P95 por bairro+tipo+faixa)**: confirmado, já
+estava sendo aplicado desde a auditoria de 2026-09-29 — não é novo neste
+item. Por bairro (candidatos a preço = passaram nos filtros de tipo/
+natureza/fração/valor/área; removidos = fora de P5-P95 dentro do seu
+segmento bairro+tipo+faixa):
+
+| Bairro | Candidatos a preço | Removidos por outlier |
+|---|---:|---:|
+| Moema | 1.133 | 115 |
+| Vila Mariana | 2.360 | 241 |
+| Tatuapé | 3.136 | 314 |
+| Pinheiros | 1.456 | 147 |
+| Itaim Bibi | 1.042 | 103 |
+
+**Proporção transmitida < 100% (transferência parcial)**: confirmado
+programaticamente — **zero** linhas com fração<100% têm `is_clean_sale=True`
+ou `valor_m2` preenchido (checagem automatizada, 0 violações nas 33.450
+linhas da camada limpa). Por bairro, linhas excluídas por esse motivo:
+
+| Bairro | Excluídas por fração<100% |
+|---|---:|
+| Moema | 126 |
+| Vila Mariana | 524 |
+| Tatuapé | 496 |
+| Pinheiros | 418 |
+| Itaim Bibi | 178 |
+
+**Composição de `volume_retomadas_12m`, confirmada**: só natureza "4."
+(leilão/arrematação) + "17." (alienação fiduciária) — permuta ("15.") NÃO
+entra, verificado linha a linha. Por bairro, na janela de 12 meses
+(jul/2025-jun/2026):
+
+| Bairro | Leilão (nat. 4) | Alienação fiduciária (nat. 17) | Soma = `volume_retomadas_12m` | Permuta (nat. 15, referência — não conta) |
+|---|---:|---:|---:|---:|
+| Moema | 3 | 3 | 6 | 10 |
+| Vila Mariana | 15 | 7 | 22 | 11 |
+| Tatuapé | 25 | 21 | 46 | 13 |
+| Pinheiros | 5 | 5 | 10 | 9 |
+| Itaim Bibi | 3 | 1 | 4 | 11 |
+
+**Abrangência de cada número (ponto 3)** — dois escopos diferentes que não
+devem ser confundidos:
+  - `excluidos_natureza_nao_compra_venda_por_tipo` e `excluidos_valor_irreal`
+    (no `itbi_clean_log.json`): **49 bairros da carteira** (depois de
+    `resolve_bairros`), **pool de 2024-2026 inteiro** (não é janela de 12
+    meses), e só dentro do universo já classificado como apartamento/casa
+    (uso 10/12/14/20/25 — "prédio inteiro", uso 21/22, já saiu antes).
+  - `volume_retomadas_12m` (campo do motor, por bairro): **49 bairros da
+    carteira**, mas **janela rolante de 12 meses** (jul/2025-jun/2026, a
+    mesma do item 4) e **qualquer uso residencial** (inclui "prédio
+    inteiro", igual `volume_12m`/`volume_mercado_12m` — giro é giro).
+
 **Compras na planta (uso IPTU do cadastro antigo, complemento indica
 unidade residencial)** — regra aprovada (complemento contém AP/APTO/
 APART/TORRE/BLOCO/CASA/UNIDADE, OU financiamento SFH/MCMV, E natureza

@@ -129,6 +129,7 @@ def parse_itbi_file(path):
 
                 street = cells.get("B")
                 number = cells.get("C")
+                complemento = (cells.get("D") or "").strip()
 
                 area = None
                 area_raw = cells.get("W")
@@ -182,6 +183,12 @@ def parse_itbi_file(path):
                     "is_compra_venda": is_compra_venda,
                     "is_full_transfer": is_full_transfer,
                     "is_retomada": is_retomada,
+                    # Item 2 (achado de 2026-09-30, respondendo ao ponto 1a):
+                    # deduplicação por SQL+valor+data SEM complemento confundia
+                    # unidades DIFERENTES do mesmo prédio (mesmo SQL do lote,
+                    # mesmo dia de fechamento, preço coincidente — comum em
+                    # lançamento com tabela padronizada) — ver clean_itbi.dedup_by_sql.
+                    "complemento": complemento,
                     # Texto completo da natureza (coluna H) — só usado pro
                     # log de limpeza (quebra por tipo de natureza excluída),
                     # nunca sai daqui pro raw.json (bool já basta pro motor).

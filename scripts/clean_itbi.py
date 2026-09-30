@@ -145,20 +145,29 @@ def resolve_bairros(records, log=print):
 
 
 def dedup_by_sql(records, log=print):
-    """Deduplicação pelo SQL (cadastro do imóvel) + valor + data — chave
-    oficial e inequívoca do imóvel, ao contrário de rua+número (que várias
-    unidades de um mesmo prédio compartilham). Cai pra chave antiga
-    (bairro+rua+número+valor+data) só quando o SQL está ausente."""
+    """Deduplicação pelo SQL (cadastro do imóvel) + valor + data + complemento
+    — chave oficial e inequívoca do imóvel, ao contrário de rua+número (que
+    várias unidades de um mesmo prédio compartilham). Cai pra chave antiga
+    (bairro+rua+número+valor+data+complemento) só quando o SQL está ausente.
+
+    Achado de 2026-09-30 (respondendo ao item 2, ponto 1a): a versão
+    anterior desta função (auditoria de 2026-09-29) NÃO incluía o
+    complemento na chave — SQL+valor+data sozinhos confundiam unidades
+    DIFERENTES do mesmo lançamento com tabela de preço padronizada (mesmo
+    SQL do lote/torre-mãe, mesmo dia de fechamento, valor coincidente,
+    complemento diferente — ex: "AP 601" vs "AP 1813"). Medido em produção:
+    373 das 622 "duplicatas" removidas pela chave antiga (60%) tinham
+    complemento diferente — eram vendas de verdade sendo descartadas."""
     seen = set()
     out = []
     duplicatas = 0
     sem_sql = 0
     for r in records:
         if r["sql"]:
-            key = ("sql", r["sql"], round(r["valor"], 2), r["day"])
+            key = ("sql", r["sql"], round(r["valor"], 2), r["day"], r.get("complemento") or "")
         else:
             sem_sql += 1
-            key = ("fallback", r["bairro"], r["addr_key"], round(r["valor"], 2), r["day"])
+            key = ("fallback", r["bairro"], r["addr_key"], round(r["valor"], 2), r["day"], r.get("complemento") or "")
         if key in seen:
             duplicatas += 1
             continue

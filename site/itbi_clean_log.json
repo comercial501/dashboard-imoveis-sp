@@ -1,5 +1,5 @@
 {
-  "gerado_em": "Wed Sep 30 17:30:13 2026 UTC",
+  "gerado_em": "Wed Sep 30 17:41:21 2026 UTC",
   "resolucao_bairro": {
     "total_entrada": 315658,
     "sem_addr_key_descartados": 28,
@@ -11,23 +11,23 @@
   "deduplicacao_sql": {
     "total_entrada": 50332,
     "sem_sql_usou_chave_antiga": 0,
-    "duplicatas_removidas": 622,
-    "total_saida": 49710
+    "duplicatas_removidas": 249,
+    "total_saida": 50083
   },
   "camada_limpa_preco": {
-    "total_entrada": 49710,
-    "excluidos_predio_inteiro_uso_21_22": 443,
-    "excluidos_natureza_nao_compra_venda": 5654,
+    "total_entrada": 50083,
+    "excluidos_predio_inteiro_uso_21_22": 483,
+    "excluidos_natureza_nao_compra_venda": 5721,
     "excluidos_natureza_nao_compra_venda_por_tipo": {
-      "20.Realização ou integralização de capital": 1769,
-      "12.Dação em pagamento por escritura pública": 849,
+      "20.Realização ou integralização de capital": 1770,
+      "12.Dação em pagamento por escritura pública": 901,
       "4.Arrematação (em leilão ou hasta pública)": 670,
-      "15.Permuta por escritura pública": 557,
+      "15.Permuta por escritura pública": 566,
       "17.Resolução da alienação fiduciária por inadimplemento": 409,
       "29.Excesso de meação na partilha (separação / divórcio)": 191,
       "3.Adjudicação (vinculada a processo de execução ou cobrança de dívida)": 178,
+      "2.Cessão de direitos relativos a compromisso de compra e venda": 171,
       "40.Excesso na integralização de capital": 169,
-      "2.Cessão de direitos relativos a compromisso de compra e venda": 166,
       "5.Adjudicação compulsória": 130,
       "8.Cessão de direitos hereditários (ou sucessórios)": 105,
       "26.Cessão de direitos sobre o imóvel com alienação fiduciária": 100,
@@ -47,11 +47,11 @@
       "14.Mandato em causa própria": 3,
       "9.Cessão dos direitos do adjudicatário": 2
     },
-    "excluidos_transferencia_parcial": 5662,
+    "excluidos_transferencia_parcial": 5925,
     "excluidos_valor_irreal": 400,
     "excluidos_sem_area_construida_valida": 280,
     "excluidos_outlier_valor_m2_fora_p5_p95": 3824,
-    "total_saida_clean_sale": 33447,
+    "total_saida_clean_sale": 33450,
     "segmentos_bairro_tipo_faixa": [
       {
         "bairro": "Perdizes",
@@ -147,10 +147,10 @@
         "bairro": "Indianópolis",
         "tipo_imovel": "apartamento",
         "faixa": "acima de 120m²",
-        "n": 689,
+        "n": 692,
         "amostra_pequena": false,
-        "p5_valor_m2": 4053.81,
-        "p95_valor_m2": 12671.59,
+        "p5_valor_m2": 3898.11,
+        "p95_valor_m2": 12652.73,
         "removidos": 70
       },
       {
