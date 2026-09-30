@@ -1037,6 +1037,134 @@ CSV ainda.
 
 Nada ligado no `engine.py`. Regra de prioridade segue sem aprovação.
 
+## Item 3: fim das "regiões" — tradução por nome de cadastro, 49→74 bairros (2026-09-30)
+
+**Mudança de abordagem, pedida pelo usuário**: a resolução de bairro por
+CEP/quadra deixa de agrupar por "região" (CEP5 majoritário, que podia se
+contaminar — ver achado abaixo) e passa a traduzir cada NOME DE CADASTRO
+do IPTU individualmente, por uma tabela que o usuário revisou à mão
+(`bairros_mercado_preenchido.csv`, preenchida a partir do
+`bairros_mercado.csv` gerado na rodada anterior). Carteira cresce de 49
+pra **74 bairros** (49 atuais + 25 novos: Alto da Lapa, Alto da Mooca,
+Cerqueira César, Cidade Monções, Jardim Aeroporto, Jardim Anália Franco,
+Jardim da Saúde, Jardim das Acácias, Moinho Velho, Parque Fongaro, Parque
+da Mooca, Santo Amaro, Saúde, Sumarezinho, Vila Antonieta, Vila Bertioga,
+Vila Clementino, Vila Gomes Cardim, Vila Ipojuca, Vila Monumento, Vila
+Nova Manchester, Vila Regente Feijó, Vila Romana, Vila São Francisco,
+Vila das Mercês).
+
+**Achado confirmado (causa raiz de "SANTANA"/"PIRITUBA" aparecendo em
+região de Zona Sul)**: investiguei linha a linha — existe **1 única
+linha** em todo o ITBI (3 anos) com bairro="PLANALTO PAULISTA" e CEP
+02402025 (Zona Norte de verdade, região de Santana) — quase certamente
+erro de digitação de quem preencheu a guia. Como nenhum bairro de Zona
+Norte existe nos 49 da carteira pra disputar o voto, essa ÚNICA linha
+errada virava o voto MAJORITÁRIO (e único) do CEP5 inteiro no método
+antigo por região — "puxando" milhares de imóveis genuinamente de
+Santana/Zona Norte pra dentro da "região de Planalto Paulista" em
+`bairros_mercado.csv`. A tradução por nome elimina essa classe de erro
+inteira: cada nome de cadastro tem um destino FIXO, nunca herda de uma
+região potencialmente contaminada por 1 linha errada.
+
+**Novos arquivos**:
+  - `data/iptu_geosampa/raw/bairros_mercado_preenchido.csv` (cópia do que
+    o usuário preencheu — gitignorado, nunca move/apaga o original do
+    usuário).
+  - `scripts/tradutor_bairro.py`: `carregar_tradutor()` (lê a tabela,
+    valida 0 inconsistências — mesmo nome de cadastro sempre aponta pro
+    mesmo destino, confirmado: 4.149 nomes distintos, 0 conflitos),
+    `targets74()` (49 + os NOVO_BAIRRO da tabela — os 49 antigos SEMPRE
+    entram, mesmo sem nenhuma linha própria na tabela: "Jardim Caravelas"
+    é pequeno/obscuro demais, nenhuma grafia sua teve 5+ ocorrências em
+    nenhuma região da rodada anterior — fica na carteira com 0
+    vendas/unidades até aparecer alguma linha que aponte pra ele),
+    `construir_votos_quadra_traduzido()` (substitui a normalização
+    automática por similaridade da rodada anterior pela tradução manual,
+    mais confiável), e a classe `Cascata` (a mesma lógica de 5 métodos +
+    incerto/fora, reutilizável tanto pras vendas do ITBI quanto pras
+    unidades do IPTU — cada lado constrói seus PRÓPRIOS votos de
+    endereço/CEP a partir do seu próprio universo, nunca cruzando ITBI
+    com IPTU nos votos, só compartilhando a quadra fiscal, que é
+    inerentemente um dado do IPTU).
+
+### 5a) `volume_mercado_12m` antes × depois — revenda × planta, 5 bairros + 25 novos
+
+| Bairro | ANTES (produção, 49 antigo) | DEPOIS revenda | DEPOIS planta |
+|---|---:|---:|---:|
+| Moema | 445 | 671 | 522 |
+| Vila Mariana | 1.024 | 2.739 | 789 |
+| Tatuapé | 1.340 | 3.729 | 803 |
+| Pinheiros | 670 | 1.313 | 1.461 |
+| Itaim Bibi | 448 | 650 | 38 |
+| Santo Amaro *(novo)* | — | 6.469 | 9.081 |
+| Saúde *(novo)* | — | 3.125 | 1.039 |
+| Cerqueira César *(novo)* | — | 1.452 | 357 |
+| Vila Clementino *(novo)* | — | 600 | 701 |
+| ...+21 outros novos | — | (ver histórico de execução) | |
+
+Tatuapé ficou praticamente estável (a contaminação por Vila Carrão/Vila
+Formosa/Sapopemba pesava mais no ESTOQUE de unidades do IPTU do que nas
+VENDAS do ITBI, que já vinham majoritariamente do campo Bairro direto ou
+de quadras mais centrais).
+
+### 5b) Taxa de giro, 74 bairros, giro = REVENDA/12m ÷ unidades (planta fora do giro)
+
+**Nenhum bairro fica acima de 10%** — a mudança de abordagem (separar
+planta do giro + tradução por nome em vez de região) elimina os 3
+sinalizados na rodada anterior:
+
+| Bairro | Antigo (49, revenda+planta) | Novo (74, só revenda) |
+|---|---:|---:|
+| Vila Firmiano Pinto | 29,55% ⚠️ | **5,25%** (planta puxava: 503 planta vs 82 revenda) |
+| Jardim Vila Mariana | 13,50% ⚠️ | **3,10%** |
+| Vila Olímpia | 12,86% ⚠️ | **7,62%** (ainda o mais alto dos 74, mas dentro da faixa saudável) |
+
+Confirma a hipótese do usuário: os 3 casos estavam inflados por planta
+(e, no caso de Vila Firmiano Pinto, também pela contaminação de região).
+Faixa dos 74: de 1,69% (Cidade Monções) a 8,05% (Vila da Saúde) — todos
+dentro do 3-8% típico de giro saudável de mercado.
+
+### 5c) Fechamento da conta (74 bairros)
+
+| | Total | Soma(74) | Fora da carteira | Incerto |
+|---|---:|---:|---:|---:|
+| Revenda | 105.897 | 51.099 (48,3%) | 12.294 (11,6%) | 42.504 (40,1%) |
+| Planta | 75.426 | 31.365 (41,6%) | 16.218 (21,5%) | 27.843 (36,9%) |
+
+Fecha exatamente nos dois casos. Participação da carteira sobe de
+~31% (49 bairros) pra **~48%/42%** (74 bairros, revenda/planta) — os 25
+novos capturam uma fatia relevante do que antes virava "fora da
+carteira" ou "incerto".
+
+### 5d) Amostra pequena (menos de 10 vendas de mercado em 12m, revenda+planta)
+
+Só **Jardim Caravelas** (0 vendas, 0 unidades) — caso extremo de "sem
+dado nenhum", não só "amostra pequena". Os outros 73 bairros têm volume
+suficiente.
+
+### Ponto 4: anúncios nonStop × 74 bairros
+
+2.267 anúncios ativos (VENDA, residencial, cidade de SP) hoje. **2.078
+(91,7%) batem com um dos 74** (via `bairro_canon` pros 49 antigos, nome
+exato pros 25 novos); **189 (8,3%) não batem** — top nomes, todos bairros
+reais só ainda não rastreados:
+
+| Nome do anúncio | Qtd. |
+|---|---:|
+| Aclimação | 43 |
+| Vila Leopoldina | 29 |
+| Alto de Pinheiros | 15 |
+| Vila Anglo Brasileira | 8 |
+| Vila Congonhas | 8 |
+| Chácara Klabin | 8 |
+| Água Branca | 7 |
+| Bela Aliança | 7 |
+| ...+22 outros, 1-6 cada | — |
+
+Revalidação Python × JavaScript: não aplicável — nada ligado no
+`engine.py`/`engine.js` ainda. Regra de prioridade (já simulada acima)
+segue sem aprovação final.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
