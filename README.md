@@ -503,6 +503,96 @@ Prontidão para Campanha e Estoque × Demanda ("alinhamento de preço"/
 preço"). Alertas, Perfil por Bairro, Valor de Oportunidade e o painel
 "Preço por m²" já tinham sido atualizados nas Etapas 3-5.
 
+## Segunda auditoria: leitura, datas e protocolo de segurança (2026-09-30)
+
+Nova rodada, motivada por revisão direta das planilhas oficiais de ITBI
+(583-586 mil linhas) — desta vez com um protocolo de segurança formal,
+porque a dashboard vai integrar com um CRM e ser usada por outros
+corretores: nenhuma mudança pode quebrar a versão em produção sem
+aprovação explícita, passo a passo.
+
+**Protocolo**: tag `pre-correcao-itbi` (rollback de 1 comando pro estado
+anterior a esta rodada) + backup de `data.json`/`raw.json`/
+`itbi_clean_log.json` em `backups/*.pre-correcao-itbi` + todo o trabalho
+numa branch separada (`correcao-itbi-metodologia`, num `git worktree`
+próprio — nunca no checkout que os LaunchAgents locais servem ao vivo).
+Merge na `main` só acontece com aprovação explícita, depois de um
+relatório final.
+
+**Regra adicional**: mudar o SIGNIFICADO de um campo existente conta como
+quebra, mesmo mantendo o nome — por isso todo achado desta rodada que
+mexe em cálculo já existente vira campo NOVO, nunca uma reinterpretação
+silenciosa de um campo que os painéis já leem.
+
+**`scripts/validate_build.py`** (chamado por `build_data.py`, ver
+"Automação" abaixo): 4 checagens antes de sobrescrever `site/data.json` —
+layout de coluna (cabeçalho reconhecível em qualquer posição da aba +
+28 colunas A-AB, olhando as 10 colunas que o pipeline lê), reconciliação
+de linhas lidas vs. total real do `.xlsx`, nenhum bairro variando >30% em
+`volume_primary_year` sem `ALLOW_LARGE_CHANGES=1` explícito no ambiente, e
+formato de `data.json` íntegro (chaves que os painéis esperam). Qualquer
+falha levanta `SystemExit` — o workflow do GitHub Actions para antes do
+commit, a versão publicada anterior nunca é sobrescrita por um build ruim.
+
+**Achado de leitura (diagnóstico, sem mudança de código)**: JAN-2024 e
+OUT-2024 não estão sem cabeçalho — o cabeçalho está no MEIO/FIM da aba
+(linha 12.152 de 13.152, e 21.028 de 21.030, respectivamente), não na
+linha 1. O parser já lida bem com isso (procura o cabeçalho pelo
+conteúdo, não pela posição). Colunas 27-29 (Z/AA/AB) têm nomes
+duplicados/com erro de digitação em algumas abas, mas não são lidas pelo
+pipeline hoje — sem efeito real.
+
+**`volume_12m`/`trend_pct_12m`/`periodo_12m` (item 4)** — campos NOVOS,
+aditivos. `volume_primary_year`/`trend_pct` continuam com o MESMO cálculo
+de sempre (marcados **obsoletos** aqui na documentação — não no código —
+até uma remoção futura aprovada pelo usuário) porque:
+  - agrupam pela data do ARQUIVO/aba de origem (`sheet_year`), não pela
+    data real da transação (coluna J) — 2,37% das linhas têm ano real
+    diferente do arquivo em que aparecem (guia paga com atraso; casos
+    extremos: guias de 1995 aparecendo no arquivo de 2024);
+  - `volume_primary_year` é a média simples dos 3 anos-calendário,
+    tratando 2026 (parcial, 7 meses) com o mesmo peso que 2024/2025
+    (ano cheio) — acaba SUBESTIMANDO o volume corrente.
+
+`volume_12m`/`trend_pct_12m` (`engine._compute_volume_12m`, espelhado em
+`engine.js`) corrigem isso:
+  - agrupam pela data REAL da transação, excluindo tudo antes de
+    2024-01-01;
+  - janela rolante de 12 meses completos, terminando no último mês que
+    não é um "lote incompleto" (heurística: um mês com menos de 50% da
+    mediana dos 3 meses anteriores é descartado — hoje isso pega 173
+    linhas com data real de agosto/2026 que vazaram pra dentro da aba
+    JUL-2026, a mais recente que existe; sem essa proteção, a janela
+    terminaria num mês quase vazio);
+  - tendência = mesmo intervalo de 12 meses, comparado ano contra ano
+    (não mais ano-cheio + 1º semestre);
+  - `periodo_12m` (novo campo no topo do `data.json`) expõe
+    `{inicio, fim, meses_incompletos}` — os 2 meses mais recentes da
+    janela ficam marcados como tendo dado ainda incompleto (defasagem de
+    guia paga com atraso), exibido na tela junto com o número, nunca
+    escondido.
+
+**Onde a dashboard passou a mostrar o quê**: Ranking, Visão Geral, Perfil
+por Bairro e Mapa de Oportunidade agora exibem `volume_12m`/
+`trend_pct_12m` com o período visível. A coluna "Demanda" do painel
+Estoque × Demanda continua mostrando `volume_primary_year` DE PROPÓSITO —
+ela alimenta `stock_demand_ratio`, que não foi recalculado nesta etapa;
+trocar só o número exibido ali criaria uma conta que não bate com a razão
+mostrada ao lado. Pelo mesmo motivo, o **Score** do Ranking de
+Oportunidade continua usando a base antiga (`volume_primary_year`/
+`trend_pct_for_score`) — recalcular o Score com a base de 12 meses é uma
+mudança maior, registrada como pendente de decisão do usuário, não feita
+silenciosamente aqui.
+
+**Achado notável**: com a base nova, Pinheiros mostra tendência de -7,0%
+(caindo) contra +2,6% (subindo) da base antiga — sinais opostos pro mesmo
+bairro, dependendo de qual coluna se olha. Isso é esperado enquanto o
+Score não for recalculado (item pendente), mas reforça que os dois
+números não devem ser lidos como equivalentes.
+
+Revalidado Python × JavaScript: 0 divergências em `volume_12m`,
+`trend_pct_12m` e `periodo_12m` nos 49 bairros.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
