@@ -211,6 +211,10 @@ def parse_itbi_file(path):
                     # mesmo dia de fechamento, preço coincidente — comum em
                     # lançamento com tabela padronizada) — ver clean_itbi.dedup_by_sql.
                     "complemento": complemento,
+                    # Item 3 (continuação, 2026-09-30): CEP (coluna G), cru —
+                    # normalizado só na hora de usar (ver normalize_cep em
+                    # clean_itbi.py ou scripts que consomem isso).
+                    "cep": (cells.get("G") or "").strip() or None,
                     # Texto completo da natureza (coluna H) — só usado pro
                     # log de limpeza (quebra por tipo de natureza excluída),
                     # nunca sai daqui pro raw.json (bool já basta pro motor).

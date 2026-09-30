@@ -888,6 +888,76 @@ Revalidação Python × JavaScript: não aplicável ainda — só simulação,
 nada ligado no `engine.py`/`engine.js`. Regra de prioridade, `volume_planta_12m`
 e `volume_total_12m` seguem pendentes de aprovação do usuário.
 
+## Item 3: 4 conferências antes de aprovar a regra de prioridade (2026-09-30)
+
+**Correção de metodologia encontrada rodando a conferência**: a simulação
+anterior deduplicava o conjunto inteiro da cidade (315.658 linhas) numa
+ordem diferente da produção (produção resolve bairro por endereço e
+DESCARTA endereço sem nenhum bairro reconhecido, só depois deduplica o
+que sobrou — 50.332 linhas). Deduplicar antes de descartar deixava o
+"antes" da simulação artificialmente baixo (ex.: Moema 292 em vez de
+445). Corrigido: agora recupera bairro por voto de endereço SEM
+descartar (pra poder aplicar a cascata nos que sobrariam), mas dedupe
+**depois** dessa recuperação, igual à ordem real da produção. `parse_itbi.py`
+ganhou um campo novo (`cep`, cru, coluna G) pra dar suporte a isso e ao
+item 4.
+
+**1) Revenda × planta, separados** — `volume_mercado_12m`, mesma janela
+(jul/2025-jun/2026), com dedup real:
+
+| Bairro | ANTES (produção) | DEPOIS revenda | DEPOIS planta | DEPOIS total |
+|---|---:|---:|---:|---:|
+| Moema | 445 | 655 | 672 | 1.327 |
+| Vila Mariana | 1.024 | 2.484 | 715 | 3.199 |
+| Tatuapé | 1.340 | 3.710 | 660 | 4.370 |
+| Pinheiros | 670 | 1.298 | 1.355 | 2.653 |
+| Itaim Bibi | 448 | 728 | 35 | 763 |
+
+Confirma o padrão: em Pinheiros, planta (1.355) supera revenda recuperada
+(1.298) — bairro com muito lançamento recente. Em Itaim Bibi é o oposto
+(728 revenda vs. 35 planta) — bairro mais consolidado, menos terreno
+disponível pra lançar.
+
+**2) Taxa de giro (unidades residenciais do IPTU) — BLOQUEADO**: preciso
+da coluna "TIPO DE USO DO IMOVEL" do cadastro original pra contar
+unidades (apartamento + residência) por bairro, e o arquivo
+`IPTU_2026.zip` que você enviou não está mais em `~/Downloads` (nem no
+Trash) — não consigo reprocessar sem ele. Pode reenviar o zip original,
+ou só essa coluna extra (junto com o SQL, pra eu conseguir juntar com o
+que já tenho)?
+
+**3) Fechamento da conta** — com dedup real, "fora da carteira" separado
+de "incerto" (antes misturados no "64,6%"):
+
+| | Total | Nos 49 (soma) | Fora da carteira | Incerto |
+|---|---:|---:|---:|---:|
+| Revenda (mercado) | 105.897 | 37.560 (35,5%) | 67.504 (63,7%) | 833 (0,8%) |
+| Planta | 75.426 | 18.983 (25,2%) | 54.173 (71,8%) | 2.270 (3,0%) |
+| **Total** | **181.323** | **56.543 (31,2%)** | **121.677 (67,1%)** | **3.103 (1,7%)** |
+
+Fecha exatamente (soma + fora + incerto = total nos 3 casos). "Incerto"
+de verdade (nenhum método acha NENHUM bairro) é pequeno — 1,7% da
+cidade; os outros 67,1% têm bairro, só não é um dos 49.
+
+**4) `scripts/bairros_mercado.csv`** (gerado, 5.857 linhas, 44 dos 49
+bairros com pelo menos 1 nome de cadastro) — região de cada bairro
+definida pelos CEPs (5 dígitos) cujo voto majoritário (linhas do ITBI com
+bairro direto confiável) é aquele bairro; dentro da região, conta TODOS
+os nomes crus do campo Bairro do IPTU (sem nenhum mapeamento aplicado).
+Conferido contra o exemplo do usuário — região de Moema: MOEMA (2.525),
+INDIANOPOLIS (2.189), PLANALTO PAULISTA (378), VILA UBERABINHA (354) —
+mesma ordem de grandeza do que você tinha achado (números diferentes
+porque a região exata usada foi outra). Linha de corte: nomes com menos
+de 5 imóveis foram descartados (ruído). Coluna `bairro_mercado` vazia,
+pronta pra você preencher — nenhum mapeamento foi aplicado.
+
+5 bairros dos 49 ficaram sem nenhum CEP5 mapeado (Vila Cordeiro, Jardim
+Caravelas, Jardim Santo Amaro, Vila Uberabinha, Jardim Vila Mariana) —
+bairros pequenos/enclaves sem CEP5 próprio majoritário; não entram no
+CSV ainda.
+
+Nada ligado no `engine.py`. Regra de prioridade segue sem aprovação.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`

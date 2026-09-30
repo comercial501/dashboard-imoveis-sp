@@ -19,7 +19,7 @@ Vila Olímpia,até 50m²,,20194.05,,0,6,sim
 Vila Olímpia,50–80m²,7571.43,16530.05,118.3,21,22,nao
 Vila Olímpia,80–120m²,6961.21,12924.76,85.7,97,16,nao
 Vila Olímpia,acima de 120m²,6550.3,21730.77,231.8,92,17,nao
-Brooklin,até 50m²,6489.36,16851.85,159.7,15,29,nao
+Brooklin,até 50m²,6489.36,16851.85,159.7,15,28,nao
 Brooklin,50–80m²,7207.8,17164.18,138.1,34,21,nao
 Brooklin,80–120m²,6500.0,15500.0,138.5,147,19,nao
 Brooklin,acima de 120m²,5843.49,16190.48,177.1,208,46,nao
@@ -36,20 +36,20 @@ Jardim Santo Amaro,acima de 120m²,4906.54,,,1,0,sim
 Campo Belo,até 50m²,7446.81,16743.57,124.8,1,4,sim
 Campo Belo,50–80m²,5792.33,16075.0,177.5,24,10,nao
 Campo Belo,80–120m²,6005.62,10833.33,80.4,120,15,nao
-Campo Belo,acima de 120m²,6230.16,14222.8,128.3,201,73,nao
+Campo Belo,acima de 120m²,6230.16,14667.58,135.4,201,74,nao
 Indianópolis,até 50m²,10250.0,19727.24,92.5,7,4,sim
-Indianópolis,50–80m²,6710.53,21590.91,221.7,51,5,nao
+Indianópolis,50–80m²,6710.53,21201.3,215.9,51,5,nao
 Indianópolis,80–120m²,6517.86,14795.59,127.0,127,12,nao
-Indianópolis,acima de 120m²,6893.94,15877.55,130.3,221,24,nao
+Indianópolis,acima de 120m²,6893.94,18235.29,164.5,221,23,nao
 Moema,até 50m²,7083.33,22619.05,219.3,5,5,sim
-Moema,50–80m²,7517.12,14716.98,95.8,62,25,nao
-Moema,80–120m²,6802.33,15052.63,121.3,89,22,nao
+Moema,50–80m²,7517.12,14501.35,92.9,62,26,nao
+Moema,80–120m²,6802.33,15052.63,121.3,89,21,nao
 Moema,acima de 120m²,7142.86,17578.12,146.1,189,61,nao
 Vila Uberabinha,50–80m²,,14930.83,,0,4,sim
 Vila Uberabinha,80–120m²,5154.64,,,1,0,sim
 Vila Uberabinha,acima de 120m²,7458.19,19747.33,164.8,14,6,nao
 Vila Nova Conceição,até 50m²,,26089.02,,0,18,sim
-Vila Nova Conceição,50–80m²,7596.87,24454.55,221.9,24,11,nao
+Vila Nova Conceição,50–80m²,7596.87,26964.11,254.9,24,10,nao
 Vila Nova Conceição,80–120m²,8999.47,16146.0,79.4,16,11,nao
 Vila Nova Conceição,acima de 120m²,12600.86,26758.13,112.4,65,20,nao
 Jardim Europa,acima de 120m²,16790.28,19661.02,17.1,12,3,nao
@@ -118,7 +118,7 @@ Bosque da Saúde,acima de 120m²,5000.0,13602.48,172.0,31,3,nao
 Vila Mariana,até 50m²,7703.07,17500.0,127.2,38,45,nao
 Vila Mariana,50–80m²,5714.29,15315.41,168.0,87,18,nao
 Vila Mariana,80–120m²,5750.0,12296.12,113.8,207,36,nao
-Vila Mariana,acima de 120m²,6082.03,14250.0,134.3,326,37,nao
+Vila Mariana,acima de 120m²,6082.03,14371.38,136.3,326,38,nao
 Jardim Vila Mariana,50–80m²,,17727.27,,0,5,sim
 Jardim Vila Mariana,80–120m²,5398.8,,,4,0,sim
 Jardim Vila Mariana,acima de 120m²,5894.31,8689.12,47.4,15,5,nao
@@ -133,7 +133,7 @@ Jardim da Glória,80–120m²,4601.77,15943.4,246.5,1,3,sim
 Jardim da Glória,acima de 120m²,5756.57,13086.49,127.3,20,6,nao
 Cambuci,até 50m²,4791.67,,,17,0,nao
 Cambuci,50–80m²,4583.33,,,87,0,nao
-Cambuci,80–120m²,4092.38,11632.65,184.3,118,4,nao
+Cambuci,80–120m²,4092.38,11204.08,173.8,118,3,nao
 Cambuci,acima de 120m²,3754.7,5925.92,57.8,70,1,nao
 Vila da Saúde,até 50m²,7936.17,,,1,0,sim
 Vila da Saúde,50–80m²,5000.0,12597.83,152.0,6,2,sim
