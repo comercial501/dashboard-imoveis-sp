@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import clean_itbi
 import engine
 import itbi_source
+import validate_build
 from normalize import TARGETS, today_excel_serial
 from parse_itbi import parse_itbi_years
 
@@ -246,6 +247,11 @@ def main():
             "Prefeitura falhou — não há nada pra processar. Rode de novo manualmente "
             "ou confira se o cache do workflow foi perdido."
         )
+    # Item 1 do pedido de 2026-09-30: alarme cedo (antes do resto do
+    # pipeline rodar) se alguma aba vier sem cabeçalho reconhecível ou com
+    # as colunas lidas por posição deslocadas/renomeadas.
+    validate_build.check_header_layout(year_to_path)
+
     itbi_raw_records, itbi_stats = parse_itbi_years(year_to_path)
     print(f"[build] ITBI parseado: {itbi_stats}")
 
@@ -293,6 +299,14 @@ def main():
     data["meta"]["total_itbi_duplicates_removed"] = dedup_stats["duplicatas_removidas"]
     data["meta"]["total_itbi_bairro_recuperados"] = resolve_stats["recuperados_por_maioria_do_endereco"]
     data["meta"]["usn"] = usn_meta
+
+    # Protocolo de segurança pedido pelo usuário em 2026-09-30 (dashboard vai
+    # integrar no CRM e ser compartilhada com outros corretores — "não pode
+    # quebrar em nenhum momento"): 3 checagens antes de sobrescrever o
+    # data.json publicado. Levanta SystemExit e PARA aqui se qualquer uma
+    # falhar — nem o CSV nem o raw.json chegam a ser escritos, o data.json
+    # anterior fica intacto no disco/git.
+    validate_build.validate_before_publish(year_to_path, itbi_stats, data, OUT)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
