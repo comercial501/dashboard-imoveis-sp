@@ -613,6 +613,78 @@ nova é mais atual.
 Revalidado Python × JavaScript: 0 divergências em `volume_12m`,
 `trend_pct_12m`, `periodo_12m` e `volume_recente_parcial` nos 49 bairros.
 
+**Base congelada pra esta auditoria**: `SKIP_ITBI_SYNC=1` (env var) pula
+`itbi_source.sync()` em `build_data.py` e usa só o `.xlsx` já em
+`data/itbi_raw/` — a aba AGO-2026, que chegou durante o item 4, virou a
+base oficial usada em TODO relatório antes×depois a partir daqui, até o
+merge. Nunca setado pelo cron/GitHub Actions; só ligado manualmente nesta
+branch. Reprodutibilidade confirmada: rodar de novo com a flag reproduz
+`data.json`/`raw.json`/CSV byte a byte.
+
+## Naturezas, valores e "vendas de mercado" (item 2 da auditoria de 2026-09-30)
+
+**Volume de mercado, separado do giro.** `volume_12m`/`volume_primary_year`
+continuam contando QUALQUER natureza residencial (giro é giro, decisão de
+2026-09-25) — não mudaram. Dois campos novos, por cima:
+
+- **`volume_mercado_12m`/`trend_pct_mercado_12m`** — só natureza
+  "1.Compra e venda", mesma janela rolante de 12 meses do item 4. Virou o
+  número PRINCIPAL de liquidez nos painéis (Ranking, Visão Geral, Perfil
+  por Bairro, Mapa), rotulado "Vendas de mercado (12m)". `volume_12m`
+  (giro) passa a aparecer como informação secundária, rotulado "Todas as
+  transferências (12m)".
+- **`volume_retomadas_12m`** — soma "17.Resolução da alienação fiduciária
+  por inadimplemento" (retomada pelo banco) + "4.Arrematação (em leilão ou
+  hasta pública)", mesma janela. Indicador à parte — não soma em
+  `volume_mercado_12m` nem em `volume_12m`.
+
+As demais naturezas (integralização de capital, dação, permuta, partilha
+etc.) não ganham indicador próprio — ficam fora de `volume_mercado_12m` e
+de qualquer cálculo de preço, mas continuam dentro do giro bruto
+(`volume_12m`), como sempre.
+
+**Quantas linhas saem de cada natureza** (dentro do universo já filtrado
+por tipo de imóvel — apartamento/casa —, base congelada, 3 anos): a soma
+`excluidos_natureza_nao_compra_venda` (5.654) agora vem quebrada por tipo
+em `excluidos_natureza_nao_compra_venda_por_tipo` no
+`site/itbi_clean_log.json`. As 5 maiores: Integralização de capital
+(1.769), Dação em pagamento (849), Arrematação/leilão (670), Permuta
+(557), Resolução de alienação fiduciária (409) — essas duas últimas são
+exatamente o que alimenta `volume_retomadas_12m`.
+
+**Valor irreal** — novo filtro na camada de preço: exclui "1.Compra e
+venda" de 100% do imóvel com valor ≤ R$10 mil ou > R$100 milhões
+(`clean_itbi.VALOR_MIN_REAL`/`VALOR_MAX_REAL`). 400 linhas excluídas na
+base congelada — soma no `excluidos_valor_irreal` do log de limpeza.
+
+**Achado notável, ao comparar giro × mercado nos 5 bairros de referência**:
+Itaim Bibi mostra tendência de giro positiva (+2,1%) mas tendência de
+mercado NEGATIVA (-4,7%) — o giro bruto está sendo sustentado por
+transações de natureza não-mercado (financiamento/dação/etc.) crescendo,
+enquanto a venda de mercado de verdade está caindo. Sem separar os dois,
+esse bairro pareceria "esquentando" quando na verdade está esfriando.
+
+| Bairro | Giro (`volume_12m`) | tendência giro | Mercado (`volume_mercado_12m`) | tendência mercado | Retomadas (`volume_retomadas_12m`) |
+|---|---:|---:|---:|---:|---:|
+| Moema | 521 | -7,0% | 445 | -8,4% | 6 |
+| Vila Mariana | 1.173 | -6,0% | 1.023 | -9,3% | 22 |
+| Tatuapé | 1.503 | -5,1% | 1.308 | -5,2% | 46 |
+| Pinheiros | 746 | -5,4% | 669 | -5,9% | 10 |
+| Itaim Bibi | 531 | **+2,1%** | 448 | **-4,7%** | 4 |
+
+Revalidado Python × JavaScript: 0 divergências em `volume_mercado_12m`,
+`trend_pct_mercado_12m` e `volume_retomadas_12m` nos 49 bairros.
+
+**Compras na planta (uso IPTU do cadastro antigo, complemento indica
+unidade residencial)** — regra aprovada (complemento contém AP/APTO/
+APART/TORRE/BLOCO/CASA/UNIDADE, OU financiamento SFH/MCMV, E natureza
+compra e venda), mas `volume_planta_12m` **ainda não implementado**: a
+cobertura de bairro por voto de endereço (10,4% das 183.611 linhas
+candidatas) é baixa demais pra virar um número confiável por bairro —
+prédio novo não tem venda anterior no mesmo endereço pra "votar" o bairro.
+Aguardando o item 3 (bairro por CEP) subir essa cobertura antes de
+implementar.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`

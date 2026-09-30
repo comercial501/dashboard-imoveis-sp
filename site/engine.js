@@ -210,10 +210,10 @@ function decodeRecords(raw, priceMin, priceMax) {
   };
 
   const itbi = [];
-  for (const [bIdx, sheetYear, day, valor, area, addrIdx, isCompraVenda, isFullTransfer, tipoImovel, isCleanSale] of raw.itbi) {
+  for (const [bIdx, sheetYear, day, valor, area, addrIdx, isCompraVenda, isFullTransfer, tipoImovel, isCleanSale, isRetomada] of raw.itbi) {
     if (!inPriceRange(valor)) continue;
     itbi.push({
-      bairro: raw.bairros[bIdx], sheetYear, day, valor, area, isCompraVenda, isFullTransfer, tipoImovel, isCleanSale,
+      bairro: raw.bairros[bIdx], sheetYear, day, valor, area, isCompraVenda, isFullTransfer, tipoImovel, isCleanSale, isRetomada,
       addrKey: addrIdx, addrDisplay: addrIdx != null ? raw.addr_display[addrIdx] : null,
     });
   }
@@ -474,20 +474,37 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   const incompletosSet = new Set(mesesIncompletos.map(ymKey));
 
   const countAtual = {}, countAnterior = {}, countRecenteParcial = {};
-  TARGETS.forEach((b) => { countAtual[b] = 0; countAnterior[b] = 0; countRecenteParcial[b] = 0; });
+  // Item 2 da auditoria de 2026-09-30: volume_mercado_12m (só "1.Compra e
+  // venda") e volume_retomadas_12m (alienação fiduciária + leilão) —
+  // espelha engine.py._compute_volume_12m. countAtual/countAnterior (giro,
+  // qualquer natureza) não mudam.
+  const countMercadoAtual = {}, countMercadoAnterior = {}, countRetomadasAtual = {};
+  TARGETS.forEach((b) => {
+    countAtual[b] = 0; countAnterior[b] = 0; countRecenteParcial[b] = 0;
+    countMercadoAtual[b] = 0; countMercadoAnterior[b] = 0; countRetomadasAtual[b] = 0;
+  });
   for (const r of itbiRecords) {
     if (!(r.bairro in countAtual) || r.day == null) continue;
     const ym = excelSerialToYm(r.day);
     if (ymLt(ym, VOLUME_12M_MIN_YM)) continue;
     const k = ymKey(ym);
-    if (periodoSet.has(k)) countAtual[r.bairro] += 1;
-    else if (periodoAnteriorSet.has(k)) countAnterior[r.bairro] += 1;
-    else if (incompletosSet.has(k)) countRecenteParcial[r.bairro] += 1;
+    if (periodoSet.has(k)) {
+      countAtual[r.bairro] += 1;
+      if (r.isCompraVenda) countMercadoAtual[r.bairro] += 1;
+      else if (r.isRetomada) countRetomadasAtual[r.bairro] += 1;
+    } else if (periodoAnteriorSet.has(k)) {
+      countAnterior[r.bairro] += 1;
+      if (r.isCompraVenda) countMercadoAnterior[r.bairro] += 1;
+    } else if (incompletosSet.has(k)) {
+      countRecenteParcial[r.bairro] += 1;
+    }
   }
-  const trendPct12m = {};
+  const trendPct12m = {}, trendPctMercado12m = {};
   TARGETS.forEach((b) => {
     const cAnt = countAnterior[b];
     trendPct12m[b] = cAnt > 0 ? round((countAtual[b] - cAnt) / cAnt * 100) : null;
+    const cmAnt = countMercadoAnterior[b];
+    trendPctMercado12m[b] = cmAnt > 0 ? round((countMercadoAtual[b] - cmAnt) / cmAnt * 100) : null;
   });
   const fmtYm = ([y, m]) => `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}`;
   const periodo12mMeta = {
@@ -722,6 +739,9 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       volume_12m: countAtual[b],
       trend_pct_12m: trendPct12m[b],
       volume_recente_parcial: countRecenteParcial[b],
+      volume_mercado_12m: countMercadoAtual[b],
+      trend_pct_mercado_12m: trendPctMercado12m[b],
+      volume_retomadas_12m: countRetomadasAtual[b],
       preco_m2_segmentos: precoM2[b],
       area_band: profile[b].area_band, price_band: profile[b].price_band, price_band_median: profile[b].price_band_median,
       profile_quartos: profile[b].profile_quartos, profile_vagas: profile[b].profile_vagas,

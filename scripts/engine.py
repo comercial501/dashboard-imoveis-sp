@@ -305,6 +305,13 @@ def _compute_volume_12m(itbi_records):
     count_atual = {b: 0 for b in TARGETS}
     count_anterior = {b: 0 for b in TARGETS}
     count_recente_parcial = {b: 0 for b in TARGETS}
+    # Item 2 da auditoria de 2026-09-30: volume_mercado_12m (só "1.Compra e
+    # venda") e volume_retomadas_12m (alienação fiduciária + leilão) —
+    # indicadores NOVOS e separados, não mexem em count_atual/volume_12m
+    # (que continua "giro é giro", qualquer natureza, como sempre foi).
+    count_mercado_atual = {b: 0 for b in TARGETS}
+    count_mercado_anterior = {b: 0 for b in TARGETS}
+    count_retomadas_atual = {b: 0 for b in TARGETS}
     for r in itbi_records:
         b = r["bairro"]
         if b not in count_atual or r["day"] is None:
@@ -314,15 +321,24 @@ def _compute_volume_12m(itbi_records):
             continue
         if ym in periodo_set:
             count_atual[b] += 1
+            if r["is_compra_venda"]:
+                count_mercado_atual[b] += 1
+            elif r.get("is_retomada"):
+                count_retomadas_atual[b] += 1
         elif ym in periodo_anterior_set:
             count_anterior[b] += 1
+            if r["is_compra_venda"]:
+                count_mercado_anterior[b] += 1
         elif ym in incompletos_set:
             count_recente_parcial[b] += 1
 
     trend_pct_12m = {}
+    trend_pct_mercado_12m = {}
     for b in TARGETS:
         c_ant = count_anterior[b]
         trend_pct_12m[b] = _round((count_atual[b] - c_ant) / c_ant * 100, 1) if c_ant > 0 else None
+        cm_ant = count_mercado_anterior[b]
+        trend_pct_mercado_12m[b] = _round((count_mercado_atual[b] - cm_ant) / cm_ant * 100, 1) if cm_ant > 0 else None
 
     def _fmt(ym):
         return f"{ym[0]:04d}-{ym[1]:02d}"
@@ -332,7 +348,10 @@ def _compute_volume_12m(itbi_records):
         "fim": _fmt(periodo_12m[-1]),
         "meses_incompletos": [_fmt(m) for m in meses_incompletos],
     }
-    return count_atual, trend_pct_12m, periodo_meta, count_recente_parcial
+    return (
+        count_atual, trend_pct_12m, periodo_meta, count_recente_parcial,
+        count_mercado_atual, trend_pct_mercado_12m, count_retomadas_atual,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1026,7 +1045,10 @@ def compute(itbi_records, usn_records, years):
 
     yearly, pairs_all_years, month_counts, pooled_median = _aggregate_itbi(itbi_records, years)
     trend = _compute_trend(yearly, month_counts, year_prev, year_full, year_curr)
-    volume_12m_map, trend_pct_12m_map, periodo_12m_meta, volume_recente_parcial_map = _compute_volume_12m(itbi_records)
+    (
+        volume_12m_map, trend_pct_12m_map, periodo_12m_meta, volume_recente_parcial_map,
+        volume_mercado_12m_map, trend_pct_mercado_12m_map, volume_retomadas_12m_map,
+    ) = _compute_volume_12m(itbi_records)
     usn_by_bairro, centroids, stock_total, asking_median = _aggregate_usn(usn_records)
     profile = _compute_profile(pairs_all_years, usn_by_bairro, centroids)
     hoje_serial = today_excel_serial()
@@ -1083,6 +1105,15 @@ def compute(itbi_records, usn_records, years):
             # (periodo_12m.meses_incompletos), ainda sujeitos a defasagem
             # de guia paga com atraso.
             "volume_recente_parcial": volume_recente_parcial_map[b],
+            # Item 2 da auditoria de 2026-09-30: volume_mercado_12m ("1.Compra
+            # e venda" só) vira o número PRINCIPAL de liquidez exibido nos
+            # painéis (decisão do usuário); volume_12m (giro, qualquer
+            # natureza) passa a aparecer como informação secundária.
+            # volume_retomadas_12m (alienação fiduciária + leilão) é um
+            # indicador à parte, não somado em nenhum dos dois acima.
+            "volume_mercado_12m": volume_mercado_12m_map[b],
+            "trend_pct_mercado_12m": trend_pct_mercado_12m_map[b],
+            "volume_retomadas_12m": volume_retomadas_12m_map[b],
             "preco_m2_segmentos": preco_m2[b],
             "area_band": profile[b]["area_band"], "price_band": profile[b]["price_band"],
             "price_band_median": profile[b]["price_band_median"],

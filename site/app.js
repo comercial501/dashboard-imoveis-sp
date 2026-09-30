@@ -523,7 +523,7 @@ function renderVisaoGeral() {
   const top10 = DATA.ranking.slice(0, 10);
   rankRows(document.getElementById("visao-ranking"), top10, DATA, {
     scoreKey: "score",
-    metaFmt: (b) => `${fmtInt(b.volume_12m)} vendas em 12 meses (${periodo12mLabel()}) · tendência ${b.trend_pct_12m != null ? fmtPct(b.trend_pct_12m) : "—"} vs mesmo período ano anterior`,
+    metaFmt: (b) => `${fmtInt(b.volume_mercado_12m)} vendas de mercado (12m, ${periodo12mLabel()}) · tendência ${b.trend_pct_mercado_12m != null ? fmtPct(b.trend_pct_mercado_12m) : "—"} · ${fmtInt(b.volume_12m)} no giro total (todas as transferências)`,
     badges: (b) => {
       const out = [];
       if (b.flag_oportunidade) out.push(badge("Oportunidade", "gold"));
@@ -592,8 +592,9 @@ function renderRanking() {
       { key: "pos", label: "#", sortable: false },
       { key: "bairro", label: "Bairro" },
       { key: "score", label: "Score", fmt: (v) => fmtInt(v) },
-      { key: "volume_12m", label: `Vendas (12m, ${periodo12mLabel()})` },
-      { key: "trend_pct_12m", label: "Tendência (12m vs ano anterior)", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
+      { key: "volume_mercado_12m", label: `Vendas de mercado (12m, ${periodo12mLabel()})` },
+      { key: "trend_pct_mercado_12m", label: "Tendência (12m vs ano anterior)", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
+      { key: "volume_12m", label: "Todas as transferências (12m)" },
       { key: "stock_demand_ratio", label: "Estoque/Demanda", fmt: (v) => (v >= 999 ? "∞" : v.toFixed(2)) },
       { key: "price_gap_pct", label: "Gap Preço", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
       {
@@ -680,7 +681,8 @@ function renderPerfilContent(name) {
   tiles.appendChild(statTile("Score de Oportunidade", fmtInt(b.score)));
   tiles.appendChild(statTile("Score de Revenda", fmtInt(b.score_revenda)));
   tiles.appendChild(statTile("Prontidão para Campanha", fmtInt(b.prontidao_campanha)));
-  tiles.appendChild(statTile(`Vendas (12m, ${periodo12mLabel()})`, fmtInt(b.volume_12m)));
+  tiles.appendChild(statTile(`Vendas de mercado (12m, ${periodo12mLabel()})`, fmtInt(b.volume_mercado_12m)));
+  tiles.appendChild(statTile("Todas as transferências (12m)", fmtInt(b.volume_12m)));
   box.appendChild(tiles);
 
   const perfilBox = el("section", { class: "card", style: "margin:0 0 14px; padding:16px 18px;" });
@@ -774,7 +776,7 @@ function renderMapa() {
   const px = (lon) => pad + ((lon - lonMin) / (lonMax - lonMin || 1)) * (W - 2 * pad);
   const py = (lat) => H - pad - ((lat - latMin) / (latMax - latMin || 1)) * (H - 2 * pad); // norte pra cima
 
-  const maxVolume = Math.max(1, ...withCentroid.map((x) => x.b.volume_12m));
+  const maxVolume = Math.max(1, ...withCentroid.map((x) => x.b.volume_mercado_12m));
   const scores = withCentroid.map((x) => x.b.score);
   const scoreMin = Math.min(...scores), scoreMax = Math.max(...scores);
   const colorFor = (score) => {
@@ -791,13 +793,13 @@ function renderMapa() {
 
   withCentroid.forEach(({ name, b }) => {
     const cx = px(b.centroid[1]), cy = py(b.centroid[0]);
-    const r = 5 + Math.sqrt(b.volume_12m / maxVolume) * 18;
+    const r = 5 + Math.sqrt(b.volume_mercado_12m / maxVolume) * 18;
     const circle = svg("circle", { cx, cy, r, class: "map-bubble", fill: colorFor(b.score) });
     circle.addEventListener("pointermove", (e) => {
       const rect = s.getBoundingClientRect();
       tooltip.innerHTML = "";
       tooltip.appendChild(el("div", { style: "font-weight:650; margin-bottom:3px" }, name));
-      tooltip.appendChild(el("div", {}, `Score ${fmtInt(b.score)} · ${fmtInt(b.volume_12m)} vendas (12m, ${periodo12mLabel()})`));
+      tooltip.appendChild(el("div", {}, `Score ${fmtInt(b.score)} · ${fmtInt(b.volume_mercado_12m)} vendas de mercado (12m, ${periodo12mLabel()}) · ${fmtInt(b.volume_12m)} no giro total`));
       tooltip.style.left = (cx / W) * rect.width + "px";
       tooltip.style.top = (cy / H) * rect.height + "px";
       tooltip.style.opacity = 1;

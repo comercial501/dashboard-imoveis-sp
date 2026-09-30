@@ -76,6 +76,7 @@ REQUIRED_BAIRRO_KEYS = {
     "score", "volume_primary_year", "trend_pct", "stock_demand_ratio",
     "price_gap_pct", "flag_alerta", "preco_m2_segmentos",
     "volume_12m", "trend_pct_12m", "volume_recente_parcial",
+    "volume_mercado_12m", "trend_pct_mercado_12m", "volume_retomadas_12m",
 }
 
 

@@ -63,6 +63,13 @@ AREA_CAP = 600  # m² — ver spec §6.2: "Área Construída" às vezes guarda a
 # qualquer transação residencial válida (decisão do usuário: giro do
 # bairro é giro, mesmo quando não é um preço confiável).
 NATUREZA_COMPRA_VENDA_RE = re.compile(r"^1\.")
+# Item 2 da auditoria de 2026-09-30: "17.Resolução da alienação fiduciária
+# por inadimplemento" (retomada pelo banco/credor) e "4.Arrematação (em
+# leilão ou hasta pública)" viram um indicador de volume SEPARADO
+# (volume_retomadas_12m em engine.py) — são vendas de verdade (mudam de
+# dono), mas o valor registrado é o da dívida/lance, não preço de mercado;
+# não contam nem pra volume_mercado_12m nem pra preço.
+NATUREZA_RETOMADA_RE = re.compile(r"^(17|4)\.")
 
 
 def parse_itbi_file(path):
@@ -135,6 +142,7 @@ def parse_itbi_file(path):
 
                 natureza = (cells.get("H") or "").strip()
                 is_compra_venda = bool(NATUREZA_COMPRA_VENDA_RE.match(natureza))
+                is_retomada = bool(NATUREZA_RETOMADA_RE.match(natureza))
 
                 # Coluna L = % do imóvel efetivamente transacionado (auditoria
                 # de 2026-09-24/29: confirmado contra K/M ("Valor Venal de
@@ -173,6 +181,11 @@ def parse_itbi_file(path):
                     "addr_display": adisp,
                     "is_compra_venda": is_compra_venda,
                     "is_full_transfer": is_full_transfer,
+                    "is_retomada": is_retomada,
+                    # Texto completo da natureza (coluna H) — só usado pro
+                    # log de limpeza (quebra por tipo de natureza excluída),
+                    # nunca sai daqui pro raw.json (bool já basta pro motor).
+                    "natureza_raw": natureza,
                 })
 
     return records, {

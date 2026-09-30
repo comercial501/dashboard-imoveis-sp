@@ -91,6 +91,13 @@ def faixa_metragem(area):
 
 MIN_AMOSTRA_OUTLIER = 10  # segmentos menores que isso não têm poder estatístico pra P5/P95 confiável
 
+# Item 2 da auditoria de 2026-09-30: valor declarado implausível pra uma
+# venda de mercado de verdade (erro de digitação, valor simbólico entre
+# parentes, etc) — só aplica a "compra e venda" de 100% do imóvel (não faz
+# sentido julgar o valor de uma FRAÇÃO pelo mesmo limiar do imóvel inteiro).
+VALOR_MIN_REAL = 10_000
+VALOR_MAX_REAL = 100_000_000
+
 
 def resolve_bairros(records, log=print):
     """Endereços (rua+número) cujo bairro varia entre linhas — ou falta —
@@ -187,7 +194,9 @@ def build_clean_layer(records, log=print):
     entrada = len(records)
     excl_tipo = 0
     excl_natureza = 0
+    excl_natureza_por_tipo = {}
     excl_fracao = 0
+    excl_valor_irreal = 0
     excl_sem_area = 0
 
     candidatos = []
@@ -200,10 +209,21 @@ def build_clean_layer(records, log=print):
             continue
         if not r["is_compra_venda"]:
             excl_natureza += 1
+            label = r.get("natureza_raw") or "(sem natureza)"
+            excl_natureza_por_tipo[label] = excl_natureza_por_tipo.get(label, 0) + 1
             candidatos.append(rec)
             continue
         if not r["is_full_transfer"]:
             excl_fracao += 1
+            candidatos.append(rec)
+            continue
+        # Item 2 da auditoria de 2026-09-30: valor implausível pra uma venda
+        # de mercado (erro de digitação/valor simbólico) — só faz sentido
+        # julgar aqui porque já garantimos "compra e venda" + 100% do imóvel
+        # (fração e outras naturezas têm valor sistematicamente menor, não
+        # comparável a este limiar).
+        if not (VALOR_MIN_REAL <= r["valor"] <= VALOR_MAX_REAL):
+            excl_valor_irreal += 1
             candidatos.append(rec)
             continue
         if not r["area"]:
@@ -259,7 +279,11 @@ def build_clean_layer(records, log=print):
         "total_entrada": entrada,
         "excluidos_predio_inteiro_uso_21_22": excl_tipo,
         "excluidos_natureza_nao_compra_venda": excl_natureza,
+        "excluidos_natureza_nao_compra_venda_por_tipo": dict(
+            sorted(excl_natureza_por_tipo.items(), key=lambda kv: -kv[1])
+        ),
         "excluidos_transferencia_parcial": excl_fracao,
+        "excluidos_valor_irreal": excl_valor_irreal,
         "excluidos_sem_area_construida_valida": excl_sem_area,
         "excluidos_outlier_valor_m2_fora_p5_p95": excl_outlier,
         "total_saida_clean_sale": saida_limpa,
@@ -268,7 +292,8 @@ def build_clean_layer(records, log=print):
     log(
         "[clean] build_clean_layer: entrada={total_entrada} -> limpo={total_saida_clean_sale} "
         "(prédio inteiro -{excluidos_predio_inteiro_uso_21_22}, natureza -{excluidos_natureza_nao_compra_venda}, "
-        "fração parcial -{excluidos_transferencia_parcial}, sem área -{excluidos_sem_area_construida_valida}, "
+        "fração parcial -{excluidos_transferencia_parcial}, valor irreal -{excluidos_valor_irreal}, "
+        "sem área -{excluidos_sem_area_construida_valida}, "
         "outlier R$/m² -{excluidos_outlier_valor_m2_fora_p5_p95})".format(**stats)
     )
     return candidatos, stats

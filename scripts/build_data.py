@@ -110,6 +110,7 @@ def build_raw_payload(itbi_records, usn_records, years):
         itbi_out.append([
             bairro_idx[r["bairro"]], r["sheet_year"], r["day"], r["valor"], r["area"], aidx,
             r["is_compra_venda"], r["is_full_transfer"], r["tipo_imovel"], r["is_clean_sale"],
+            r.get("is_retomada", False),
         ])
 
     usn_out = []
