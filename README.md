@@ -763,6 +763,87 @@ prédio novo não tem venda anterior no mesmo endereço pra "votar" o bairro.
 Aguardando o item 3 (bairro por CEP) subir essa cobertura antes de
 implementar.
 
+## Item 3 (continuação): bairro por quadra fiscal do IPTU/GeoSampa
+
+Depois de esgotar os métodos internos (endereço, CEP — ver seção acima),
+o usuário baixou manualmente o cadastro fiscal do IPTU no GeoSampa (camada
+Lote → download → cadastro → IPTU; portal legado, protegido por CAPTCHA,
+sem download automatizável) — 3,92 milhões de linhas, 938MB. Só as 5
+colunas necessárias (`sql`, `bairro`, `cep`, `logradouro`, `numero`) são
+mantidas, comprimidas em `data/iptu_geosampa/iptu_2026_reduzido.csv.gz`
+(23MB, gitignorado — `data/` já não entra no git). Lógica em
+`scripts/iptu_geosampa.py`.
+
+**SQL do GeoSampa ≠ SQL do ITBI, formatos diferentes**: no GeoSampa vem
+como texto com hífen antes do dígito verificador ("0010030001-4", zeros à
+esquerda preservados porque é texto, não número do Excel) — `normalize_sql`
+do `parse_itbi.py` (que espera número Excel) não serve aqui;
+`iptu_geosampa.setor_quadra_de_sql` tira tudo que não é dígito e usa os 6
+primeiros (setor+quadra) dos 11.
+
+**Normalização do campo "Bairro" do IPTU** (tem tanto lixo quanto o do
+ITBI — TORRE/BLOCO/COND somam mais de 170 mil linhas cada, entre 3,92
+milhões): remove acento, expande abreviação (JD, VL, V, STA, STO, PQ,
+PRQ, CHAC, CID, CONJ, CJ, ENG — em QUALQUER token, não só o primeiro,
+depois de um bug pego no meio do caminho: "JARDIM STO AMARO" só
+normalizava certo se STO fosse o primeiro token). Dentro de cada quadra,
+grafias parecidas (erro de digitação, truncamento) são agrupadas antes de
+calcular maioria/confiança (`difflib.SequenceMatcher`, stdlib, sem
+dependência nova) — pega casos como "VILA ESTER"/"VILA ESTHER"/
+"VILA HESTER" e até truncamento no INÍCIO da string ("VILA CARMOZINA" →
+"OZINA"/"ZINA" nalgumas linhas). Pureza (quadra com 1 bairro só) foi de
+12,3% (bate com a medição prévia do usuário) pra 51,5% de quadras em
+confiança "alta" (≥80% de concordância) depois de normalizar + agrupar —
+23,3% "média" (60-79%) e 25,2% "baixa" (<60%, quase sempre fronteira real
+entre bairros vizinhos, não erro de leitura — ex: uma quadra com "Jardim
+América"/"Jardim Europa"/"Jardim Paulistano" misturados).
+
+**`bairros_equivalencias.csv`** (arquivo editável pedido pelo usuário):
+populado só com variações de grafia INEQUÍVOCAS de um dos 49 bairros
+(erro de digitação claro, sem risco de confundir com outro bairro de
+verdade) — ex: "INDIANOPLIS"→Indianópolis, "BROOKLYN"/"BROOKLIM"/
+"BLOOKLIN"→Brooklin, "CHACARA SANTOANTONIO" (e variantes)→Chácara Santo
+Antônio. **Deixados de fora de propósito**, por risco de mesclar bairros
+DIFERENTES de verdade: "VILA MARIA"/"VILA MARINGA"/"VILA MARACANA"/
+"VILA MARILENA"/"VILA MIRIAN" (parecidos com "Vila Mariana" só no texto —
+São Paulo tem vários "Vila [nome próprio]" genuinamente distintos, Vila
+Maria em especial é um bairro grande e conhecido, não é Vila Mariana),
+"JARDIM PAULISTINHA"/"JARDIM PAULA"/"JARDIM AMELIA" (parecidos com
+Jardim Paulista/América), "VILA N SRA CONCEICAO" (pode ser "Nossa
+Senhora da Conceição", não necessariamente "Vila Nova Conceição").
+
+**Relatório de cobertura, medido especificamente sobre o que os 4
+métodos anteriores NÃO resolvem** (pedido do usuário):
+
+| | Revenda | Planta |
+|---|---:|---:|
+| Sem bairro pelos 4 métodos atuais | 198.539 (62,9%) | 137.825 (75,1%) |
+| — desses, quadra do IPTU resolve pra **algum** bairro (cidade toda) | 195.639 (98,5% do gap) | 131.068 (95,1% do gap) |
+| — desses, resolve especificamente pra um dos **49** | 4.666 (2,4% do gap) | 5.959 (4,3% do gap) |
+| Confiança do que resolveu nos 49: alta / média / baixa | 2.135 / 1.153 / 1.378 | 3.513 / 771 / 1.675 |
+| **Cobertura final combinada (4 métodos + quadra IPTU)** | **38,6%** | **28,2%** |
+
+O achado dos "98,5%/95,1%" bate com a medição prévia do usuário — a
+quadra fiscal do IPTU é excelente pra achar QUALQUER bairro (confirma o
+método), mas a maior parte do que ela resolve fica FORA dos 49 bairros da
+carteira, porque a carteira é só uma fatia (~9-11%) da cidade inteira —
+isso é o esperado (a carteira é curada, não é "todo bairro popular"), não
+é falha de normalização. Por isso o ganho real pros nossos 49 bairros é
+modesto (+1,5pp revenda, +3,2pp planta) mesmo com o método interno
+funcionando bem.
+
+**Ainda muito abaixo de 90% pra planta (28,2%)** — nem a quadra fiscal
+fecha essa lacuna sozinha. Item "plano B" (quadra sem bairro herda das
+vizinhas por distância) segue como reserva, não implementado ainda —
+combinado com os métodos atuais, provavelmente ainda não chega em 90%,
+porque grande parte do problema é estrutural (muitas quadras da planta
+ficam fora da carteira mesmo, não têm "vizinha" nos 49 pra herdar).
+
+Revalidação Python × JavaScript: não aplicável ainda — este item é só
+diagnóstico, nada foi ligado no `engine.py`/`engine.js` ainda (regra de
+prioridade entre métodos e `volume_planta_12m`/`volume_total_12m` seguem
+pendentes de decisão do usuário).
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`

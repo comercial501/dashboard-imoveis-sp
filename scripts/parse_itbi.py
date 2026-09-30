@@ -72,6 +72,28 @@ NATUREZA_COMPRA_VENDA_RE = re.compile(r"^1\.")
 NATUREZA_RETOMADA_RE = re.compile(r"^(17|4)\.")
 
 
+def normalize_sql(sql_raw):
+    """SQL (N° do Cadastro) é sempre 11 dígitos: setor (3) + quadra (3) +
+    lote (4) + dígito verificador (1) — confirmado na aba EXPLICAÇÕES do
+    próprio arquivo. A planilha guarda como NÚMERO, então zeros à esquerda
+    somem (ex: setor "001" vira "1") e o Excel às vezes serializa o mesmo
+    valor em notação científica numa linha/arquivo e decimal simples noutra
+    (achado de 2026-09-30: 11.554 SQLs — 3,5% do total — têm mais de uma
+    representação em string no dataset; comparar a string crua, como o
+    dedup fazia antes, arrisca tratar o MESMO imóvel como SQLs diferentes).
+    Sempre usar esta função — nunca a string crua da célula — pra
+    deduplicar ou extrair setor/quadra."""
+    if not sql_raw:
+        return None
+    try:
+        n = int(float(sql_raw))
+    except ValueError:
+        return None
+    if n <= 0:
+        return None
+    return str(n).zfill(11)
+
+
 def parse_itbi_file(path):
     """Retorna (records, stats). Cada record:
     {bairro, bairro_raw, sheet_year, day, valor, area, sql, uso_code,
@@ -176,7 +198,7 @@ def parse_itbi_file(path):
                     "day": day,
                     "valor": valor,
                     "area": area,
-                    "sql": (cells.get("A") or "").strip() or None,
+                    "sql": normalize_sql(cells.get("A")),
                     "uso_code": uso_code,
                     "addr_key": akey,
                     "addr_display": adisp,
