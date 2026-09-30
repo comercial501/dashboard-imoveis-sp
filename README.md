@@ -918,13 +918,92 @@ Confirma o padrão: em Pinheiros, planta (1.355) supera revenda recuperada
 (728 revenda vs. 35 planta) — bairro mais consolidado, menos terreno
 disponível pra lançar.
 
-**2) Taxa de giro (unidades residenciais do IPTU) — BLOQUEADO**: preciso
-da coluna "TIPO DE USO DO IMOVEL" do cadastro original pra contar
-unidades (apartamento + residência) por bairro, e o arquivo
-`IPTU_2026.zip` que você enviou não está mais em `~/Downloads` (nem no
-Trash) — não consigo reprocessar sem ele. Pode reenviar o zip original,
-ou só essa coluna extra (junto com o SQL, pra eu conseguir juntar com o
-que já tenho)?
+**2) Taxa de giro (unidades residenciais do IPTU) — concluído** depois
+do reenvio do `IPTU_2026.zip`. Duas mudanças permanentes pedidas pelo
+usuário:
+  - o `.zip` original agora tem uma CÓPIA em
+    `data/iptu_geosampa/raw/IPTU_2026.zip` (gitignorado) — nunca movido
+    nem apagado de `~/Downloads`;
+  - a versão reduzida ganhou uma 6ª coluna, `tipo_uso` ("TIPO DE USO DO
+    IMOVEL"), resto do cadastro continua descartado. `iptu_geosampa.py`
+    ganhou `reduzir_arquivo_original()` (regenera a partir do `.zip`
+    sempre que precisar) e `contar_unidades_residenciais_por_bairro()`
+    (nova, reutilizável).
+
+Unidade residencial = só "Apartamento em condomínio" + "Residência"
+(as 2 categorias que o usuário pediu literalmente — de propósito não
+inclui "Residência coletiva"/"Residência e outro uso", ambíguas e
+pequenas: ~12 mil linhas juntas contra ~650 mil das duas principais).
+Bairro de cada unidade resolvido com uma cascata TODA dentro do cadastro
+do IPTU (nunca cruza com o ITBI): campo Bairro → voto por endereço (só
+dentro do IPTU) → quadra alta → CEP (só dentro do IPTU) → quadra média.
+1.062.509 de 2.831.160 unidades residenciais da cidade (37,5%) caem nos
+49 bairros — coerente com a participação de ~31-35% medida no ponto 3
+(a carteira representa parte substancial do estoque residencial
+mesmo sendo minoria territorial da cidade).
+
+**Taxa de giro = `volume_mercado_12m` (revenda + planta, cascata do item
+3) ÷ unidades residenciais**, todos os 49, ordenados (3 acima de 10%):
+
+| Bairro | vendas_mercado_12m | unidades_IPTU | taxa de giro |
+|---|---:|---:|---:|
+| **Vila Firmiano Pinto** | 688 | 2.328 | **29,55%** ⚠️ |
+| **Jardim Vila Mariana** | 135 | 1.000 | **13,50%** ⚠️ |
+| **Vila Olímpia** | 2.092 | 16.266 | **12,86%** ⚠️ |
+| Lapa | 5.252 | 60.962 | 8,62% |
+| Pinheiros | 2.653 | 31.759 | 8,35% |
+| Brooklin | 2.774 | 34.913 | 7,95% |
+| Jardins | 136 | 1.780 | 7,64% |
+| Alto da Boa Vista | 733 | 9.732 | 7,53% |
+| Perdizes | 3.343 | 46.502 | 7,19% |
+| Moema | 1.327 | 19.020 | 6,98% |
+| Jardim América | 1.186 | 17.011 | 6,97% |
+| Indianópolis | 1.219 | 20.189 | 6,04% |
+| Planalto Paulista | 472 | 8.075 | 5,85% |
+| Itaim Bibi | 763 | 14.038 | 5,44% |
+| Consolação | 2.292 | 42.286 | 5,42% |
+| Cambuci | 1.904 | 35.287 | 5,40% |
+| Mooca | 3.947 | 73.825 | 5,35% |
+| Campo Belo | 1.304 | 25.733 | 5,07% |
+| Ipiranga | 3.750 | 74.205 | 5,05% |
+| Jardim das Bandeiras | 27 | 540 | 5,00% |
+| Bosque da Saúde | 559 | 11.238 | 4,97% |
+| Vila Nova Conceição | 366 | 7.371 | 4,97% |
+| Pompéia | 594 | 12.050 | 4,93% |
+| Paraíso | 814 | 17.713 | 4,60% |
+| Santa Cecília | 2.193 | 48.435 | 4,53% |
+| Vila Mariana | 3.199 | 73.642 | 4,34% |
+| Higienópolis | 468 | 10.872 | 4,30% |
+| Bela Vista | 2.410 | 57.658 | 4,18% |
+| Jardim Paulista | 1.683 | 41.108 | 4,09% |
+| Sumaré | 206 | 5.077 | 4,06% |
+| Vila da Saúde | 367 | 9.259 | 3,96% |
+| Vila Madalena | 647 | 17.468 | 3,70% |
+| Tatuapé | 4.370 | 118.485 | 3,69% |
+| Mirandópolis | 538 | 15.128 | 3,56% |
+| Ibirapuera | 635 | 19.172 | 3,31% |
+| Vila Gumercindo | 308 | 9.458 | 3,26% |
+| Pacaembu | 48 | 1.572 | 3,05% |
+| Vila Uberabinha | 31 | 1.111 | 2,79% |
+| Chácara Inglesa | 378 | 14.124 | 2,68% |
+| Jardim da Glória | 87 | 3.395 | 2,56% |
+| Vila Cordeiro | 76 | 2.982 | 2,55% |
+| Jardim Europa | 54 | 2.196 | 2,46% |
+| Chácara Santo Antônio | 349 | 16.423 | 2,13% |
+| Jardim Petrópolis | 20 | 1.113 | 1,80% |
+| Jardim Paulistano | 93 | 5.378 | 1,73% |
+| Jardim Santo Amaro | 17 | 1.065 | 1,60% |
+| Jardim Caravelas | 22 | 1.799 | 1,22% |
+| Jardim dos Estados | 9 | 1.066 | 0,84% |
+| Jardim Novo Mundo | 5 | 700 | 0,71% |
+
+Giro anual saudável de mercado costuma ficar na casa de 3-8%; os 3
+sinalizados merecem checagem manual antes de confiar no número — são
+bairros pequenos (poucas unidades no denominador), então um efeito
+pontual (ex.: um lançamento grande recuperado via CEP/quadra, ou
+"unidades residenciais" subcontadas nesse bairro especificamente) pode
+estar inflando a taxa desproporcionalmente. Não investiguei caso a caso
+ainda — fica pra quando/se você quiser aprofundar.
 
 **3) Fechamento da conta** — com dedup real, "fora da carteira" separado
 de "incerto" (antes misturados no "64,6%"):

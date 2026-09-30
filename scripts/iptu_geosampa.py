@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
-Cadastro fiscal do IPTU (GeoSampa), usado só pra resolver bairro por quadra
-fiscal — item 3 da auditoria de 2026-09-30 (segunda rodada, iniciada em
-2026-09-30). Baixado manualmente pelo usuário em
-https://geosampa.prefeitura.sp.gov.br (camada Lote -> download -> cadastro
--> IPTU), 3,92 milhões de linhas, 938MB original. O arquivo completo NÃO
-entra no git (.gitignore já cobre data/); guardamos só uma versão reduzida
-(5 colunas: sql, bairro, cep, logradouro, numero) comprimida em
-data/iptu_geosampa/iptu_2026_reduzido.csv.gz (23MB) — ver
-_reduzir_arquivo_original() pra regenerar a partir do .zip original, se
-precisar.
+Cadastro fiscal do IPTU (GeoSampa), usado pra resolver bairro por quadra
+fiscal E pra contar unidades residenciais (taxa de giro) — item 3 da
+auditoria de 2026-09-30 (segunda rodada). Baixado manualmente pelo
+usuário em https://geosampa.prefeitura.sp.gov.br (camada Lote ->
+download -> cadastro -> IPTU), 3,92 milhões de linhas, 938MB original.
+
+O .zip original fica em `data/iptu_geosampa/raw/IPTU_2026.zip`
+(gitignorado — `data/` já não entra no git; cópia feita a partir do
+arquivo que o usuário baixou manualmente, nunca movido/apagado do lugar
+onde ele guarda o original). A versão reduzida (6 colunas: sql, bairro,
+cep, logradouro, numero, tipo_uso — todo o resto descartado) fica
+comprimida em data/iptu_geosampa/iptu_2026_reduzido.csv.gz (27MB).
 
 Achado do usuário (confirmado abaixo): "BAIRRO DO IMOVEL" nesse cadastro
 tem muito lixo (nome de torre/bloco/condomínio em vez de bairro de
@@ -26,8 +28,50 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+RAW_ZIP = ROOT / "data" / "iptu_geosampa" / "raw" / "IPTU_2026.zip"
+RAW_ZIP_ENTRY = "IPTU_2026.csv"
 REDUZIDO_GZ = ROOT / "data" / "iptu_geosampa" / "iptu_2026_reduzido.csv.gz"
 EQUIVALENCIAS_CSV = Path(__file__).resolve().parent / "bairros_equivalencias.csv"
+
+# Colunas mantidas na versão reduzida — todo o resto do cadastro original
+# (dezenas de colunas: área, valor de m², ano de construção, fase do
+# contribuinte etc.) é descartado de propósito, só usamos localização +
+# tipo de uso (taxa de giro).
+COLUNAS_REDUZIDAS = {
+    "NUMERO DO CONTRIBUINTE": "sql",
+    "BAIRRO DO IMOVEL": "bairro",
+    "CEP DO IMOVEL": "cep",
+    "NOME DE LOGRADOURO DO IMOVEL": "logradouro",
+    "NUMERO DO IMOVEL": "numero",
+    "TIPO DE USO DO IMOVEL": "tipo_uso",
+}
+
+
+def reduzir_arquivo_original(zip_path=RAW_ZIP, out_path=REDUZIDO_GZ):
+    """Regenera a versão reduzida (gz) a partir do .zip original do
+    GeoSampa — só roda se precisar reprocessar (ex: exportação mais nova).
+    Nunca mexe no .zip original."""
+    import zipfile
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(zip_path) as zf:
+        with zf.open(RAW_ZIP_ENTRY) as fbin:
+            ftext = (line.decode("utf-8", errors="replace") for line in fbin)
+            reader = csv.reader(ftext, delimiter=";")
+            header = next(reader)
+            idx = {nome: header.index(col) for col, nome in COLUNAS_REDUZIDAS.items()}
+            with gzip.open(out_path, "wt", encoding="utf-8", newline="") as fout:
+                w = csv.writer(fout)
+                cols_out = list(COLUNAS_REDUZIDAS.values())
+                w.writerow(cols_out)
+                n = 0
+                for row in reader:
+                    try:
+                        w.writerow([row[idx[c]] for c in cols_out])
+                    except IndexError:
+                        continue
+                    n += 1
+    return n
 
 # Primeiro token da string == isto -> não é bairro, é rótulo de
 # torre/bloco/unidade/condomínio dentro de um empreendimento (medido em
@@ -207,3 +251,102 @@ def nivel_confianca(pct):
     if pct >= 60:
         return "media"
     return "baixa"
+
+
+# Item 2 (taxa de giro, 2026-09-30): categorias do IPTU que contam como
+# "unidade residencial" — só as 2 que o usuário pediu literalmente
+# ("apartamento + residência"). Deixa de fora de propósito "Residência
+# coletiva" e "Residência e outro uso" (ambíguas, minoria —~12 mil linhas
+# juntas contra ~650 mil das duas principais).
+TIPOS_RESIDENCIAIS = {"Apartamento em condomínio", "Residência"}
+NUM_PLACEHOLDER = "99999"
+
+
+def contar_unidades_residenciais_por_bairro(targets, path=REDUZIDO_GZ):
+    """Conta unidades TIPOS_RESIDENCIAIS por bairro, resolvendo o bairro
+    de cada unidade com uma cascata TODA dentro do cadastro do IPTU (nunca
+    cruza com o ITBI): campo Bairro normalizado -> voto por endereço
+    (logradouro+número, só dentro do IPTU) -> quadra fiscal confiança alta
+    -> CEP (8 dígitos, voto só dentro do IPTU) -> quadra confiança média
+    -> sem resolução (não conta em nenhum bairro). Precisa de
+    normalize.bairro_canon/normalize_street/normalize_number e `targets`
+    (lista dos 49) — não importado aqui pra não criar dependência
+    circular com normalize.py; quem chama passa TARGETS."""
+    import sys
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    from normalize import bairro_canon, normalize_street, normalize_number
+
+    def cep_norm_iptu(cep_raw):
+        if not cep_raw:
+            return None
+        digits = re.sub(r"\D", "", cep_raw)
+        return digits.zfill(8) if digits else None
+
+    equivalencias = carregar_equivalencias()
+
+    addr_votes, cep8_votes = {}, {}
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            nome_norm = normalizar_bairro_iptu(row.get("bairro"), equivalencias)
+            bd = bairro_canon(nome_norm) if nome_norm else None
+            if bd not in targets:
+                continue
+            logradouro = normalize_street(row.get("logradouro"))
+            numero = normalize_number(row.get("numero"))
+            if logradouro and numero:
+                akey = f"{logradouro}|{numero}"
+                addr_votes.setdefault(akey, {}).setdefault(bd, 0)
+                addr_votes[akey][bd] += 1
+            cep = cep_norm_iptu(row.get("cep"))
+            if cep:
+                cep8_votes.setdefault(cep, {}).setdefault(bd, 0)
+                cep8_votes[cep][bd] += 1
+
+    def majority(d):
+        return {k: sorted(v.items(), key=lambda kv: (-kv[1], kv[0]))[0][0] for k, v in d.items()}
+
+    addr_to_bairro = majority(addr_votes)
+    cep8_to_bairro = majority(cep8_votes)
+
+    votos_quadra = construir_votos_quadra(path)
+    resolvido_quadra = resolver_quadra_com_confianca(votos_quadra)
+    quadra_bairro49 = {}
+    for sq, (b, pct, _n) in resolvido_quadra.items():
+        canon = bairro_canon(b)
+        if canon in targets:
+            quadra_bairro49[sq] = (canon, pct)
+
+    unidades = {}
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if row.get("tipo_uso") not in TIPOS_RESIDENCIAIS:
+                continue
+            nome_norm = normalizar_bairro_iptu(row.get("bairro"), equivalencias)
+            bd = bairro_canon(nome_norm) if nome_norm else None
+            if bd not in targets:
+                logradouro = normalize_street(row.get("logradouro"))
+                numero = normalize_number(row.get("numero"))
+                akey = f"{logradouro}|{numero}" if (logradouro and numero) else None
+                v = addr_to_bairro.get(akey) if numero != NUM_PLACEHOLDER else None
+                if v in targets:
+                    bd = v
+                else:
+                    sq = setor_quadra_de_sql(row.get("sql"))
+                    b_iptu, nivel = None, None
+                    if sq in quadra_bairro49:
+                        b_iptu, pct_iptu = quadra_bairro49[sq]
+                        nivel = nivel_confianca(pct_iptu)
+                    if b_iptu and nivel == "alta":
+                        bd = b_iptu
+                    else:
+                        cep = cep_norm_iptu(row.get("cep"))
+                        v = cep8_to_bairro.get(cep)
+                        if v in targets:
+                            bd = v
+                        elif b_iptu and nivel == "media":
+                            bd = b_iptu
+            if bd in targets:
+                unidades[bd] = unidades.get(bd, 0) + 1
+    return unidades
