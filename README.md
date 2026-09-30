@@ -812,37 +812,81 @@ Maria em especial é um bairro grande e conhecido, não é Vila Mariana),
 Jardim Paulista/América), "VILA N SRA CONCEICAO" (pode ser "Nossa
 Senhora da Conceição", não necessariamente "Vila Nova Conceição").
 
-**Relatório de cobertura, medido especificamente sobre o que os 4
-métodos anteriores NÃO resolvem** (pedido do usuário):
+**Correção de métrica (2026-09-30, mesma família de confusão do ponto 1
+da rodada anterior)**: "cobertura"/"sem bairro" tinham virado, sem querer,
+"caiu fora dos 49" — mas uma venda num bairro fora da carteira TEM
+bairro, não é lacuna nenhuma. As duas métricas certas, separadas:
 
 | | Revenda | Planta |
 |---|---:|---:|
-| Sem bairro pelos 4 métodos atuais | 198.539 (62,9%) | 137.825 (75,1%) |
-| — desses, quadra do IPTU resolve pra **algum** bairro (cidade toda) | 195.639 (98,5% do gap) | 131.068 (95,1% do gap) |
-| — desses, resolve especificamente pra um dos **49** | 4.666 (2,4% do gap) | 5.959 (4,3% do gap) |
-| Confiança do que resolveu nos 49: alta / média / baixa | 2.135 / 1.153 / 1.378 | 3.513 / 771 / 1.675 |
-| **Cobertura final combinada (4 métodos + quadra IPTU)** | **38,6%** | **28,2%** |
+| (a) SEM NENHUM bairro — antes do IPTU | 104.572 (33,1%) | 60.718 (33,1%) |
+| (a) SEM NENHUM bairro — depois do IPTU | 2.648 (**0,8%**) | 5.418 (**3,0%**) |
+| Meta de 90% = recebe algum bairro (inverso de a) | 66,9% → **99,2%** | 66,9% → **97,0%** |
+| (b) Atribuído aos 49 (participação da carteira) — antes | 104.828 (33,2%) | 38.557 (21,0%) |
+| (b) Atribuído aos 49 (participação da carteira) — depois | 111.508 (35,3%) | 44.835 (24,4%) |
 
-O achado dos "98,5%/95,1%" bate com a medição prévia do usuário — a
-quadra fiscal do IPTU é excelente pra achar QUALQUER bairro (confirma o
-método), mas a maior parte do que ela resolve fica FORA dos 49 bairros da
-carteira, porque a carteira é só uma fatia (~9-11%) da cidade inteira —
-isso é o esperado (a carteira é curada, não é "todo bairro popular"), não
-é falha de normalização. Por isso o ganho real pros nossos 49 bairros é
-modesto (+1,5pp revenda, +3,2pp planta) mesmo com o método interno
-funcionando bem.
+Com a métrica certa, **a meta de 90% é batida com folga nos dois
+universos** (99,2% e 97,0%) — os "38,6%/28,2%" da versão anterior deste
+relatório mediam (b), não (a), e por isso pareciam uma lacuna que não
+existia. (b) — quanto do volume cai especificamente nos 49 bairros — é
+só um dado descritivo (quanto da cidade nossa carteira representa,
+~9-11%), não uma falha de método.
 
-**Ainda muito abaixo de 90% pra planta (28,2%)** — nem a quadra fiscal
-fecha essa lacuna sozinha. Item "plano B" (quadra sem bairro herda das
-vizinhas por distância) segue como reserva, não implementado ainda —
-combinado com os métodos atuais, provavelmente ainda não chega em 90%,
-porque grande parte do problema é estrutural (muitas quadras da planta
-ficam fora da carteira mesmo, não têm "vizinha" nos 49 pra herdar).
+## Item 3: simulação da regra de prioridade (proposta pelo usuário)
 
-Revalidação Python × JavaScript: não aplicável ainda — este item é só
-diagnóstico, nada foi ligado no `engine.py`/`engine.js` ainda (regra de
-prioridade entre métodos e `volume_planta_12m`/`volume_total_12m` seguem
-pendentes de decisão do usuário).
+Ordem proposta: 1º campo Bairro (ITBI, direto) → 2º voto por endereço →
+3º quadra IPTU confiança ALTA → 4º CEP (8 dígitos) → 5º quadra IPTU
+confiança MÉDIA → 6º "incerto" (confiança baixa ou nenhum método
+resolveu — conta no total da cidade, não entra em nenhum dos 49).
+Simulado sobre `volume_mercado_12m` (só "1.Compra e venda", janela de
+12 meses congelada, jul/2025-jun/2026) nos 5 bairros de referência —
+**ainda não ligado no `engine.py`**, só simulação:
+
+| Bairro | `volume_mercado_12m` ANTES (produção hoje) | DEPOIS (cascata de 5 métodos) |
+|---|---:|---:|
+| Moema | 453 | 629 (+39%) |
+| Vila Mariana | 1.043 | 2.605 (**+150%**) |
+| Tatuapé | 1.340 | 3.699 (**+176%**) |
+| Pinheiros | 677 | 1.310 (+93%) |
+| Itaim Bibi | 436 | 718 (+65%) |
+
+**O salto é grande — investiguei se era bug antes de reportar; não é.**
+CEP (8 dígitos) é um método bem mais amplo que voto por endereço: só
+Tatuapé tem ~400 CEPs distintos cujo voto majoritário é o próprio
+Tatuapé, cada um com 30-60 votos quase unânimes (ex.: CEP 03066065, 61
+votos, 100% Tatuapé) — volume represado que o voto por endereço (exige
+aquele endereço exato já ter uma venda com bairro confiável) nunca
+alcançava, mas que o CEP (a área postal inteira) recupera de uma vez.
+Bairros grandes e consolidados (Tatuapé, Vila Mariana) ganham
+desproporcionalmente mais que bairros menores (Itaim Bibi, Moema) porque
+têm mais CEPs "seus" represados.
+
+Entrada por método, por bairro (quantas linhas novas cada método
+contribuiu):
+
+| Bairro | campo_original | voto_endereço | quadra_alta | CEP | quadra_média |
+|---|---:|---:|---:|---:|---:|
+| Moema | 256 | 197 | 23 | 134 | 19 |
+| Vila Mariana | 536 | 507 | 672 | 842 | 48 |
+| Tatuapé | 799 | 541 | 832 | 1.393 | 134 |
+| Pinheiros | 456 | 221 | 333 | 244 | 56 |
+| Itaim Bibi | 173 | 263 | 1 | 254 | 27 |
+
+**"Incerto" (nenhum dos 5 métodos resolve)**: 64,6% de todo o universo
+compra-e-venda/12 meses da CIDADE (não só planta) — consistente com (b)
+acima (~35% cai nos 49, 65% não), confirma que não é bug, é só reflexo de
+quanto da cidade fica fora da carteira mesmo.
+
+**Ressalva metodológica**: esta simulação usa o parse bruto, sem passar
+pela deduplicação (`dedup_by_sql`) — por isso o "ANTES" aqui (1.340 pra
+Tatuapé) é um pouco maior que o `volume_mercado_12m` real publicado
+(1.308, relatório do item 2) — a diferença (~2%) é o efeito da dedup, que
+tanto "antes" quanto "depois" sofreriam igualmente em produção; não muda
+a magnitude do salto relativo.
+
+Revalidação Python × JavaScript: não aplicável ainda — só simulação,
+nada ligado no `engine.py`/`engine.js`. Regra de prioridade, `volume_planta_12m`
+e `volume_total_12m` seguem pendentes de aprovação do usuário.
 
 ## Metodologia dos painéis
 
