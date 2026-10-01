@@ -111,6 +111,12 @@ def build_raw_payload(itbi_records, usn_records, years):
             bairro_idx[r["bairro"]], r["sheet_year"], r["day"], r["valor"], r["area"], aidx,
             r["is_compra_venda"], r["is_full_transfer"], r["tipo_imovel"], r["is_clean_sale"],
             r.get("is_retomada", False),
+            # Etapa 2, item 2 (2026-10-01): uso_code (coluna X do ITBI, "10"/
+            # "20"/...) — campo NOVO, acrescentado no fim da tupla (não mexe
+            # nos índices existentes) pra engine.js replicar
+            # engine.py._is_revenda_aprovada (valor total pago em revenda,
+            # painel "Preço por m²").
+            r.get("uso_code"),
         ])
 
     usn_out = []
@@ -206,6 +212,7 @@ def _write_preco_m2_csv(preco_m2_painel, path):
     path.parent.mkdir(parents=True, exist_ok=True)
     cols = [
         "bairro", "faixa_metragem", "mediana_pago_r_m2", "mediana_pedido_r_m2", "gap_pct",
+        "valor_total_mediana", "valor_total_p25", "valor_total_p75", "n_vendas_revenda_12m",
         "n_transacoes_12m", "n_anuncios", "amostra_pequena",
     ]
     with path.open("w", newline="", encoding="utf-8") as f:
@@ -214,6 +221,7 @@ def _write_preco_m2_csv(preco_m2_painel, path):
         for p in preco_m2_painel:
             w.writerow([
                 p["bairro"], p["faixa"], p["mediana_pago_m2"], p["mediana_pedido_m2"], p["gap_pct"],
+                p["valor_total_mediana"], p["valor_total_p25"], p["valor_total_p75"], p["n_vendas_revenda_12m"],
                 p["n_transacoes_12m"], p["n_anuncios"], "sim" if p["amostra_pequena"] else "nao",
             ])
 

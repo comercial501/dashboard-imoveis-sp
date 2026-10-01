@@ -1121,15 +1121,15 @@ function renderPrecoM2() {
     return;
   }
   sortableTable(container, {
-    initialSortKey: "gap_pct",
+    initialSortKey: "valor_total_mediana",
     columns: [
       { key: "bairro", label: "Bairro" },
       { key: "faixa", label: "Faixa de metragem" },
-      { key: "mediana_pago_m2", label: "R$/m² pago (mediana, 12m)", fmt: (v) => (v == null ? "—" : fmtMoneyCompact(v)) },
-      { key: "mediana_pedido_m2", label: "R$/m² pedido (mediana, hoje)", fmt: (v) => (v == null ? "—" : fmtMoneyCompact(v)) },
-      { key: "gap_pct", label: "Gap", fmt: (v) => (v == null ? "—" : (v >= 0 ? "+" : "") + fmtPct(v)) },
-      { key: "n_transacoes_12m", label: "Vendas (12m)", fmt: (v) => fmtInt(v) },
-      { key: "n_anuncios", label: "Anúncios" },
+      { key: "valor_total_mediana", label: "Valor total pago (mediana, revenda 12m)", fmt: (v) => (v == null ? "—" : fmtMoneyCompact(v)) },
+      { key: "valor_total_p25", label: "P25", fmt: (v) => (v == null ? "—" : fmtMoneyCompact(v)) },
+      { key: "valor_total_p75", label: "P75", fmt: (v) => (v == null ? "—" : fmtMoneyCompact(v)) },
+      { key: "n_vendas_revenda_12m", label: "Vendas revenda (12m)", fmt: (v) => fmtInt(v) },
+      { key: "n_anuncios", label: "Anúncios hoje" },
       {
         key: "amostra_pequena", label: "Amostra", sortable: false,
         render: (r) => (r.amostra_pequena ? badge("Amostra pequena", "neutral") : badge("Confiável", "gold")),

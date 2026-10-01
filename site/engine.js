@@ -168,6 +168,15 @@ function cmpLower(a, b) {
   return al < bl ? -1 : al > bl ? 1 : 0;
 }
 
+// Etapa 2, item 2 (2026-10-01) — mesma regra de
+// scripts/engine.py._is_revenda_aprovada: proporção transmitida 100% E
+// uso IPTU residencial (10 ou 20 — não o conjunto mais amplo de
+// tipoImovel, que também inclui 12/14/21/22/25).
+const USO_REVENDA_APROVADA = new Set(["10", "20"]);
+function isRevendaAprovada(r) {
+  return r.isCompraVenda && r.isFullTransfer && USO_REVENDA_APROVADA.has(r.usoCode);
+}
+
 // Faixas vêm de raw.constants.faixas_metragem (mesma fonte que
 // scripts/clean_itbi.FAIXAS_METRAGEM — nunca hardcoded aqui de novo).
 // Cada item é [lo, hi, label]; hi null = faixa aberta (acima de).
@@ -210,10 +219,10 @@ function decodeRecords(raw, priceMin, priceMax) {
   };
 
   const itbi = [];
-  for (const [bIdx, sheetYear, day, valor, area, addrIdx, isCompraVenda, isFullTransfer, tipoImovel, isCleanSale, isRetomada] of raw.itbi) {
+  for (const [bIdx, sheetYear, day, valor, area, addrIdx, isCompraVenda, isFullTransfer, tipoImovel, isCleanSale, isRetomada, usoCode] of raw.itbi) {
     if (!inPriceRange(valor)) continue;
     itbi.push({
-      bairro: raw.bairros[bIdx], sheetYear, day, valor, area, isCompraVenda, isFullTransfer, tipoImovel, isCleanSale, isRetomada,
+      bairro: raw.bairros[bIdx], sheetYear, day, valor, area, isCompraVenda, isFullTransfer, tipoImovel, isCleanSale, isRetomada, usoCode,
       addrKey: addrIdx, addrDisplay: addrIdx != null ? raw.addr_display[addrIdx] : null,
     });
   }
@@ -351,16 +360,23 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   // Etapa 3), aqui TUDO — inclusive a mediana paga — é escopado aos
   // ÚLTIMOS 12 MESES, e só apartamento — ver
   // scripts/engine.py._compute_preco_m2_painel.
+  //
+  // Etapa 2, item 2 (2026-10-01): pra apartamento, R$/m² pago×pedido foi
+  // substituído por valor TOTAL pago (mediana/P25/P75) só de REVENDA
+  // (isRevendaAprovada) — gap_pct/mediana_pago_m2/mediana_pedido_m2 ficam
+  // sempre null agora (suspensos, calibração fica pra depois); campos
+  // novos valor_total_*/n_vendas_revenda_12m são aditivos.
   const precoM2Painel = [];
   {
-    const pago = {}, pedido = {};
+    const pago = {}, pedido = {}, valorTotal = {};
     for (const r of itbiRecords) {
-      if (!r.isCleanSale || !(r.bairro in yearlyCount) || r.tipoImovel !== "apartamento") continue;
+      if (!(r.bairro in yearlyCount) || r.tipoImovel !== "apartamento") continue;
       if (r.day == null || (C.hoje_serial - r.day) < 0 || (C.hoje_serial - r.day) > C.janela_preco_m2_dias) continue;
       const f = faixaMetragem(r.area, C.faixas_metragem);
       if (f == null) continue;
       const key = `${r.bairro}\u0001${f}`;
-      (pago[key] ||= []).push(round(r.valor / r.area, 2));
+      if (r.isCleanSale) (pago[key] ||= []).push(round(r.valor / r.area, 2));
+      if (isRevendaAprovada(r)) (valorTotal[key] ||= []).push(r.valor);
     }
     for (const r of usnRecords) {
       if (!(r.bairro in yearlyCount) || r.tipoImovel !== "apartamento") continue;
@@ -374,19 +390,21 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       for (const [, , faixa] of C.faixas_metragem) {
         const key = `${bairro}\u0001${faixa}`;
         const pagoVals = pago[key] || [];
-        if (!pagoVals.length && !(key in pedido)) continue;
-        const medianaPago = pagoVals.length ? round(median(pagoVals), 2) : null;
+        const valorTotalVals = valorTotal[key] || [];
+        if (!pagoVals.length && !valorTotalVals.length && !(key in pedido)) continue;
 
-        const pedidoVals = trimOutliersIqr(pedido[key] || []);
-        const medianaPedido = pedidoVals.length ? round(median(pedidoVals), 2) : null;
-
-        let gapPct = null;
-        if (medianaPago && medianaPedido) gapPct = round(((medianaPedido - medianaPago) / medianaPago) * 100, 1);
+        const valorTotalLimpos = trimOutliersIqr(valorTotalVals);
+        const valorTotalMediana = valorTotalLimpos.length ? round(median(valorTotalLimpos), 2) : null;
+        const valorTotalP25 = valorTotalLimpos.length ? round(percentile(25, valorTotalLimpos), 2) : null;
+        const valorTotalP75 = valorTotalLimpos.length ? round(percentile(75, valorTotalLimpos), 2) : null;
 
         precoM2Painel.push({
-          bairro, faixa, mediana_pago_m2: medianaPago, mediana_pedido_m2: medianaPedido, gap_pct: gapPct,
+          bairro, faixa,
+          mediana_pago_m2: null, mediana_pedido_m2: null, gap_pct: null,
+          valor_total_mediana: valorTotalMediana, valor_total_p25: valorTotalP25, valor_total_p75: valorTotalP75,
+          n_vendas_revenda_12m: valorTotalVals.length,
           n_transacoes_12m: pagoVals.length, n_anuncios: (pedido[key] || []).length,
-          amostra_pequena: pagoVals.length < C.min_transacoes_preco_m2_12m,
+          amostra_pequena: valorTotalVals.length < C.min_transacoes_preco_m2_12m,
         });
       }
     }

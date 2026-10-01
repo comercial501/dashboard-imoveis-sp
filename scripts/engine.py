@@ -123,6 +123,19 @@ def _is_valid_sale(r):
     return r["is_compra_venda"] and r["is_full_transfer"] and r["tipo_imovel"] is not None
 
 
+# Etapa 2 do item 3 da auditoria de ITBI (2026-10-01): mesma definição de
+# "revenda" já aprovada em cascata_completa.classificar_revenda_planta_
+# aprovada — proporção transmitida 100% E uso IPTU residencial (10 ou 20,
+# não o conjunto mais amplo {10,12,14,20,21,22,25} de clean_itbi.
+# TIPO_IMOVEL_POR_USO). Usada só pelo painel "Preço por m²" (valor total
+# pago em apartamento) — ver _compute_preco_m2_painel.
+_USO_REVENDA_APROVADA = {"10", "20"}
+
+
+def _is_revenda_aprovada(r):
+    return r["is_compra_venda"] and r["is_full_transfer"] and r.get("uso_code") in _USO_REVENDA_APROVADA
+
+
 def _aggregate_itbi(itbi_records, years):
     """Volume (`count`) conta QUALQUER transação residencial válida — giro
     do bairro é giro, mesmo quando o valor não é confiável pra preço.
@@ -695,17 +708,35 @@ def _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial):
     escopado aos ÚLTIMOS 12 MESES, e só apartamento (o pedido explícito do
     usuário: "só apartamentos residenciais"). Um retrato do mercado AGORA,
     não uma média histórica de 3 anos. Retorna lista achatada (uma linha
-    por bairro+faixa), ordenada por bairro."""
-    pago = {}  # (bairro, faixa) -> [valor_m2, ...] só dos últimos 12 meses
+    por bairro+faixa), ordenada por bairro.
+
+    Etapa 2, item 2 (2026-10-01): R$/m² pago×pedido pra apartamento vinha
+    de `is_clean_sale` (natureza+100%+tipo+outlier), sem distinguir
+    revenda de planta — podia misturar lançamento fechado dentro da
+    janela de 12 meses com revenda de verdade. Pedido do usuário: pra
+    apartamento, trocar R$/m² pago por VALOR TOTAL pago (mediana/P25/P75)
+    só de REVENDA (`_is_revenda_aprovada` — mesma regra do item 3) e
+    suspender o gap pedido×pago (calibração fica pra depois). `casa` não
+    passa pelo filtro `tipo_imovel != "apartamento"` desta função (nunca
+    passou — já era só apartamento antes) e continua de fora, sem mudança,
+    em qualquer outro lugar do motor que mostre R$/m² de casa.
+    `mediana_pago_m2`/`mediana_pedido_m2`/`gap_pct` ficam sempre None
+    agora (suspensos); os campos novos `valor_total_*`/`n_vendas_revenda`
+    são aditivos."""
+    pago = {}  # (bairro, faixa) -> [valor_m2, ...] só dos últimos 12 meses (mantido só por compatibilidade de schema)
+    valor_total = {}  # (bairro, faixa) -> [valor, ...] revenda, últimos 12 meses
     for r in itbi_records:
-        if not r["is_clean_sale"] or r["bairro"] not in TARGETS or r["tipo_imovel"] != "apartamento":
+        if r["bairro"] not in TARGETS or r["tipo_imovel"] != "apartamento":
             continue
         if r["day"] is None or not (0 <= (hoje_serial - r["day"]) <= JANELA_PRECO_M2_DIAS):
             continue
         f = faixa_metragem(r["area"])
         if f is None:
             continue
-        pago.setdefault((r["bairro"], f), []).append(r["valor_m2"])
+        if r["is_clean_sale"]:
+            pago.setdefault((r["bairro"], f), []).append(r["valor_m2"])
+        if _is_revenda_aprovada(r):
+            valor_total.setdefault((r["bairro"], f), []).append(r["valor"])
 
     pedido = {}  # (bairro, faixa) -> [valor_m2, ...] (estoque atual, sem janela de tempo — não tem "data da venda")
     for r in usn_records:
@@ -723,22 +754,26 @@ def _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial):
         for _lo, _hi, f in FAIXAS_METRAGEM:
             key = (bairro, f)
             pago_vals = pago.get(key, [])
-            if not pago_vals and key not in pedido:
+            valor_total_vals = valor_total.get(key, [])
+            if not pago_vals and not valor_total_vals and key not in pedido:
                 continue
-            mediana_pago = _round(median(pago_vals), 2) if pago_vals else None
 
-            pedido_vals = trim_outliers_iqr(pedido.get(key, []))
-            mediana_pedido = _round(median(pedido_vals), 2) if pedido_vals else None
-
-            gap_pct = None
-            if mediana_pago and mediana_pedido:
-                gap_pct = _round((mediana_pedido - mediana_pago) / mediana_pago * 100, 1)
+            valor_total_limpos = trim_outliers_iqr(valor_total_vals)
+            valor_total_mediana = _round(median(valor_total_limpos), 2) if valor_total_limpos else None
+            valor_total_p25 = _round(percentile(25, valor_total_limpos), 2) if valor_total_limpos else None
+            valor_total_p75 = _round(percentile(75, valor_total_limpos), 2) if valor_total_limpos else None
 
             out.append({
                 "bairro": bairro, "faixa": f,
-                "mediana_pago_m2": mediana_pago, "mediana_pedido_m2": mediana_pedido, "gap_pct": gap_pct,
+                # Suspensos pra apartamento (item 2 da Etapa 2) — ver
+                # docstring. Campo mantido no schema (nunca removido),
+                # sempre None daqui em diante.
+                "mediana_pago_m2": None, "mediana_pedido_m2": None, "gap_pct": None,
+                "valor_total_mediana": valor_total_mediana,
+                "valor_total_p25": valor_total_p25, "valor_total_p75": valor_total_p75,
+                "n_vendas_revenda_12m": len(valor_total_vals),
                 "n_transacoes_12m": len(pago_vals), "n_anuncios": len(pedido.get(key, [])),
-                "amostra_pequena": len(pago_vals) < MIN_TRANSACOES_PRECO_M2_12M,
+                "amostra_pequena": len(valor_total_vals) < MIN_TRANSACOES_PRECO_M2_12M,
             })
     return out
 
