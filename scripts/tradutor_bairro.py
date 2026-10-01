@@ -58,6 +58,36 @@ def _chave(bairro_raw):
     return (bairro_raw or "").strip().upper()
 
 
+# Item 3, ponto 4 (2026-09-30): "SANTO AMARO" (nome de cadastro) não é mais
+# traduzido direto pra um destino fixo — o usuário mapeou, CEP a CEP (ver
+# santo_amaro_ceps_preenchido.csv), qual bairro de verdade cada prefixo de
+# CEP representa (Chácara Santo Antônio, Alto da Boa Vista, Socorro/
+# Interlagos fora da carteira, ou o centro de Santo Amaro que sobrou).
+SANTO_AMARO_VARIANTES = {"SANTO AMARO", "STO AMARO", "STO. AMARO"}
+SANTO_AMARO_SPLIT_CSV = Path(__file__).resolve().parent / "santo_amaro_split_resolvido.csv"
+
+
+def _cep5(cep_raw):
+    digits = re.sub(r"\D", "", cep_raw or "")
+    digits = digits.zfill(8) if digits else ""
+    return digits[:5] if digits else None
+
+
+def carregar_split_santo_amaro(path=SANTO_AMARO_SPLIT_CSV):
+    """{cep_prefixo (5 dígitos): bairro_mercado_final} — "FORA" é um valor
+    válido (vira fora_carteira). Prefixo ausente do arquivo = FORA (regra
+    3 do usuário: "Prefixos que não estão no arquivo: FORA"). Vazio/
+    ausente (arquivo ainda não gerado) = {} — traduzir() então se comporta
+    como antes (Santo Amaro inteiro = 1 destino só)."""
+    if not path.exists():
+        return {}
+    out = {}
+    with open(path, encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            out[row["cep_prefixo"].strip()] = row["bairro_mercado_final"].strip()
+    return out
+
+
 def carregar_tradutor(path=TRADUTOR_CSV, extra_path=TRADUTOR_EXTRA_CSV):
     """{nome_cadastro_iptu (upper+strip): (bairro_mercado, status)}.
     Conferido: 0 inconsistências DENTRO da tabela principal (mesmo
@@ -107,15 +137,29 @@ def targets_carteira(tradutor):
     return sorted(set(TARGETS) | novos)
 
 
-def traduzir(bairro_raw, tradutor):
-    """(destino, status) — destino é um dos 74 só quando status é
+def traduzir(bairro_raw, tradutor, cep=None, split_santo_amaro=None):
+    """(destino, status) — destino é um dos 77 só quando status é
     AUTO_CARTEIRA/NOVO_BAIRRO. status None = nome não está na tabela
     (nem carteira, nem fora, nem lixo conhecido) — quem chama decide o
-    fallback (voto por endereço, quadra, CEP)."""
-    return tradutor.get(_chave(bairro_raw), (None, None))
+    fallback (voto por endereço, quadra, CEP).
+
+    Item 3, ponto 4 (2026-09-30): quando `split_santo_amaro` é passado e o
+    nome normalizado é uma variante de "Santo Amaro", a tradução ignora o
+    destino fixo da tabela principal e usa o prefixo de 5 dígitos do CEP
+    pra decidir (ver carregar_split_santo_amaro) — "FORA" vira
+    fora_carteira, qualquer outro nome vira NOVO_BAIRRO (campo_original)
+    pra esse destino."""
+    chave = _chave(bairro_raw)
+    if split_santo_amaro is not None and chave in SANTO_AMARO_VARIANTES:
+        pref = _cep5(cep)
+        destino_split = split_santo_amaro.get(pref, "FORA")
+        if destino_split == "FORA":
+            return None, "SUGERIDO_FORA"
+        return destino_split, "NOVO_BAIRRO"
+    return tradutor.get(chave, (None, None))
 
 
-def construir_votos_quadra_traduzido(tradutor, path=None):
+def construir_votos_quadra_traduzido(tradutor, path=None, split_santo_amaro=None):
     """{setor_quadra: (bairro_majoritario_74, confianca_pct, n_lotes)} —
     substitui iptu_geosampa.construir_votos_quadra()/resolver_quadra_com_
     confianca() pra esta nova abordagem: cada linha do IPTU traduz direto
@@ -133,7 +177,7 @@ def construir_votos_quadra_traduzido(tradutor, path=None):
     votos = {}
     with gzip.open(path or ig.REDUZIDO_GZ, "rt", encoding="utf-8") as f:
         for row in csv.DictReader(f):
-            destino, status = traduzir(row.get("bairro"), tradutor)
+            destino, status = traduzir(row.get("bairro"), tradutor, cep=row.get("cep"), split_santo_amaro=split_santo_amaro)
             if status not in STATUS_CARTEIRA:
                 continue
             sq = ig.setor_quadra_de_sql(row.get("sql"))
@@ -157,7 +201,7 @@ class Cascata:
     dados, por pedido do usuário: "usar a mesma cascata para as vendas e
     para as unidades" significa mesma LÓGICA, não os mesmos votos)."""
 
-    def __init__(self, tradutor, targets, votos_quadra_resolvidos, quadras_qualquer_bairro=None):
+    def __init__(self, tradutor, targets, votos_quadra_resolvidos, quadras_qualquer_bairro=None, split_santo_amaro=None):
         """votos_quadra_resolvidos: saída de construir_votos_quadra_traduzido()
         — {setor_quadra: (destino_74_ja_traduzido, confianca_pct, n)}.
         quadras_qualquer_bairro: set opcional de setor+quadra que têm ALGUM
@@ -172,6 +216,7 @@ class Cascata:
         self.addr_votes = {}
         self.cep_votes = {}
         self.quadras_qualquer_bairro = quadras_qualquer_bairro or set()
+        self.split_santo_amaro = split_santo_amaro
         import sys as _sys
 
         _sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -188,7 +233,9 @@ class Cascata:
         addr_counts = {}
         cep_counts = {}
         for r in registros:
-            destino, status = traduzir(get_bairro_raw(r), self.tradutor)
+            destino, status = traduzir(
+                get_bairro_raw(r), self.tradutor, cep=get_cep(r), split_santo_amaro=self.split_santo_amaro
+            )
             if status not in STATUS_CARTEIRA:
                 continue
             akey = get_addr_key(r)
@@ -211,7 +258,7 @@ class Cascata:
         74; "fora_carteira" e "incerto" sempre têm destino None (a
         diferença entre os dois é só informativa — fora_carteira tem
         nome de bairro real, só não é um dos 74)."""
-        destino, status = traduzir(bairro_raw, self.tradutor)
+        destino, status = traduzir(bairro_raw, self.tradutor, cep=cep, split_santo_amaro=self.split_santo_amaro)
         if status in STATUS_CARTEIRA:
             return destino, "campo_original"
         if status in STATUS_FORA:

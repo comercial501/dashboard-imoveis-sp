@@ -1318,6 +1318,186 @@ implementação — depois disso: aplicar a divisão, refazer a tabela completa
 dos 77 e só então integrar no engine, com relatório antes×depois e merge só
 mediante aprovação.
 
+## Item 3: divisão de Santo Amaro aplicada + cascata completa recalculada (2026-09-30)
+
+O usuário devolveu `santo_amaro_ceps_preenchido.csv` (452 prefixos de CEP,
+cada um com o bairro de mercado final — "FORA" é um valor válido). Regras
+aplicadas (`scripts/resolver_santo_amaro.py`):
+
+1. Nome de cadastro "SANTO AMARO"/variantes → traduzido pelo prefixo de 5
+   dígitos do CEP, usando a coluna `bairro_mercado` do arquivo.
+2. 9 prefixos com `status=VALIDAR_ANUNCIOS`: conferidos contra os anúncios
+   nonStop ativos daquele prefixo (3+ anúncios e 60%+ deles no mesmo
+   bairro dos 77 → usa esse bairro; senão, mantém o provisório). Só **1
+   dos 9** teve anúncios suficientes: **04750** tinha 4 anúncios, 100%
+   "Alto da Boa Vista" → provisório "Santo Amaro" substituído por **Alto
+   da Boa Vista**. Os outros 8 ficaram com o provisório (0–2 anúncios,
+   amostra insuficiente).
+3. Prefixo que não aparece no arquivo → FORA.
+
+Resultado: `scripts/santo_amaro_split_resolvido.csv` (452 linhas,
+committed — o CSV com os 452 CEPs do usuário fica só em `data/`,
+gitignorado, nunca editado).
+
+**Importante — metodologia revenda×planta reconstruída do zero.** O
+script que gerou os números de revenda/planta mostrados nas rodadas
+anteriores desta sessão (totais "105.897 revenda / 75.426 planta") era um
+script descartável, nunca commitado — foi perdido numa compactação de
+contexto. Para aplicar a divisão de Santo Amaro de forma reprodutível,
+esta rodada reconstrói a classificação revenda×planta do zero, agora como
+código commitado (`scripts/cascata_completa.py`), com uma régua
+explícita e documentada:
+
+- Endereço (rua+número) com **5+ vendas válidas** (mesma regra de
+  `engine._is_valid_sale`: "1.Compra e venda", 100% transmitido, unidade
+  — não prédio inteiro) dentro de uma **janela de 182 dias** (mesmo
+  limiar de `engine._is_launch`, já usado pela Captação Ativa) é
+  lançamento → conta como **planta**. Todo o resto (venda única,
+  2–4 vendas, ou vendas espalhadas fora da janela de 182 dias) conta como
+  **revenda**.
+- Ao contrário da Captação Ativa, **não descarta** endereço com preço
+  incoerente entre vendas (`engine._price_incoherent`) — aqui o objetivo é
+  contar volume ("giro é giro", mesma filosofia de `engine.py`), não
+  montar uma lista de prospecção.
+- Classificação usa o histórico MULTI-ANO inteiro do endereço (pra ver o
+  padrão de lançamento completo), mas só entra na tabela final a janela
+  rolante de 12 meses mais recente (mesma janela de
+  `engine._mes_base_e_periodo`, jul/2025–jun/2026 nesta base congelada).
+
+Com essa régua (explicitamente diferente da do script perdido — os
+números NÃO devem ser comparados 1:1 com os reportados antes nesta
+sessão), o universo total recalculado é: **70.877 revendas / 49.050
+plantas** (12 meses, dedup, qualquer natureza — "giro é giro").
+
+**a) Tabela completa dos 77** (ANTES = revenda+planta combinados, com
+"Santo Amaro" ainda como bairro único; DEPOIS revenda/planta/giro = com a
+divisão aplicada):
+
+| Bairro | ANTES | DEPOIS revenda | DEPOIS planta | Giro |
+|---|---:|---:|---:|---:|
+| Aclimação | 1.052 | 687 | 365 | 2,58% |
+| Alto da Boa Vista | 119 | 206 | 279 | 2,25% |
+| Alto da Lapa | 242 | 163 | 79 | 2,56% |
+| Alto da Mooca | 767 | 604 | 163 | 3,93% |
+| Alto de Pinheiros | 217 | 146 | 71 | 2,38% |
+| Bela Vista | 1.848 | 1.006 | 843 | 2,08% |
+| Bosque da Saúde | 122 | 119 | 3 | 4,51% |
+| Brooklin | 1.278 | 732 | 605 | 2,58% |
+| Cambuci | 749 | 342 | 410 | 1,57% |
+| Campo Belo | 1.150 | 676 | 536 | 3,02% |
+| Cerqueira César | 1.522 | 1.047 | 475 | 3,87% |
+| Chácara Inglesa | 165 | 69 | 96 | 1,51% |
+| Chácara Santo Antônio | 418 | 357 | 677 | 1,81% |
+| Cidade Monções | 80 | 51 | 29 | 1,76% |
+| Consolação | 1.525 | 637 | 888 | 2,16% |
+| Higienópolis | 522 | 481 | 41 | 4,67% |
+| Ibirapuera | 565 | 303 | 281 | 2,29% |
+| Indianópolis | 1.130 | 640 | 491 | 3,29% |
+| Ipiranga | 2.543 | 1.440 | 1.103 | 2,98% |
+| Itaim Bibi | 732 | 498 | 234 | 2,76% |
+| Jardim Aeroporto | 189 | 92 | 103 | 1,32% |
+| Jardim América | 654 | 376 | 278 | 2,85% |
+| Jardim Anália Franco | 72 | 59 | 13 | 3,47% |
+| Jardim Caravelas | 0 | 0 | 0 | — |
+| Jardim Europa | 72 | 71 | 1 | 3,33% |
+| Jardim Novo Mundo | 12 | 12 | 0 | 2,07% |
+| Jardim Paulista | 1.575 | 1.148 | 428 | 3,79% |
+| Jardim Paulistano | 92 | 90 | 11 | 1,98% |
+| Jardim Petrópolis | 18 | 23 | 8 | 2,33% |
+| Jardim Santo Amaro | 17 | 35 | 24 | 2,51% |
+| Jardim Vila Mariana | 25 | 25 | 0 | 3,10% |
+| Jardim da Glória | 82 | 73 | 9 | 3,18% |
+| Jardim da Saúde | 188 | 135 | 53 | 2,57% |
+| Jardim das Acácias | 150 | 32 | 118 | 1,08% |
+| Jardim das Bandeiras | 16 | 16 | 0 | 3,15% |
+| Jardim dos Estados | 20 | 21 | 13 | 2,34% |
+| Jardins | 29 | 23 | 6 | 4,20% |
+| Lapa | 1.441 | 575 | 899 | 1,71% |
+| Mirandópolis | 321 | 219 | 102 | 2,56% |
+| Moema | 708 | 476 | 353 | 2,39% |
+| Moinho Velho | 340 | 153 | 187 | 1,92% |
+| Mooca | 2.116 | 927 | 1.189 | 2,00% |
+| Pacaembu | 71 | 46 | 25 | 2,60% |
+| Paraíso | 639 | 395 | 244 | 2,93% |
+| Parque Fongaro | 54 | 32 | 22 | 1,44% |
+| Parque da Mooca | 160 | 109 | 51 | 2,38% |
+| Perdizes | 2.337 | 1.496 | 842 | 3,55% |
+| Pinheiros | 1.591 | 787 | 804 | 2,71% |
+| Planalto Paulista | 254 | 202 | 52 | 2,90% |
+| Pompéia | 721 | 454 | 267 | 3,67% |
+| Santa Cecília | 1.839 | 1.257 | 597 | 2,96% |
+| **Santo Amaro** | **7.117** | **107** | **334** | **0,91%** |
+| Saúde | 3.379 | 1.888 | 1.491 | 2,66% |
+| Sumarezinho | 181 | 119 | 62 | 2,92% |
+| Sumaré | 208 | 142 | 66 | 3,01% |
+| Tatuapé | 4.243 | 2.217 | 2.026 | 2,60% |
+| Vila Antonieta | 337 | 176 | 166 | 2,09% |
+| Vila Bertioga | 98 | 74 | 24 | 2,53% |
+| Vila Clementino | 645 | 477 | 216 | 3,83% |
+| Vila Cordeiro | 89 | 19 | 71 | 0,76% |
+| Vila Firmiano Pinto | 29 | 12 | 17 | 0,77% |
+| Vila Gomes Cardim | 90 | 43 | 47 | 1,36% |
+| Vila Gumercindo | 177 | 94 | 83 | 1,66% |
+| Vila Ipojuca | 106 | 87 | 19 | 2,94% |
+| Vila Leopoldina | 507 | 113 | 394 | 0,90% |
+| Vila Madalena | 640 | 466 | 174 | 3,37% |
+| Vila Mariana | 2.971 | 1.896 | 1.075 | 3,57% |
+| Vila Monumento | 205 | 202 | 3 | 5,05% |
+| Vila Nova Conceição | 332 | 235 | 97 | 3,39% |
+| Vila Nova Manchester | 153 | 134 | 19 | 4,26% |
+| Vila Olímpia | 1.311 | 599 | 720 | 3,64% |
+| Vila Regente Feijó | 184 | 83 | 101 | 1,44% |
+| Vila Romana | 256 | 192 | 72 | 2,76% |
+| Vila São Francisco | 369 | 147 | 225 | 1,50% |
+| Vila Uberabinha | 43 | 26 | 17 | 2,50% |
+| Vila da Saúde | 40 | 23 | 17 | 3,25% |
+| Vila das Mercês | 222 | 84 | 138 | 1,16% |
+
+Giro = revenda÷unidades IPTU (apartamento+residência), mesma definição já
+aprovada (planta fora do numerador).
+
+**b) Destaque — antes × depois da divisão de Santo Amaro** (revenda|planta|unidades IPTU):
+
+| Bairro | Antes da divisão | Depois da divisão |
+|---|---:|---:|
+| **Santo Amaro** | 3.084 \| 4.033 \| 218.601 | **107 \| 334 \| 11.723** |
+| Alto da Boa Vista | 47 \| 72 \| 2.563 | **206 \| 279 \| 9.140** |
+| Chácara Santo Antônio | 237 \| 181 \| 11.168 | **357 \| 677 \| 19.735** |
+| Jardim Caravelas | 0 \| 0 \| 0 | 0 \| 0 \| 0 (sem mudança — nenhum CEP do arquivo foi atribuído a ele) |
+| Jardim Santo Amaro | 17 \| 0 \| 358 | 35 \| 24 \| 1.394 |
+| Brooklin | 708 \| 570 \| 27.523 | 732 \| 605 \| 28.425 |
+| Campo Belo | 665 \| 485 \| 20.655 | 676 \| 536 \| 22.415 |
+
+Achado: a divisão fez exatamente o que a evidência dos CEPs apontava —
+Santo Amaro (o "centro" que sobrou) caiu de ~7.100 pra ~440
+revendas+plantas, Alto da Boa Vista e Chácara Santo Antônio recuperaram
+volume que genuinamente era deles. Jardim Santo Amaro e Brooklin/Campo
+Belo tiveram ganhos pequenos — efeito indireto (tiers 2–5 da cascata:
+menos registros "Santo Amaro" competindo por voto de endereço/CEP/quadra
+nas redondezas).
+
+**c) Fechamento da conta (77 bairros, antes × depois da divisão)**:
+
+| | Antes da divisão | Depois da divisão |
+|---|---:|---:|
+| Revenda — carteira / fora / incerto | 44,8% / 53,6% / 1,6% | 41,2% / 57,1% / 1,7% |
+| Planta — carteira / fora / incerto | 50,4% / 35,5% / 14,1% | 44,9% / 40,1% / 15,0% |
+| Unidades IPTU — carteira / fora / incerto | 44,6% / 49,8% / 5,6% | 38,3% / 55,4% / 6,3% |
+
+A carteira perde alguns pontos percentuais em todos os 3 universos — raiz
+numérica óbvia: antes, 100% do que se chamava "Santo Amaro" contava como
+carteira; agora, a maior parte desse volume (as partes de
+Socorro/Interlagos, marcadas "FORA" no arquivo do usuário) sai da
+carteira de verdade. É o resultado esperado da divisão, não um problema.
+
+**Pendente antes de fechar o item**: os números acima usam uma definição
+de revenda×planta reconstruída nesta rodada (ver acima) — diferente do
+script perdido que gerou os totais mostrados antes na sessão. Aguardando
+o usuário confirmar que esta régua (endereço com 5+ vendas em 182 dias =
+planta, sem descarte por preço incoerente) é a que deve virar
+`engine.py`/`engine.js`, já que "se os números fecharem, implementar" foi
+a condição dada. Nada ligado em `engine.py`/`engine.js` ainda.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
