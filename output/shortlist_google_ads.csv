@@ -1,78 +1,78 @@
-bairro,nota_prontidao,revenda_12m,tendencia_revenda_pct,giro_12m_pct,anuncios_ativos,anuncios_perfil_vencedor_faixa_preco,tag_busca,amostra_pequena,buscas_google_mes
-Vila Mariana,68.1,2101,3.0,3.96,159,11,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Jardim Paulista,64.4,1236,0.4,4.08,118,18,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Perdizes,58.6,1801,7.6,4.27,159,9,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Vila Olímpia,55.4,860,5.5,5.23,66,22,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Tatuapé,54.2,2860,3.8,3.35,25,2,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Saúde,52.6,2407,1.9,3.39,38,2,sem dado,False,
-Pinheiros,51.1,1186,3.4,4.08,99,8,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Itaim Bibi,50.7,546,0.7,3.03,71,18,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Paraíso,48.5,559,21.5,4.14,52,8,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Campo Belo,48.0,988,12.0,4.41,122,0,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Brooklin,47.7,1099,-5.6,3.87,163,11,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Santa Cecília,46.6,1444,16.5,3.4,16,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Vila Nova Conceição,45.2,250,8.2,3.6,62,10,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Indianópolis,44.4,905,-10.3,4.65,53,3,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Aclimação,43.6,883,3.2,3.32,44,0,sem dado,False,
-Sumaré,43.4,154,36.3,3.26,26,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Higienópolis,42.9,402,13.6,3.9,56,3,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Cerqueira César,42.5,1154,1.6,4.27,30,0,sem dado,False,
-Consolação,42.3,1298,13.9,4.41,18,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Vila Madalena,42.3,451,-12.6,3.26,55,3,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Bela Vista,40.9,1384,-3.6,2.86,31,0,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Vila Clementino,37.3,440,-1.1,3.53,59,0,sem dado,False,
-Pacaembu,36.9,70,4.5,3.95,14,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Planalto Paulista,36.7,206,29.6,2.96,39,4,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Mooca,36.0,1568,1.8,3.38,17,0,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Moema,35.9,661,-2.1,3.32,116,0,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Jardim Paulistano,35.6,81,14.1,1.78,8,3,sem dado,True,
-Mirandópolis,35.0,237,4.4,2.77,16,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Bosque da Saúde,33.4,85,19.7,3.22,22,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Jardim América,32.1,588,7.3,4.46,14,0,sem dado,False,
-Alto da Lapa,31.4,236,9.3,3.7,25,0,sem dado,False,
-Vila Monumento,30.9,115,26.4,2.87,10,0,sem dado,False,
-Lapa,30.5,1194,2.5,3.55,7,0,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Vila Romana,30.1,203,15.3,2.92,23,0,sem dado,False,
-Ipiranga,29.9,1605,-0.8,3.32,50,0,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Chácara Inglesa,29.8,152,26.7,3.33,13,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Jardim Europa,28.2,50,,2.34,9,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Alto da Boa Vista,27.7,361,-5.2,3.95,19,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Pompéia,26.6,484,13.9,3.91,20,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Jardim Petrópolis,26.4,25,,2.53,2,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Alto de Pinheiros,26.2,168,-9.7,2.73,15,2,sem dado,False,
-Cidade Monções,25.9,50,0.0,1.72,19,0,sem dado,True,
-Vila Leopoldina,25.1,449,-16.1,3.56,29,2,sem dado,False,
-Jardim da Glória,24.7,63,,2.75,17,1,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Vila Uberabinha,24.4,33,,3.17,10,1,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Jardim Vila Mariana,24.0,22,,2.73,13,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Vila Ipojuca,23.8,84,-16.8,2.84,17,3,sem dado,True,
-Chácara Santo Antônio,22.9,828,3.4,4.2,0,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Vila Bertioga,22.6,91,23.0,3.11,0,0,sem dado,True,
-Vila Antonieta,22.4,277,16.9,3.29,0,0,sem dado,False,
-Moinho Velho,20.9,285,4.0,3.58,0,0,sem dado,False,
-Alto da Mooca,20.5,481,5.5,3.13,2,0,sem dado,False,
-Ibirapuera,20.0,515,-3.7,3.9,4,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Vila Cordeiro,19.9,98,-16.2,3.91,9,2,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Jardim das Bandeiras,19.4,11,,2.17,1,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Vila São Francisco,19.4,287,-6.5,2.93,0,0,sem dado,False,
-Jardim Anália Franco,19.3,72,1.4,4.24,0,0,sem dado,True,
-Vila Nova Manchester,19.2,81,-1.2,2.57,0,0,sem dado,True,
-Vila Regente Feijó,19.2,188,-3.6,3.26,0,0,sem dado,False,
-Vila da Saúde,19.0,38,,5.37,5,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Jardins,18.9,29,,5.3,0,0,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Sumarezinho,18.9,159,-21.7,3.9,10,0,sem dado,False,
-Jardim dos Estados,18.7,27,,3.0,0,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Parque Fongaro,18.7,48,,2.16,0,0,sem dado,True,
-Jardim Novo Mundo,18.5,10,,1.72,0,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Vila das Mercês,18.5,170,-4.5,2.35,0,0,sem dado,False,
-Jardim Caravelas,18.4,0,,,0,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Cambuci,18.1,631,1.1,2.89,8,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Jardim da Saúde,17.5,133,0.8,2.53,3,0,sem dado,False,
-Vila Firmiano Pinto,17.5,165,,10.56,4,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Jardim Aeroporto,16.4,214,4.9,3.07,1,0,sem dado,False,
-Jardim Santo Amaro,16.3,38,,2.73,3,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,
-Vila Gumercindo,15.4,168,-13.4,2.97,23,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,
-Santo Amaro,14.8,395,-6.6,3.37,1,0,sem dado,False,
-Parque da Mooca,13.8,140,-11.9,3.06,1,0,sem dado,False,
-Jardim das Acácias,13.7,125,-41.6,4.23,17,0,sem dado,False,
-Vila Gomes Cardim,12.7,72,-19.1,2.27,1,1,sem dado,True,
+bairro,nota_prontidao,revenda_12m,tendencia_revenda_pct,giro_12m_pct,anuncios_ativos,anuncios_perfil_vencedor_faixa_preco,tag_busca,amostra_pequena,buscas_google_mes,busca_apartamento_a_venda,busca_apartamento,busca_imoveis
+Vila Mariana,68.1,2101,3.0,3.96,159,11,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,1933,,,
+Jardim Paulista,64.4,1236,0.4,4.08,118,18,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,320,,,
+Perdizes,58.6,1801,7.6,4.27,159,9,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,1330,,,
+Vila Olímpia,55.4,860,5.5,5.23,66,22,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,27,,,
+Tatuapé,54.2,2860,3.8,3.35,25,2,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,1527,,,
+Saúde,52.6,2407,1.9,3.39,38,2,sem dado,False,50,0,40,10
+Pinheiros,51.1,1186,3.4,4.08,99,8,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,973,,,
+Itaim Bibi,50.7,546,0.7,3.03,71,18,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,550,,,
+Paraíso,48.5,559,21.5,4.14,52,8,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,193,,,
+Campo Belo,48.0,988,12.0,4.41,122,0,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,630,,,
+Brooklin,47.7,1099,-5.6,3.87,163,11,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,463,,,
+Santa Cecília,46.6,1444,16.5,3.4,16,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,100,,,
+Vila Nova Conceição,45.2,250,8.2,3.6,62,10,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,413,,,
+Indianópolis,44.4,905,-10.3,4.65,53,3,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,33,,,
+Aclimação,43.6,883,3.2,3.32,44,0,sem dado,False,300,0,290,10
+Sumaré,43.4,154,36.3,3.26,26,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,27,,,
+Higienópolis,42.9,402,13.6,3.9,56,3,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,160,,,
+Cerqueira César,42.5,1154,1.6,4.27,30,0,sem dado,False,50,0,40,10
+Consolação,42.3,1298,13.9,4.41,18,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,200,,,
+Vila Madalena,42.3,451,-12.6,3.26,55,3,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,560,,,
+Bela Vista,40.9,1384,-3.6,2.86,31,0,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,790,,,
+Vila Clementino,37.3,440,-1.1,3.53,59,0,sem dado,False,520,0,480,40
+Pacaembu,36.9,70,4.5,3.95,14,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,63,,,
+Planalto Paulista,36.7,206,29.6,2.96,39,4,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,53,,,
+Mooca,36.0,1568,1.8,3.38,17,0,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,1900,,,
+Moema,35.9,661,-2.1,3.32,116,0,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,1043,,,
+Jardim Paulistano,35.6,81,14.1,1.78,8,3,sem dado,True,70,0,45,25
+Mirandópolis,35.0,237,4.4,2.77,16,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,17,,,
+Bosque da Saúde,33.4,85,19.7,3.22,22,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,10,,,
+Jardim América,32.1,588,7.3,4.46,14,0,sem dado,False,25,5,10,10
+Alto da Lapa,31.4,236,9.3,3.7,25,0,sem dado,False,235,0,215,20
+Vila Monumento,30.9,115,26.4,2.87,10,0,sem dado,False,70,0,60,10
+Lapa,30.5,1194,2.5,3.55,7,0,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,600,,,
+Vila Romana,30.1,203,15.3,2.92,23,0,sem dado,False,380,0,355,25
+Ipiranga,29.9,1605,-0.8,3.32,50,0,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,743,,,
+Chácara Inglesa,29.8,152,26.7,3.33,13,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,20,,,
+Jardim Europa,28.2,50,,2.34,9,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,130,,,
+Alto da Boa Vista,27.7,361,-5.2,3.95,19,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,293,,,
+Pompéia,26.6,484,13.9,3.91,20,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,197,,,
+Jardim Petrópolis,26.4,25,,2.53,2,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,10,,,
+Alto de Pinheiros,26.2,168,-9.7,2.73,15,2,sem dado,False,235,0,210,25
+Cidade Monções,25.9,50,0.0,1.72,19,0,sem dado,True,10,0,10,0
+Vila Leopoldina,25.1,449,-16.1,3.56,29,2,sem dado,False,780,0,720,60
+Jardim da Glória,24.7,63,,2.75,17,1,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,3,,,
+Vila Uberabinha,24.4,33,,3.17,10,1,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,17,,,
+Jardim Vila Mariana,24.0,22,,2.73,13,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,10,,,
+Vila Ipojuca,23.8,84,-16.8,2.84,17,3,sem dado,True,100,0,90,10
+Chácara Santo Antônio,22.9,828,3.4,4.2,0,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,30,,,
+Vila Bertioga,22.6,91,23.0,3.11,0,0,sem dado,True,10,0,10,0
+Vila Antonieta,22.4,277,16.9,3.29,0,0,sem dado,False,100,0,90,10
+Moinho Velho,20.9,285,4.0,3.58,0,0,sem dado,False,35,0,30,5
+Alto da Mooca,20.5,481,5.5,3.13,2,0,sem dado,False,70,0,70,0
+Ibirapuera,20.0,515,-3.7,3.9,4,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,250,,,
+Vila Cordeiro,19.9,98,-16.2,3.91,9,2,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,20,,,
+Jardim das Bandeiras,19.4,11,,2.17,1,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,7,,,
+Vila São Francisco,19.4,287,-6.5,2.93,0,0,sem dado,False,55,0,50,5
+Jardim Anália Franco,19.3,72,1.4,4.24,0,0,sem dado,True,10,0,10,0
+Vila Nova Manchester,19.2,81,-1.2,2.57,0,0,sem dado,True,0,0,0,0
+Vila Regente Feijó,19.2,188,-3.6,3.26,0,0,sem dado,False,5,5,0,0
+Vila da Saúde,19.0,38,,5.37,5,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,10,,,
+Jardins,18.9,29,,5.3,0,0,"Alto (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,367,,,
+Sumarezinho,18.9,159,-21.7,3.9,10,0,sem dado,False,45,0,35,10
+Jardim dos Estados,18.7,27,,3.0,0,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,7,,,
+Parque Fongaro,18.7,48,,2.16,0,0,sem dado,True,0,0,0,0
+Jardim Novo Mundo,18.5,10,,1.72,0,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,10,,,
+Vila das Mercês,18.5,170,-4.5,2.35,0,0,sem dado,False,15,0,10,5
+Jardim Caravelas,18.4,0,,,0,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,10,,,
+Cambuci,18.1,631,1.1,2.89,8,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,257,,,
+Jardim da Saúde,17.5,133,0.8,2.53,3,0,sem dado,False,10,0,10,0
+Vila Firmiano Pinto,17.5,165,,10.56,4,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,10,,,
+Jardim Aeroporto,16.4,214,4.9,3.07,1,0,sem dado,False,35,0,25,10
+Jardim Santo Amaro,16.3,38,,2.73,3,0,"Baixo (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",True,0,,,
+Vila Gumercindo,15.4,168,-13.4,2.97,23,0,"Médio (fonte: Google Ads Keyword Planner, dado de 2026-09-21)",False,73,,,
+Santo Amaro,14.8,395,-6.6,3.37,1,0,sem dado,False,760,10,720,30
+Parque da Mooca,13.8,140,-11.9,3.06,1,0,sem dado,False,35,0,35,0
+Jardim das Acácias,13.7,125,-41.6,4.23,17,0,sem dado,False,10,0,10,0
+Vila Gomes Cardim,12.7,72,-19.1,2.27,1,1,sem dado,True,80,0,80,0

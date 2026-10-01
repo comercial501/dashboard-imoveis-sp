@@ -6,7 +6,7 @@ ITBI (que é só retrospectiva — vendas já fechadas).
 
 Usa GenerateKeywordHistoricalMetrics (não GenerateKeywordIdeas): esse método
 devolve métricas para EXATAMENTE as palavras-chave pedidas — sem expandir
-pra ideias relacionadas — o que é o que queremos aqui (comparar os 47
+pra ideias relacionadas — o que é o que queremos aqui (comparar os 77
 bairros pelo mesmo critério, não descobrir novos termos).
 
 Requer GOOGLE_ADS_CLIENT_ID / GOOGLE_ADS_CLIENT_SECRET / GOOGLE_ADS_REFRESH_TOKEN
@@ -34,6 +34,10 @@ KEYWORD_TEMPLATES = [
     "apartamento {bairro}",
     "imóveis {bairro}",
 ]
+# Rótulos curtos p/ expor o volume de cada termo separado (revisão
+# 2026-10-01, pedido pro shortlist_google_ads.csv) — mesma ordem de
+# KEYWORD_TEMPLATES, usado como chave em "por_termo".
+KEYWORD_TEMPLATE_LABELS = ["apartamento_a_venda", "apartamento", "imoveis"]
 
 GEO_LOCATION_NAME = "São Paulo"
 LANGUAGE_CODE = "pt"
@@ -101,9 +105,13 @@ def _months_back(n, from_year, from_month):
 
 
 def fetch_search_interest(bairros, months_back=3, log=print):
-    """Retorna dict {bairro: {"avg_monthly_searches": int, "months": [...]}}
-    com o total de buscas mensais somado das variantes de keyword daquele
-    bairro, nos últimos `months_back` meses fechados."""
+    """Retorna dict {bairro: {"avg_monthly_searches": int, "meses_com_dado": int,
+    "por_termo": {label: int}}} com o total de buscas mensais somado das
+    variantes de keyword daquele bairro, nos últimos `months_back` meses
+    fechados. "por_termo" (revisão 2026-10-01, pedido pro shortlist_
+    google_ads.csv) quebra esse total pelos 3 termos de KEYWORD_TEMPLATES/
+    KEYWORD_TEMPLATE_LABELS — mesma chamada de API, só não descartamos
+    mais a granularidade por termo ao agregar."""
     from google.ads.googleads.client import GoogleAdsClient
     import datetime
 
@@ -119,11 +127,13 @@ def fetch_search_interest(bairros, months_back=3, log=print):
     end_y, end_m = target_months[-1]
 
     keyword_to_bairro = {}
+    keyword_to_bairro_termo = {}
     keywords = []
     for bairro in bairros:
-        for template in KEYWORD_TEMPLATES:
+        for label, template in zip(KEYWORD_TEMPLATE_LABELS, KEYWORD_TEMPLATES):
             kw = template.format(bairro=bairro).lower()
             keyword_to_bairro[kw] = bairro
+            keyword_to_bairro_termo[kw] = (bairro, label)
             keywords.append(kw)
 
     log(f"[keywords] consultando {len(keywords)} termos ({months_back} meses: {target_months[0]}..{target_months[-1]})")
@@ -147,12 +157,16 @@ def fetch_search_interest(bairros, months_back=3, log=print):
     response = service.generate_keyword_historical_metrics(request=request)
 
     by_bairro_monthly = {b: {} for b in bairros}  # bairro -> (year,month) -> soma
+    by_bairro_termo_monthly = {b: {label: {} for label in KEYWORD_TEMPLATE_LABELS} for b in bairros}
     for result in response.results:
         text = (result.text or "").lower()
         matched_bairros = set()
+        matched_bairro_termo = set()
         for kw in [text] + list(result.close_variants):
             if kw in keyword_to_bairro:
                 matched_bairros.add(keyword_to_bairro[kw])
+            if kw in keyword_to_bairro_termo:
+                matched_bairro_termo.add(keyword_to_bairro_termo[kw])
         if not matched_bairros:
             continue
         for msv in result.keyword_metrics.monthly_search_volumes:
@@ -160,13 +174,20 @@ def fetch_search_interest(bairros, months_back=3, log=print):
             searches = msv.monthly_searches if msv.monthly_searches else 0
             for b in matched_bairros:
                 by_bairro_monthly[b][key] = by_bairro_monthly[b].get(key, 0) + searches
+            for b, label in matched_bairro_termo:
+                by_bairro_termo_monthly[b][label][key] = by_bairro_termo_monthly[b][label].get(key, 0) + searches
 
     out = {}
     for b in bairros:
         vals = list(by_bairro_monthly[b].values())
+        por_termo = {}
+        for label in KEYWORD_TEMPLATE_LABELS:
+            tvals = list(by_bairro_termo_monthly[b][label].values())
+            por_termo[label] = round(sum(tvals) / len(tvals)) if tvals else 0
         out[b] = {
             "avg_monthly_searches": round(sum(vals) / len(vals)) if vals else 0,
             "meses_com_dado": len(vals),
+            "por_termo": por_termo,
         }
     return out
 
