@@ -770,6 +770,11 @@ function renderProntidao() {
       name,
       b.flag_prioridade_maxima ? badge("Prioridade Máxima", "gold") : null,
       b.amostra_pequena_ranking ? badge("Amostra pequena", "neutral") : null,
+      // Revisão 2026-10-01 (item 3 do ajuste da faixa de preço v2):
+      // distingue "0 porque não há estoque nenhum" de "0 porque há
+      // estoque ativo, mas nenhum dentro da faixa de preço vencedora" —
+      // só o 2º caso mostra o selo (ver engine.py.estoque_fora_do_perfil).
+      b.estoque_fora_do_perfil ? badge("Estoque fora do perfil", "warning") : null,
       searchInterestBadge(b),
     ]);
     body.appendChild(nameLine);

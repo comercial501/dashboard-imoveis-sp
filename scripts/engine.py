@@ -438,6 +438,72 @@ def _aggregate_usn(usn_records):
 
 
 # ---------------------------------------------------------------------------
+# 3b. Perfil vencedor — faixa de preço v2 (revisão 2026-10-01, migração
+# do Prontidão): P25-P75 do valor TOTAL pago em revenda nos últimos 12
+# meses, por bairro + tipo de imóvel — SEM passar por metragem. Campo
+# NOVO, aditivo (perfil_vencedor_faixa_preco_v2) — price_band (v1, modal
+# de área, ver _compute_profile abaixo) continua intacto pros painéis
+# que ainda não migraram (Estoque×Demanda, flag_prioridade_maxima,
+# Captação Estratégica).
+#
+# Motivo da troca: a faixa v1 vem do BUCKET DE ÁREA mais comum nas
+# vendas pagas (área CONSTRUÍDA do ITBI) — pra bairros onde esse bucket
+# modal é um apartamento pequeno/antigo (ex: Campo Belo 80-100m²
+# construída, ~45m² úteis equivalente), a faixa de preço resultante fica
+# muito abaixo do que qualquer anúncio ativo pede hoje (que é área ÚTIL,
+# não construída — mesmo problema de régua já identificado no item do
+# backlog "calibração de área"). Separar por tipo de imóvel e tirar a
+# metragem do meio evita herdar essa distorção.
+# ---------------------------------------------------------------------------
+PERFIL_PRECO_V2_TIPOS = ("apartamento", "casa")
+
+
+def _compute_perfil_vencedor_faixa_preco_v2(itbi_records, periodo_12m, usn_by_bairro):
+    periodo_set = set(periodo_12m)
+    valores_por_bairro_tipo = {b: {t: [] for t in PERFIL_PRECO_V2_TIPOS} for b in TARGETS}
+    for r in itbi_records:
+        if not r.get("is_revenda"):
+            continue
+        b = r["bairro"]
+        tipo = r.get("tipo_imovel")
+        if b not in valores_por_bairro_tipo or tipo not in PERFIL_PRECO_V2_TIPOS:
+            continue
+        if r["day"] is None:
+            continue
+        if excel_serial_to_ym(r["day"]) not in periodo_set:
+            continue
+        valores_por_bairro_tipo[b][tipo].append(r["valor"])
+
+    out = {}
+    for b in TARGETS:
+        bandas = {}
+        for tipo in PERFIL_PRECO_V2_TIPOS:
+            valores = valores_por_bairro_tipo[b][tipo]
+            if not valores:
+                bandas[tipo] = None
+                continue
+            valores_ok = trim_outliers_iqr(valores)
+            bandas[tipo] = [_round(percentile(25, valores_ok), 2), _round(percentile(75, valores_ok), 2)]
+
+        own_stock = usn_by_bairro[b]
+        in_band = []
+        for r in own_stock:
+            banda = bandas.get(r.get("tipo_imovel"))
+            if banda and r["valor"] is not None and banda[0] <= r["valor"] <= banda[1]:
+                in_band.append(r)
+        out[b] = {
+            "bandas": bandas,
+            "profile_sample_size_faixa_preco_v2": len(in_band),
+            # item 3 do pedido (2026-10-01): distingue "0 porque não há
+            # estoque nenhum" de "0 porque há estoque, mas fora da
+            # faixa" — o selo "Estoque fora do perfil" só faz sentido no
+            # segundo caso.
+            "estoque_fora_do_perfil": len(own_stock) > 0 and len(in_band) == 0,
+        }
+    return out
+
+
+# ---------------------------------------------------------------------------
 # 3. Perfil vencedor (Painel 3) + fallback regional (Mudança 1)
 # ---------------------------------------------------------------------------
 def _compute_profile(pairs_all_years, usn_by_bairro, centroids):
@@ -1268,6 +1334,7 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
 
     usn_by_bairro, centroids, stock_total, asking_median = _aggregate_usn(usn_records)
     profile = _compute_profile(pairs_all_years, usn_by_bairro, centroids)
+    perfil_preco_v2 = _compute_perfil_vencedor_faixa_preco_v2(itbi_records, periodo_12m_externo[0], usn_by_bairro)
     hoje_serial = today_excel_serial()
     preco_m2 = _compute_preco_m2(itbi_records, usn_records, hoje_serial)
     preco_m2_painel = _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial)
@@ -1346,13 +1413,22 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
             "profile_neighbors": profile[b]["profile_neighbors"],
             "profile_pool_sample_size": profile[b]["profile_pool_sample_size"],
             "stock_total": stock_total[b], "stock_matching_profile": stock_match,
-            # Etapa 2, revisão 2026-10-01: estoque no perfil vencedor por
-            # FAIXA DE PREÇO (valor total, não metragem) — usado só pelo
-            # f2 do Prontidão (ver compute(), mais abaixo). stock_
-            # matching_profile (área, acima) continua intacto pros outros
-            # consumidores (Estoque×Demanda, flag_prioridade_maxima,
-            # Captação Estratégica).
-            "estoque_perfil_faixa_preco": profile[b]["profile_sample_size_faixa_preco"],
+            # Revisão 2026-10-01 (v2): estoque no perfil vencedor por
+            # FAIXA DE PREÇO agora vem do valor pago em revenda (12m, por
+            # tipo de imóvel), não mais do bucket de metragem — ver
+            # _compute_perfil_vencedor_faixa_preco_v2 (achado: a faixa v1
+            # herdava a mesma distorção área construída x área útil do
+            # backlog de calibração — Campo Belo/Santa Cecília/Mooca
+            # ficavam com faixa de um apê pequeno/antigo, bem abaixo do
+            # que qualquer anúncio ativo pede hoje). Usado pelo f2 do
+            # Prontidão e pelo shortlist_google_ads.csv. stock_matching_
+            # profile (área, acima) e price_band/area_band (abaixo)
+            # continuam intactos pros painéis que ainda não migraram
+            # (Estoque×Demanda, flag_prioridade_maxima, Captação
+            # Estratégica).
+            "estoque_perfil_faixa_preco": perfil_preco_v2[b]["profile_sample_size_faixa_preco_v2"],
+            "perfil_vencedor_faixa_preco_v2": perfil_preco_v2[b]["bandas"],
+            "estoque_fora_do_perfil": perfil_preco_v2[b]["estoque_fora_do_perfil"],
             "asking_median_valor": asking, "paid_median_valor_primary_year": paid_median,
             "centroid": list(centroids[b]) if centroids[b] else None,
             "stock_demand_ratio": round(ratio, 3), "price_gap_pct": price_gap_pct,

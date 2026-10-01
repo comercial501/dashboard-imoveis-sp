@@ -682,6 +682,43 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     profile[b] = entry;
   });
 
+  // --- 3b. Perfil vencedor — faixa de preço v2 (revisão 2026-10-01) ---
+  // P25-P75 do valor TOTAL pago em revenda nos últimos 12 meses, por
+  // bairro + tipo de imóvel, SEM metragem — ver nota equivalente em
+  // scripts/engine.py._compute_perfil_vencedor_faixa_preco_v2.
+  const PERFIL_PRECO_V2_TIPOS = ["apartamento", "casa"];
+  const perfilPrecoV2 = {};
+  TARGETS.forEach((b) => {
+    const valoresPorTipo = { apartamento: [], casa: [] };
+    perfilPrecoV2[b] = { bandas: {}, profile_sample_size_faixa_preco_v2: 0, estoque_fora_do_perfil: false };
+    for (const r of itbiRecords) {
+      if (r.bairro !== b || !r.isRevenda || r.day == null) continue;
+      if (!PERFIL_PRECO_V2_TIPOS.includes(r.tipoImovel)) continue;
+      if (!periodoSet.has(ymKey(excelSerialToYm(r.day)))) continue;
+      valoresPorTipo[r.tipoImovel].push(r.valor);
+    }
+    const bandas = {};
+    for (const tipo of PERFIL_PRECO_V2_TIPOS) {
+      const valores = valoresPorTipo[tipo];
+      if (!valores.length) {
+        bandas[tipo] = null;
+        continue;
+      }
+      const valoresOk = trimOutliersIqr(valores);
+      bandas[tipo] = [round(percentile(25, valoresOk), 2), round(percentile(75, valoresOk), 2)];
+    }
+    const ownStock = usnByBairro[b];
+    const inBandV2 = ownStock.filter((r) => {
+      const banda = bandas[r.tipoImovel];
+      return banda && r.valor != null && r.valor >= banda[0] && r.valor <= banda[1];
+    });
+    perfilPrecoV2[b] = {
+      bandas,
+      profile_sample_size_faixa_preco_v2: inBandV2.length,
+      estoque_fora_do_perfil: ownStock.length > 0 && inBandV2.length === 0,
+    };
+  });
+
   // --- 4. Liquidez / Captação Ativa (agrupamento por endereço) ---
   const priceIncoherent = (valores) => {
     if (valores.length < 2) return false;
@@ -834,9 +871,12 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       profile_reliability: profile[b].profile_reliability, profile_neighbors: profile[b].profile_neighbors,
       profile_pool_sample_size: profile[b].profile_pool_sample_size,
       stock_total: stockTotal[b], stock_matching_profile: stockMatch,
-      // Etapa 2, revisão 2026-10-01 (migração do Prontidão): estoque no
-      // perfil vencedor por FAIXA DE PREÇO — ver scripts/engine.py.compute.
-      estoque_perfil_faixa_preco: profile[b].profile_sample_size_faixa_preco,
+      // Revisão 2026-10-01 (v2): estoque no perfil vencedor por FAIXA DE
+      // PREÇO vem do valor pago em revenda (12m, por tipo) — ver nota
+      // equivalente em scripts/engine.py.compute.
+      estoque_perfil_faixa_preco: perfilPrecoV2[b].profile_sample_size_faixa_preco_v2,
+      perfil_vencedor_faixa_preco_v2: perfilPrecoV2[b].bandas,
+      estoque_fora_do_perfil: perfilPrecoV2[b].estoque_fora_do_perfil,
       asking_median_valor: asking, paid_median_valor_primary_year: paidMedian,
       centroid: centroids[b],
       stock_demand_ratio: Math.round(ratio * 1000) / 1000, price_gap_pct: priceGapPct,

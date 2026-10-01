@@ -113,6 +113,7 @@ def main():
             "giro_12m_pct": b.get("giro_12m_pct"),
             "anuncios_ativos": b["stock_total"],
             "anuncios_perfil_vencedor_faixa_preco": b["estoque_perfil_faixa_preco"],
+            "estoque_fora_do_perfil": b.get("estoque_fora_do_perfil", False),
             "tag_busca": tag_busca(b, meta),
             "amostra_pequena": b["amostra_pequena_ranking"],
             "buscas_google_mes": si["avg_monthly_searches"] if si else "",
@@ -127,7 +128,7 @@ def main():
     with open(OUT_CSV, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=[
             "bairro", "nota_prontidao", "revenda_12m", "tendencia_revenda_pct", "giro_12m_pct",
-            "anuncios_ativos", "anuncios_perfil_vencedor_faixa_preco", "tag_busca",
+            "anuncios_ativos", "anuncios_perfil_vencedor_faixa_preco", "estoque_fora_do_perfil", "tag_busca",
             "amostra_pequena", "buscas_google_mes",
             "busca_apartamento_a_venda", "busca_apartamento", "busca_imoveis",
         ])
