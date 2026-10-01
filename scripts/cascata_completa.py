@@ -482,11 +482,18 @@ def rodar(usar_split_santo_amaro, label):
         for b, giro in sorted(acima10, key=lambda x: -x[1]):
             print(f"  {b}: {giro:.2f}%")
 
-    print("\n=== QUEDAS DE REVENDA >=25% (regra antiga -> aprovada), decomposição ===")
-    quedas = decompor_quedas_revenda(revenda_antiga, revenda, resolucao_revenda_antiga, resolucao_revenda, buckets)
-    for d in quedas:
+    print("\n=== QUEDAS DE REVENDA (regra antiga PURA x aprovada), decomposição — >=25% marcado com * ===")
+    # limiar=0 pra devolver TODOS os bairros (não só >=25%) — permite
+    # conferir pontualmente qualquer bairro citado no relatório (ex:
+    # Brooklin/Campo Belo, que no RELATÓRIO ANTERIOR pareciam cair >25%
+    # mas isso comparava "antes" (revenda+planta antigos COMBINADOS) com
+    # "depois revenda" só — uma comparação não-equivalente; aqui "antigo"
+    # é revenda PURA (sem planta_antiga junto), resolvida sozinha.
+    quedas = decompor_quedas_revenda(revenda_antiga, revenda, resolucao_revenda_antiga, resolucao_revenda, buckets, limiar=-1.0)
+    for d in sorted(quedas, key=lambda d: -d["queda_pct"]):
+        marca = "*" if d["queda_pct"] >= 0.25 else " "
         print(
-            f"  {d['bairro']}: {d['old_total']} -> {d['new_total']} (queda {d['queda_pct']*100:.1f}%) | "
+            f"  {marca} {d['bairro']}: {d['old_total']} -> {d['new_total']} (queda {d['queda_pct']*100:.1f}%) | "
             f"continuou revenda mesmo bairro={d['unchanged']} | revenda mas mudou de bairro={d['reassigned_outro_bairro']} | "
             f"saiu pra planta={d['saiu_planta']} parcial={d['saiu_parcial']} demais={d['saiu_demais']} "
             f"fora_universo={d['saiu_fora_do_universo']}"
