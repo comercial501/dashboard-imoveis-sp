@@ -9,18 +9,18 @@ unidades residenciais do IPTU (taxa de giro), usando:
     gerado por resolver_santo_amaro.py a partir do CSV que o usuário
     preencheu)
 
+CLASSIFICAÇÃO REVENDA × PLANTA (regra aprovada em 2026-09-30, ver
+classificar_revenda_planta_aprovada) — substitui a régua por
+endereço/lançamento (classificar_enderecos_regra_antiga, mantida só pra
+gerar a coluna "antes" da comparação, reproduzível porque agora é código
+commitado): aquela régua classificava errado — condomínio grande e antigo
+virava "lançamento" só por ter 5+ vendas em 182 dias (Tatuapé: planta de
+803 pra 2.026), e lançamento pequeno/lento virava "revenda".
+
 Cada universo (revenda, planta, unidades IPTU) constrói seus PRÓPRIOS
 votos de endereço/CEP (nunca cruza entre si) — só a quadra fiscal (`votos_
 quadra_resolvidos`, inerentemente um dado do IPTU) e a tabela de tradução
 são compartilhadas entre os 3, conforme protocolo já aprovado.
-
-Classificação revenda × planta por ENDEREÇO (mesma lógica/limiares de
-engine.py: endereço com 5+ vendas válidas dentro de uma janela de 182 dias
-= lançamento/planta; resto = revenda; preço incoerente entre vendas do
-mesmo endereço = descartado de ambos, igual à Captação Ativa) — usa o
-histórico MULTI-ANO inteiro do endereço pra detectar o padrão, mas só
-conta, na tabela final, as transações dentro da janela rolante de 12
-meses (mesma janela de engine._mes_base_e_periodo).
 """
 import re
 import sys
@@ -28,6 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import clean_itbi
 import engine
 import itbi_source
 import iptu_geosampa as ig
@@ -59,17 +60,16 @@ def carregar_itbi_deduplicado():
     return records
 
 
-def classificar_enderecos(records):
-    """addr_key -> "revenda" | "planta". Endereço com 5+ vendas válidas
-    (mesmo critério de engine._is_valid_sale) dentro de uma janela de 182
-    dias (engine._is_launch) é lançamento/planta; todo o resto é revenda —
-    SEM o descarte de preço incoerente que a Captação Ativa aplica
-    (engine._price_incoherent): aqui conta volume ("giro é giro", mesma
-    filosofia já usada em todo o resto do motor), não identidade de prédio
-    pra uma lista de prospecção, então preço não decide se uma transação
-    existiu. Classificação usa o histórico MULTI-ANO inteiro do endereço
-    (não só a janela de 12 meses) pra ter o padrão de lançamento completo
-    à vista."""
+def classificar_enderecos_regra_antiga(records):
+    """REGRA ANTIGA (rejeitada pelo usuário em 2026-09-30 — mantida só
+    pra gerar a coluna "antes" da comparação, com código commitado em vez
+    do script descartável que gerou o número original): addr_key ->
+    "revenda" | "planta". Endereço com 5+ vendas válidas (engine.
+    _is_valid_sale) dentro de uma janela de 182 dias (engine._is_launch) é
+    lançamento/planta; resto é revenda. Problema encontrado pelo usuário:
+    classifica condomínio grande e antigo como lançamento só por ter 5+
+    vendas espalhadas em 182 dias, e lançamento pequeno/lento como
+    revenda — ver classificar_revenda_planta_aprovada() pra regra certa."""
     by_addr = {}
     for r in records:
         if r["addr_key"]:
@@ -97,7 +97,7 @@ def filtrar_janela_12m(records, periodo_12m):
     return out
 
 
-def separar_revenda_planta(records_12m, classificacao):
+def separar_revenda_planta_regra_antiga(records_12m, classificacao):
     revenda, planta = [], []
     for r in records_12m:
         c = classificacao.get(r["addr_key"], "revenda")
@@ -106,6 +106,61 @@ def separar_revenda_planta(records_12m, classificacao):
         else:
             revenda.append(r)
     return revenda, planta
+
+
+# --- regra aprovada em 2026-09-30 (ver docstring do módulo) -----------------
+PLANTA_COMPLEMENTO_TOKENS = {"AP", "APTO", "APART", "TORRE", "BLOCO", "CASA", "UNIDADE"}
+_TOKEN_RE = re.compile(r"[^A-Z0-9]+")
+# "Tipo de Financiamento" (coluna O): "1.Sistema Financeiro de Habitação"
+# (SFH) e "2.Minha Casa Minha Vida" (MCMV) são os 2 tipos relevantes aqui
+# (os outros, "3.Consórcio" e "99.SFI, Carteira Hipotecária, etc", não
+# entram na regra do usuário).
+FINANCIAMENTO_MCMV_SFH_RE = re.compile(r"^[12]\.")
+
+
+def _tem_token_unidade(complemento):
+    if not complemento:
+        return False
+    toks = _TOKEN_RE.split(complemento.strip().upper())
+    return any(t in PLANTA_COMPLEMENTO_TOKENS for t in toks)
+
+
+def _financiamento_mcmv_sfh(tipo_financiamento):
+    return bool(tipo_financiamento) and bool(FINANCIAMENTO_MCMV_SFH_RE.match(tipo_financiamento))
+
+
+def classificar_revenda_planta_aprovada(records_12m):
+    """Regra aprovada pelo usuário (2026-09-30). Universo: natureza
+    "1.Compra e venda" + unidade de verdade (uso residencial, não prédio
+    inteiro — mesmo `tipo_imovel is not None` de clean_itbi/engine).
+      REVENDA = proporção transmitida = 100% (is_full_transfer) E valor
+        plausível (clean_itbi.VALOR_MIN_REAL..VALOR_MAX_REAL — mesmo corte
+        que build_clean_layer já aplicava só dentro do ramo 100%).
+      PLANTA = proporção transmitida < 100% E (complemento contém AP/
+        APTO/APART/TORRE/BLOCO/CASA/UNIDADE OU financiamento é MCMV/SFH).
+      Resto (100% com valor irreal, OU <100% sem nenhum sinal de planta —
+        provavelmente fração de herança/divórcio) fica de fora das duas,
+        devolvido em buckets separados pro relatório.
+    Retorna dict com as 4 listas: revenda, planta, valor_irreal,
+    fracao_sem_sinal_planta."""
+    revenda, planta, valor_irreal, fracao_sem_sinal = [], [], [], []
+    for r in records_12m:
+        if not r["is_compra_venda"] or r["tipo_imovel"] is None:
+            continue
+        if r["is_full_transfer"]:
+            if clean_itbi.VALOR_MIN_REAL <= r["valor"] <= clean_itbi.VALOR_MAX_REAL:
+                revenda.append(r)
+            else:
+                valor_irreal.append(r)
+        else:
+            if _tem_token_unidade(r.get("complemento")) or _financiamento_mcmv_sfh(r.get("tipo_financiamento")):
+                planta.append(r)
+            else:
+                fracao_sem_sinal.append(r)
+    return {
+        "revenda": revenda, "planta": planta,
+        "valor_irreal": valor_irreal, "fracao_sem_sinal_planta": fracao_sem_sinal,
+    }
 
 
 # --- universo de unidades do IPTU (giro) ------------------------------------
@@ -216,18 +271,41 @@ def rodar(usar_split_santo_amaro, label):
     fabrica_cascata = montar_cascata(tradutor, targets, split)
 
     itbi_dedup = carregar_itbi_deduplicado()
-    classificacao = classificar_enderecos(itbi_dedup)
     periodo_12m, _, _ = engine._mes_base_e_periodo(itbi_dedup)
     print(f"[periodo] 12m: {periodo_12m[0]}..{periodo_12m[-1]}")
     itbi_12m = filtrar_janela_12m(itbi_dedup, periodo_12m)
-    revenda_recs, planta_recs = separar_revenda_planta(itbi_12m, classificacao)
-    print(f"[classificacao] revenda={len(revenda_recs)} planta={len(planta_recs)}")
+    print(f"[universo] total 12m (qualquer natureza, dedup): {len(itbi_12m)}")
+
+    # --- coluna "antes": regra antiga (endereço + lançamento), recomputada
+    # com código commitado (nunca mais um script descartável) ---
+    classificacao_antiga = classificar_enderecos_regra_antiga(itbi_dedup)
+    revenda_antiga, planta_antiga = separar_revenda_planta_regra_antiga(itbi_12m, classificacao_antiga)
+    antes_combinado = revenda_antiga + planta_antiga
+    print(f"[regra antiga/antes] revenda={len(revenda_antiga)} planta={len(planta_antiga)} combinado={len(antes_combinado)}")
+
+    # --- coluna "depois": regra aprovada (proporção transmitida + sinal
+    # de unidade/financiamento no complemento) ---
+    buckets = classificar_revenda_planta_aprovada(itbi_12m)
+    revenda, planta = buckets["revenda"], buckets["planta"]
+    n_valor_irreal = len(buckets["valor_irreal"])
+    n_fracao_sem_sinal = len(buckets["fracao_sem_sinal_planta"])
+    universo_valido = len(revenda) + len(planta) + n_valor_irreal + n_fracao_sem_sinal
+    fora_do_universo = len(itbi_12m) - universo_valido
+    print(
+        f"[regra aprovada/depois] revenda={len(revenda)} planta={len(planta)} "
+        f"valor_irreal(100% mas fora de R${clean_itbi.VALOR_MIN_REAL:,.0f}-R${clean_itbi.VALOR_MAX_REAL:,.0f})={n_valor_irreal} "
+        f"fracao_sem_sinal_planta(<100% sem AP/TORRE/BLOCO/CASA/UNIDADE/MCMV/SFH)={n_fracao_sem_sinal} "
+        f"fora_do_universo(natureza != compra_venda ou prédio inteiro)={fora_do_universo}"
+    )
+
+    cascata_antes = fabrica_cascata()
+    contagem_antes, fora_antes, incerto_antes, _ = resolver_universo_itbi(cascata_antes, antes_combinado)
 
     cascata_revenda = fabrica_cascata()
-    contagem_revenda, fora_r, incerto_r, _ = resolver_universo_itbi(cascata_revenda, revenda_recs)
+    contagem_revenda, fora_r, incerto_r, _ = resolver_universo_itbi(cascata_revenda, revenda)
 
     cascata_planta = fabrica_cascata()
-    contagem_planta, fora_p, incerto_p, _ = resolver_universo_itbi(cascata_planta, planta_recs)
+    contagem_planta, fora_p, incerto_p, _ = resolver_universo_itbi(cascata_planta, planta)
 
     print("[iptu] carregando unidades residenciais (apto + residência)...")
     unidades = carregar_unidades_iptu()
@@ -235,37 +313,39 @@ def rodar(usar_split_santo_amaro, label):
     cascata_unidades = fabrica_cascata()
     contagem_unidades, fora_u, incerto_u = resolver_universo_iptu(cascata_unidades, unidades)
 
-    total_r = len(revenda_recs)
-    total_p = len(planta_recs)
-    total_u = len(unidades)
-    soma_r = sum(contagem_revenda.values())
-    soma_p = sum(contagem_planta.values())
-    soma_u = sum(contagem_unidades.values())
+    def _fechamento(nome, total, soma, fora, incerto):
+        print(
+            f"{nome:<9}: total={total} carteira={soma} ({100*soma/total:.1f}%) "
+            f"fora={fora} ({100*fora/total:.1f}%) incerto={incerto} ({100*incerto/total:.1f}%)"
+        )
 
     print(f"\n=== FECHAMENTO ({label}) ===")
-    print(f"REVENDA : total={total_r} carteira={soma_r} ({100*soma_r/total_r:.1f}%) fora={fora_r} ({100*fora_r/total_r:.1f}%) incerto={incerto_r} ({100*incerto_r/total_r:.1f}%)")
-    print(f"PLANTA  : total={total_p} carteira={soma_p} ({100*soma_p/total_p:.1f}%) fora={fora_p} ({100*fora_p/total_p:.1f}%) incerto={incerto_p} ({100*incerto_p/total_p:.1f}%)")
-    print(f"UNIDADES: total={total_u} carteira={soma_u} ({100*soma_u/total_u:.1f}%) fora={fora_u} ({100*fora_u/total_u:.1f}%) incerto={incerto_u} ({100*incerto_u/total_u:.1f}%)")
+    _fechamento("ANTES", len(antes_combinado), sum(contagem_antes.values()), fora_antes, incerto_antes)
+    _fechamento("REVENDA", len(revenda), sum(contagem_revenda.values()), fora_r, incerto_r)
+    _fechamento("PLANTA", len(planta), sum(contagem_planta.values()), fora_p, incerto_p)
+    _fechamento("UNIDADES", len(unidades), sum(contagem_unidades.values()), fora_u, incerto_u)
 
-    print(f"\n=== TODOS OS {len(targets)} (revenda|planta|unidades|giro%) ===")
+    print(f"\n=== TODOS OS {len(targets)} (antes|depois_revenda|depois_planta|unidades|giro%) ===")
     linhas = []
     for b in targets:
+        antes = contagem_antes.get(b, 0)
         rv = contagem_revenda.get(b, 0)
         pl = contagem_planta.get(b, 0)
         un = contagem_unidades.get(b, 0)
         giro = (100 * rv / un) if un else None
-        linhas.append((b, rv, pl, un, giro))
-    for b, rv, pl, un, giro in linhas:
+        linhas.append((b, antes, rv, pl, un, giro))
+    for b, antes, rv, pl, un, giro in linhas:
         giro_s = f"{giro:.2f}%" if giro is not None else "—"
-        print(f"{b}|{rv}|{pl}|{un}|{giro_s}")
+        print(f"{b}|{antes}|{rv}|{pl}|{un}|{giro_s}")
 
     return {
         "targets": targets,
-        "revenda": contagem_revenda, "planta": contagem_planta, "unidades": contagem_unidades,
+        "antes": contagem_antes, "revenda": contagem_revenda, "planta": contagem_planta, "unidades": contagem_unidades,
         "fechamento": {
-            "revenda": (total_r, soma_r, fora_r, incerto_r),
-            "planta": (total_p, soma_p, fora_p, incerto_p),
-            "unidades": (total_u, soma_u, fora_u, incerto_u),
+            "antes": (len(antes_combinado), sum(contagem_antes.values()), fora_antes, incerto_antes),
+            "revenda": (len(revenda), sum(contagem_revenda.values()), fora_r, incerto_r),
+            "planta": (len(planta), sum(contagem_planta.values()), fora_p, incerto_p),
+            "unidades": (len(unidades), sum(contagem_unidades.values()), fora_u, incerto_u),
         },
     }
 

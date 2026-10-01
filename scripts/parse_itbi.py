@@ -219,6 +219,11 @@ def parse_itbi_file(path):
                     # log de limpeza (quebra por tipo de natureza excluída),
                     # nunca sai daqui pro raw.json (bool já basta pro motor).
                     "natureza_raw": natureza,
+                    # Item 3, ponto 1 (2026-09-30): "Tipo de Financiamento"
+                    # (coluna O) — usado pra distinguir venda na planta
+                    # (financiamento MCMV/SFH + proporção <100%) de fração
+                    # ideal de herança/divórcio (ver cascata_completa.py).
+                    "tipo_financiamento": (cells.get("O") or "").strip() or None,
                 })
 
     return records, {
