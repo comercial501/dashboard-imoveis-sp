@@ -1252,6 +1252,72 @@ Congonhas (8), Chácara Klabin (8), Água Branca (7), Bela Aliança (7).
 Nada ligado no `engine.py`. Regra de prioridade aprovada na ordem, mas
 aguardando o fechamento destes 2 itens antes de implementar.
 
+## Item 3: regra de prioridade aprovada + carteira fechada em 77 + CEPs de Santo Amaro (2026-09-30)
+
+Correção do "incerto" **aprovada** (5,4%/3,1%). Regra de prioridade (cascata
++ tabela de tradução) **aprovada**, com uma exceção: o nome de cadastro
+"SANTO AMARO" (e variantes "STO AMARO"/"STO. AMARO") **não** vira um único
+bairro de mercado — os CEPs mostram que ele mistura Chácara Santo Antônio,
+Jardim Caravelas e Alto da Boa Vista com Socorro/Interlagos (evidência: Alto
+da Boa Vista caiu de 389 para 88 revendas por causa dessa mistura). Essa
+divisão fica pendente — ver abaixo.
+
+**1) `scripts/santo_amaro_ceps.csv` gerado** — todas as vendas (revenda +
+planta, deduplicadas e já filtradas pela janela de 12 meses) e unidades do
+IPTU cujo **nome de cadastro cru** é literalmente "SANTO AMARO"/"STO
+AMARO"/"STO. AMARO" (sem passar por endereço/quadra/CEP da cascata — é o
+nome tal como está no campo, antes de qualquer tradução), agrupadas pelo
+prefixo de 5 dígitos do CEP. 452 linhas, colunas `cep_prefixo,
+vendas_revenda_12m, vendas_planta_12m, unidades_iptu, principais_logradouros
+(top 5), bairro_mercado` (vazio, para preenchimento), ordenado por volume
+total decrescente. Totais: 623 revendas, 2.067 plantas, 17.885 unidades.
+
+**Importante — por que esses totais (2.690 vendas) são bem menores que os
+"Santo Amaro: 6.469 revenda / 9.081 planta" da tabela de 77 abaixo**: este
+CSV captura só o **nome de cadastro literal** = Santo Amaro (método 1 da
+cascata). A tabela de 77 inclui tudo que a cascata completa **resolve** para
+Santo Amaro — inclusive linhas cujo nome de cadastro é outra coisa (ou
+lixo/vazio) mas que o voto de endereço, quadra fiscal ou CEP aponta pra
+Santo Amaro porque elas são vizinhas de linhas que traduzem literalmente
+para Santo Amaro. São escopos diferentes de propósito: o CSV serve pra você
+decidir COMO dividir o nome "Santo Amaro" em si; a tabela de 77 mostra o
+resultado se a cascata inteira apontar pra lá. Depois que você preencher
+`bairro_mercado` no CSV, a divisão entra como uma tabela suplementar (mesmo
+padrão do `bairros_mercado_extra.csv`) e tudo que hoje cai em "Santo Amaro"
+via tiers 2–5 será recalculado com a nova régua.
+
+Caminho completo: `/Users/plaghi/dashboard-imoveis-sp-audit/scripts/santo_amaro_ceps.csv`
+
+**2) Carteira fechada em 77** — Aclimação, Vila Leopoldina e Alto de
+Pinheiros concluídos na cascata completa (antes só reconhecidos no recheck
+do nonStop). Entraram como `scripts/bairros_mercado_extra.csv` (23 linhas,
+grafias inequívocas tipo "ACLIMACAO"/"VILA LEOPOLDINA"/"VL LEOPOLDINA"/"ALTO
+DE PINHEIROS", mesmo filtro de lixo do resto do pipeline) — arquivo
+**separado**, não mexe em `bairros_mercado_preenchido.csv`. Resultado:
+
+| Bairro novo | Revenda | Planta |
+|---|---:|---:|
+| Aclimação | 987 | 129 |
+| Vila Leopoldina | 476 | 1.444 |
+| Alto de Pinheiros | 201 | 18 |
+
+Fechamento final (77 bairros, com os 3 novos já incluídos na soma):
+
+| | Total | Carteira (77) | Fora da carteira | Incerto |
+|---|---:|---:|---:|---:|
+| Revenda | 105.897 | 52.076 (49,2%) | 48.157 (45,5%) | 5.664 (5,3%) |
+| Planta | 75.426 | 32.853 (43,6%) | 40.210 (53,3%) | 2.363 (3,1%) |
+
+Tabela completa dos 77 (revenda\|planta) fica no histórico de execução;
+nenhum dos 3 novos nem o resto da carteira muda os achados já reportados
+acima (Santo Amaro seguiu 6.469/9.081 porque ainda não foi dividido).
+
+Nada ligado no `engine.py`/`engine.js` ainda. Aguardando o usuário devolver
+`santo_amaro_ceps.csv` preenchido (`bairro_mercado`) antes de qualquer
+implementação — depois disso: aplicar a divisão, refazer a tabela completa
+dos 77 e só então integrar no engine, com relatório antes×depois e merge só
+mediante aprovação.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`

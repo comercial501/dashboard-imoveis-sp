@@ -24,6 +24,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TRADUTOR_CSV = ROOT / "data" / "iptu_geosampa" / "raw" / "bairros_mercado_preenchido.csv"
+# Arquivo SEPARADO (nunca mexe no CSV que o usuário revisou à mão) pros 3
+# bairros novos que entraram depois (Aclimação/Vila Leopoldina/Alto de
+# Pinheiros, 2026-09-30, item 3 ponto 2) — grafias inequívocas (sem
+# ambiguidade com outro bairro), classificadas automaticamente com o
+# mesmo filtro de lixo (TORRE/BLOCO/etc) já usado no resto do pipeline.
+TRADUTOR_EXTRA_CSV = Path(__file__).resolve().parent / "bairros_mercado_extra.csv"
 
 STATUS_CARTEIRA = {"AUTO_CARTEIRA", "NOVO_BAIRRO"}
 STATUS_FORA = {"SUGERIDO_FORA", "PADRAO_FORA"}
@@ -52,31 +58,46 @@ def _chave(bairro_raw):
     return (bairro_raw or "").strip().upper()
 
 
-def carregar_tradutor(path=TRADUTOR_CSV):
+def carregar_tradutor(path=TRADUTOR_CSV, extra_path=TRADUTOR_EXTRA_CSV):
     """{nome_cadastro_iptu (upper+strip): (bairro_mercado, status)}.
-    Conferido: 0 inconsistências (mesmo nome_cadastro_iptu sempre aponta
-    pro mesmo destino, em qualquer região onde apareceu na tabela
-    original)."""
+    Conferido: 0 inconsistências DENTRO da tabela principal (mesmo
+    nome_cadastro_iptu sempre aponta pro mesmo destino, em qualquer região
+    onde apareceu). Mescla `extra_path` (bairros novos promovidos depois
+    — ex: Aclimação/Vila Leopoldina/Alto de Pinheiros, que a tabela
+    principal tinha como SUGERIDO_FORA antes de entrarem pra carteira) se
+    existir — o extra TEM PRIORIDADE sobre a tabela principal quando os
+    dois têm o mesmo nome (reflete uma decisão posterior, sem precisar
+    editar o CSV que o usuário revisou à mão)."""
     tradutor = {}
-    with open(path, encoding="utf-8-sig") as f:
-        for row in csv.DictReader(f):
-            chave = _chave(row["nome_cadastro_iptu"])
-            if chave in tradutor and tradutor[chave] != (row["bairro_mercado"], row["status"]):
-                raise ValueError(f"inconsistência em '{chave}': {tradutor[chave]} != {(row['bairro_mercado'], row['status'])}")
-            tradutor[chave] = (row["bairro_mercado"], row["status"])
+
+    def _carregar(p, sobrescreve=False):
+        with open(p, encoding="utf-8-sig") as f:
+            for row in csv.DictReader(f):
+                chave = _chave(row["nome_cadastro_iptu"])
+                valor = (row["bairro_mercado"], row["status"])
+                if not sobrescreve and chave in tradutor and tradutor[chave] != valor:
+                    raise ValueError(f"inconsistência em '{chave}': {tradutor[chave]} != {valor}")
+                tradutor[chave] = valor
+
+    _carregar(path)
+    if extra_path and extra_path.exists():
+        _carregar(extra_path, sobrescreve=True)
     return tradutor
 
 
-def targets74(tradutor):
-    """Lista ordenada dos 74 bairros (49 da carteira atual + os NOVO_BAIRRO
-    da tabela) — os 25 novos são derivados da própria tabela (nunca
-    hardcoded, pra nunca dessincronizar se o usuário editar
-    bairros_mercado_preenchido.csv), mas os 49 antigos SEMPRE entram,
-    mesmo que algum não tenha nenhuma linha AUTO_CARTEIRA na tabela
-    (achado: "Jardim Caravelas" é pequeno/obscuro demais — nenhuma grafia
-    sua teve 5+ ocorrências em nenhuma região pra entrar na tabela original
-    — continua na carteira, só que com 0 vendas/unidades até aparecer
-    alguma linha que aponte pra ele)."""
+def targets_carteira(tradutor):
+    """Lista ordenada da carteira atual (49 bairros originais + todo
+    NOVO_BAIRRO que aparecer em qualquer tabela carregada — 25 da rodada
+    de "fim das regiões" + 3 de "Aclimação/Vila Leopoldina/Alto de
+    Pinheiros" = 77 atualmente) — os novos são derivados das tabelas
+    (nunca hardcoded, pra nunca dessincronizar se o usuário editar
+    bairros_mercado_preenchido.csv ou eu adicionar outro
+    bairros_mercado_extra.csv), mas os 49 antigos SEMPRE entram, mesmo que
+    algum não tenha nenhuma linha AUTO_CARTEIRA na tabela (achado: "Jardim
+    Caravelas" é pequeno/obscuro demais — nenhuma grafia sua teve 5+
+    ocorrências em nenhuma região pra entrar na tabela original — continua
+    na carteira, só que com 0 vendas/unidades até aparecer alguma linha
+    que aponte pra ele)."""
     import sys as _sys
 
     _sys.path.insert(0, str(Path(__file__).resolve().parent))
