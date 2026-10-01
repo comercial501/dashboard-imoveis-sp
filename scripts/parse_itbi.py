@@ -94,13 +94,22 @@ def normalize_sql(sql_raw):
     return str(n).zfill(11)
 
 
-def parse_itbi_file(path):
+def parse_itbi_file(path, somente_uso_residencial=True):
     """Retorna (records, stats). Cada record:
     {bairro, bairro_raw, sheet_year, day, valor, area, sql, uso_code,
      addr_key, addr_display, is_compra_venda, is_full_transfer}
     `bairro` é o resultado de bairro_canon() — pode ser None aqui (a
     resolução por maioria acontece depois, em clean_itbi.py).
-    stats = {"rows_seen", "rows_matched", "sheets"}."""
+    stats = {"rows_seen", "rows_matched", "sheets"}.
+
+    `somente_uso_residencial=False` (item 3, ponto 1, 2026-09-30 —
+    achado do usuário): venda na planta é registrada no ITBI com o USO DO
+    LOTE-MÃE (terreno, indústria, loja etc. — qualquer coisa que não seja
+    10/20), não com um uso residencial — o filtro padrão (só uso
+    residencial) descarta essas linhas ANTES de qualquer classificação
+    chegar a vê-las. Usado só por cascata_completa.py (classificação
+    revenda×planta); todo o resto do pipeline (engine.py/build_data.py)
+    continua chamando sem esse argumento, comportamento inalterado."""
     records = []
     rows_seen = 0
     rows_matched = 0
@@ -129,7 +138,7 @@ def parse_itbi_file(path):
                 rows_seen += 1
 
                 uso = (cells.get("X") or "").strip()
-                if not USO_RESIDENCIAL_RE.match(uso):
+                if somente_uso_residencial and not USO_RESIDENCIAL_RE.match(uso):
                     continue
 
                 valor_raw = (cells.get("I") or "").strip()
@@ -220,9 +229,9 @@ def parse_itbi_file(path):
                     # nunca sai daqui pro raw.json (bool já basta pro motor).
                     "natureza_raw": natureza,
                     # Item 3, ponto 1 (2026-09-30): "Tipo de Financiamento"
-                    # (coluna O) — usado pra distinguir venda na planta
-                    # (financiamento MCMV/SFH + proporção <100%) de fração
-                    # ideal de herança/divórcio (ver cascata_completa.py).
+                    # (coluna O) — um dos sinais que distingue venda na
+                    # planta de fração ideal de herança/divórcio (ver
+                    # cascata_completa.classificar_revenda_planta_aprovada).
                     "tipo_financiamento": (cells.get("O") or "").strip() or None,
                 })
 
@@ -231,7 +240,7 @@ def parse_itbi_file(path):
     }
 
 
-def parse_itbi_years(year_to_path):
+def parse_itbi_years(year_to_path, somente_uso_residencial=True):
     """year_to_path: dict {ano: Path}. Agrega todos os anos disponíveis."""
     all_records = []
     total_seen = 0
@@ -241,7 +250,7 @@ def parse_itbi_years(year_to_path):
         path = year_to_path[year]
         if not path.exists():
             continue
-        records, stats = parse_itbi_file(path)
+        records, stats = parse_itbi_file(path, somente_uso_residencial=somente_uso_residencial)
         all_records.extend(records)
         total_seen += stats["rows_seen"]
         total_matched += stats["rows_matched"]

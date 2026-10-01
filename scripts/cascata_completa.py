@@ -46,16 +46,23 @@ def _cep8(raw):
 
 
 def carregar_itbi_deduplicado():
+    """Parse com `somente_uso_residencial=False` (item 3, ponto 1, achado
+    do usuário: venda na planta é registrada no ITBI com o uso do
+    LOTE-MÃE — terreno, indústria, loja etc., quase nunca um uso
+    residencial) — devolve TODOS os usos; quem usa filtra depois
+    conforme a régua (`tipo_imovel is not None` pra regra antiga/
+    residencial, `uso_code` explícito pra regra aprovada)."""
     year_to_path = {y: itbi_source.RAW_DIR / f"{y}.xlsx" for y in YEARS}
-    records, stats = parse_itbi_years(year_to_path)
+    records, stats = parse_itbi_years(year_to_path, somente_uso_residencial=False)
     print(f"[itbi] {stats}")
     records, dedup_stats = dedup_by_sql(records, log=lambda *a, **k: None)
     print(f"[itbi] dedup: entrada={dedup_stats['total_entrada']} saida={dedup_stats['total_saida']}")
-    # build_clean_layer só pra ganhar o campo `tipo_imovel` (usado por
-    # engine._is_valid_sale) — não resolvemos bairro por maioria (clean_itbi.
-    # resolve_bairros), então o agrupamento de outlier por bairro+tipo+faixa
-    # aqui dentro fica irrelevante (maioria cai no mesmo grupo None) e
-    # inofensivo: não usamos `is_clean_sale`/`valor_m2` neste script.
+    # build_clean_layer só pra ganhar o campo `tipo_imovel` (usado pela
+    # regra antiga, via engine._is_valid_sale) — não resolvemos bairro por
+    # maioria (clean_itbi.resolve_bairros), então o agrupamento de outlier
+    # por bairro+tipo+faixa aqui dentro fica irrelevante (maioria cai no
+    # mesmo grupo None) e inofensivo: não usamos `is_clean_sale`/
+    # `valor_m2` neste script.
     records, _ = build_clean_layer(records, log=lambda *a, **k: None)
     return records
 
@@ -129,38 +136,80 @@ def _financiamento_mcmv_sfh(tipo_financiamento):
     return bool(tipo_financiamento) and bool(FINANCIAMENTO_MCMV_SFH_RE.match(tipo_financiamento))
 
 
-def classificar_revenda_planta_aprovada(records_12m):
-    """Regra aprovada pelo usuário (2026-09-30). Universo: natureza
-    "1.Compra e venda" + unidade de verdade (uso residencial, não prédio
-    inteiro — mesmo `tipo_imovel is not None` de clean_itbi/engine).
-      REVENDA = proporção transmitida = 100% (is_full_transfer) E valor
-        plausível (clean_itbi.VALOR_MIN_REAL..VALOR_MAX_REAL — mesmo corte
-        que build_clean_layer já aplicava só dentro do ramo 100%).
-      PLANTA = proporção transmitida < 100% E (complemento contém AP/
-        APTO/APART/TORRE/BLOCO/CASA/UNIDADE OU financiamento é MCMV/SFH).
-      Resto (100% com valor irreal, OU <100% sem nenhum sinal de planta —
-        provavelmente fração de herança/divórcio) fica de fora das duas,
-        devolvido em buckets separados pro relatório.
-    Retorna dict com as 4 listas: revenda, planta, valor_irreal,
-    fracao_sem_sinal_planta."""
-    revenda, planta, valor_irreal, fracao_sem_sinal = [], [], [], []
-    for r in records_12m:
-        if not r["is_compra_venda"] or r["tipo_imovel"] is None:
+# "Uso residencial" PRA ESTA CLASSIFICAÇÃO = só 10 (residência) e 20
+# (apartamento em condomínio) — mais estreito que clean_itbi.
+# TIPO_IMOVEL_POR_USO (que também inclui 12/14/21/22/25) de propósito:
+# regra explícita do usuário (2026-09-30, revisão 2), porque venda na
+# planta é registrada com o uso do LOTE-MÃE (quase sempre != 10/20) e
+# revenda de unidade pronta é registrada com o uso da PRÓPRIA unidade
+# (10/20).
+USO_RESIDENCIAL_PLANTA = {"10", "20"}
+
+
+def classificar_revenda_planta_aprovada(records_12m_todos_usos):
+    """Regra aprovada pelo usuário (2026-09-30, revisão 2 — a revisão 1
+    exigia só "proporção<100%" pra planta e foi rejeitada: 74-85% das
+    vendas com financiamento MCMV/SFH ou com token de unidade no
+    complemento têm proporção=100%, e a venda na planta é registrada com
+    o uso do LOTE-MÃE, não residencial — a revisão 1 descartava a imensa
+    maioria das plantas de verdade ANTES mesmo de chegar aqui, porque o
+    parse só capturava uso residencial). `records_12m_todos_usos` deve
+    vir de um parse com `somente_uso_residencial=False`.
+
+    Universo: natureza "1.Compra e venda", qualquer uso.
+      REVENDA = proporção transmitida = 100% E uso IPTU residencial
+        (10/20 — ver USO_RESIDENCIAL_PLANTA).
+      PLANTA = proporção transmitida < 100% E uso IPTU NÃO residencial
+        (!= 10/20) E (complemento contém AP/APTO/APART/TORRE/BLOCO/CASA/
+        UNIDADE OU financiamento é MCMV/SFH).
+      PARCIAL = proporção < 100% E uso residencial (10/20) — fração ideal
+        de herança/divórcio, fora das duas.
+      DEMAIS = toda outra combinação (100% E uso não-residencial; <100%
+        E uso não-residencial SEM nenhum sinal de planta) — também fora
+        das duas.
+    Retorna dict com as 4 listas: revenda, planta, parcial, demais."""
+    revenda, planta, parcial, demais = [], [], [], []
+    for r in records_12m_todos_usos:
+        if not r["is_compra_venda"]:
             continue
+        uso_residencial = r.get("uso_code") in USO_RESIDENCIAL_PLANTA
         if r["is_full_transfer"]:
-            if clean_itbi.VALOR_MIN_REAL <= r["valor"] <= clean_itbi.VALOR_MAX_REAL:
+            if uso_residencial:
                 revenda.append(r)
             else:
-                valor_irreal.append(r)
+                demais.append(r)
         else:
-            if _tem_token_unidade(r.get("complemento")) or _financiamento_mcmv_sfh(r.get("tipo_financiamento")):
+            if uso_residencial:
+                parcial.append(r)
+            elif _tem_token_unidade(r.get("complemento")) or _financiamento_mcmv_sfh(r.get("tipo_financiamento")):
                 planta.append(r)
             else:
-                fracao_sem_sinal.append(r)
-    return {
-        "revenda": revenda, "planta": planta,
-        "valor_irreal": valor_irreal, "fracao_sem_sinal_planta": fracao_sem_sinal,
-    }
+                demais.append(r)
+    return {"revenda": revenda, "planta": planta, "parcial": parcial, "demais": demais}
+
+
+def amostrar_planta_sfh_sem_token(planta_recs, n=20, seed=42):
+    """20 exemplos aleatórios de planta capturada SÓ pelo financiamento
+    SFH/MCMV (sem token de unidade no complemento) — pedido do usuário
+    (2026-09-30) pra conferir que esses ~13 mil casos/ano são mesmo
+    unidade nova (ex: complemento tipo "2204 (R2V-1)", "300", sem AP/
+    TORRE/BLOCO) e não um falso positivo do financiamento."""
+    import random
+
+    candidatos = [r for r in planta_recs if not _tem_token_unidade(r.get("complemento"))]
+    rng = random.Random(seed)
+    amostra = rng.sample(candidatos, min(n, len(candidatos)))
+    return [
+        {
+            "endereco": r.get("addr_display") or f"{r.get('bairro_raw')} (sem endereço)",
+            "complemento": r.get("complemento"),
+            "uso_code": r.get("uso_code"),
+            "proporcao_100pct": r["is_full_transfer"],
+            "tipo_financiamento": r.get("tipo_financiamento"),
+            "bairro_raw": r.get("bairro_raw"),
+        }
+        for r in amostra
+    ]
 
 
 # --- universo de unidades do IPTU (giro) ------------------------------------
@@ -270,33 +319,44 @@ def rodar(usar_split_santo_amaro, label):
 
     fabrica_cascata = montar_cascata(tradutor, targets, split)
 
-    itbi_dedup = carregar_itbi_deduplicado()
-    periodo_12m, _, _ = engine._mes_base_e_periodo(itbi_dedup)
+    itbi_dedup_todos = carregar_itbi_deduplicado()
+    periodo_12m, _, _ = engine._mes_base_e_periodo(itbi_dedup_todos)
     print(f"[periodo] 12m: {periodo_12m[0]}..{periodo_12m[-1]}")
-    itbi_12m = filtrar_janela_12m(itbi_dedup, periodo_12m)
-    print(f"[universo] total 12m (qualquer natureza, dedup): {len(itbi_12m)}")
+    itbi_12m_todos = filtrar_janela_12m(itbi_dedup_todos, periodo_12m)
+    print(f"[universo] total 12m (qualquer natureza/uso, dedup): {len(itbi_12m_todos)}")
 
     # --- coluna "antes": regra antiga (endereço + lançamento), recomputada
-    # com código commitado (nunca mais um script descartável) ---
-    classificacao_antiga = classificar_enderecos_regra_antiga(itbi_dedup)
-    revenda_antiga, planta_antiga = separar_revenda_planta_regra_antiga(itbi_12m, classificacao_antiga)
+    # com código commitado (nunca mais um script descartável) — mesmo
+    # escopo de sempre (só uso residencial via tipo_imovel), senão as
+    # linhas de uso não-residencial (que só entraram agora pra alimentar a
+    # regra nova) inflariam o "antes" incorretamente.
+    itbi_dedup_residencial = [r for r in itbi_dedup_todos if r["tipo_imovel"] is not None]
+    itbi_12m_residencial = [r for r in itbi_12m_todos if r["tipo_imovel"] is not None]
+    classificacao_antiga = classificar_enderecos_regra_antiga(itbi_dedup_residencial)
+    revenda_antiga, planta_antiga = separar_revenda_planta_regra_antiga(itbi_12m_residencial, classificacao_antiga)
     antes_combinado = revenda_antiga + planta_antiga
     print(f"[regra antiga/antes] revenda={len(revenda_antiga)} planta={len(planta_antiga)} combinado={len(antes_combinado)}")
 
-    # --- coluna "depois": regra aprovada (proporção transmitida + sinal
-    # de unidade/financiamento no complemento) ---
-    buckets = classificar_revenda_planta_aprovada(itbi_12m)
+    # --- coluna "depois": regra aprovada (revisão 2 — uso do lote-mãe) ---
+    buckets = classificar_revenda_planta_aprovada(itbi_12m_todos)
     revenda, planta = buckets["revenda"], buckets["planta"]
-    n_valor_irreal = len(buckets["valor_irreal"])
-    n_fracao_sem_sinal = len(buckets["fracao_sem_sinal_planta"])
-    universo_valido = len(revenda) + len(planta) + n_valor_irreal + n_fracao_sem_sinal
-    fora_do_universo = len(itbi_12m) - universo_valido
+    n_parcial = len(buckets["parcial"])
+    n_demais = len(buckets["demais"])
+    soma_buckets = len(revenda) + len(planta) + n_parcial + n_demais
+    fora_do_universo = len(itbi_12m_todos) - soma_buckets
     print(
         f"[regra aprovada/depois] revenda={len(revenda)} planta={len(planta)} "
-        f"valor_irreal(100% mas fora de R${clean_itbi.VALOR_MIN_REAL:,.0f}-R${clean_itbi.VALOR_MAX_REAL:,.0f})={n_valor_irreal} "
-        f"fracao_sem_sinal_planta(<100% sem AP/TORRE/BLOCO/CASA/UNIDADE/MCMV/SFH)={n_fracao_sem_sinal} "
-        f"fora_do_universo(natureza != compra_venda ou prédio inteiro)={fora_do_universo}"
+        f"parcial(<100% uso residencial — herança/divórcio)={n_parcial} "
+        f"demais(100% uso não-residencial, ou <100% uso não-residencial sem sinal)={n_demais} "
+        f"fora_do_universo(natureza != compra_venda)={fora_do_universo}"
     )
+
+    print("\n=== 20 exemplos de planta via SFH/MCMV sem token de unidade no complemento ===")
+    for ex in amostrar_planta_sfh_sem_token(planta):
+        print(
+            f"  {ex['endereco']} | complemento={ex['complemento']!r} | uso={ex['uso_code']} "
+            f"| financiamento={ex['tipo_financiamento']!r} | bairro_raw={ex['bairro_raw']!r}"
+        )
 
     cascata_antes = fabrica_cascata()
     contagem_antes, fora_antes, incerto_antes, _ = resolver_universo_itbi(cascata_antes, antes_combinado)
