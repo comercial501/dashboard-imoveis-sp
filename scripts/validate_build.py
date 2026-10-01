@@ -225,12 +225,51 @@ def check_formato_paineis(data):
     print(f"[validate_build] OK 3/3 — formato de data.json íntegro: {len(bairros)} bairros, todas as chaves esperadas presentes.")
 
 
+def check_consistencia_carteira_77(data):
+    """Etapa 2, item 1.1 (2026-10-01), pedido do usuário: carteira_77 é a
+    REFERÊNCIA validada — todo painel que mostra volume/revenda/planta/
+    unidades/giro por bairro tem que bater EXATO com carteira_77 (achado
+    que motivou isso: o export de 01/10 mostrava Tatuapé com 1.317 vendas
+    no Ranking e 2.831 revendas no Carteira 77 — dois sistemas de bairro
+    diferentes, a regra antiga de detecção de lançamento por endereço
+    contra a cascata de 5 métodos). Sem tolerância, sem ALLOW_LARGE_
+    CHANGES — uma divergência aqui é sempre um bug de verdade (os dois
+    lados usam a mesma tabela/cascata/janela, só não compartilham o
+    objeto Python — ver cascata_completa.resolver_registros_engine), não
+    uma mudança de metodologia deliberada."""
+    c77 = data.get("carteira_77")
+    if not c77:
+        raise ValidationError("data.json sem carteira_77 — impossível checar consistência (item 1.1 da Etapa 2).")
+    bairros = data["bairros"]
+    c77_bairros = c77["bairros"]
+    campos = ("revenda_12m", "planta_12m", "unidades_iptu", "giro_12m_pct")
+    divergencias = []
+    for b in TARGETS:
+        if b not in c77_bairros:
+            divergencias.append(f"{b}: ausente em carteira_77")
+            continue
+        for campo in campos:
+            v_motor = bairros[b].get(campo)
+            v_c77 = c77_bairros[b].get(campo)
+            if v_motor != v_c77:
+                divergencias.append(f"{b}.{campo}: motor={v_motor!r} != carteira_77={v_c77!r}")
+    if divergencias:
+        linhas = "\n".join(f"  - {d}" for d in divergencias[:30])
+        a_mais = f"\n  ... e mais {len(divergencias) - 30}" if len(divergencias) > 30 else ""
+        raise ValidationError(
+            f"consistência carteira_77 FALHOU — {len(divergencias)} divergência(s) entre bairros_out e "
+            f"carteira_77 (deveriam ser idênticos):\n{linhas}{a_mais}"
+        )
+    print(f"[validate_build] OK 4/4 — {len(TARGETS)} bairros batem exato com carteira_77 em {len(campos)} campos.")
+
+
 def validate_before_publish(year_to_path, itbi_stats, data, out_path):
     """Chamado por build_data.py logo antes de escrever site/data.json.
     Levanta SystemExit (para o processo com código != 0) se qualquer
     checagem falhar — build_data.py não deve capturar essa exceção."""
-    print("[validate_build] rodando as 3 checagens antes de publicar...")
+    print("[validate_build] rodando as 4 checagens antes de publicar...")
     check_linhas_lidas(year_to_path, itbi_stats)
     check_variacao_bairros(data["bairros"], out_path)
     check_formato_paineis(data)
+    check_consistencia_carteira_77(data)
     print("[validate_build] todas as checagens passaram — liberado pra publicar.")

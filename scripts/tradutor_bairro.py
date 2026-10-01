@@ -115,7 +115,7 @@ def carregar_tradutor(path=TRADUTOR_CSV, extra_path=TRADUTOR_EXTRA_CSV):
     return tradutor
 
 
-def targets_carteira(tradutor):
+def targets_carteira(tradutor, targets_49=None):
     """Lista ordenada da carteira atual (49 bairros originais + todo
     NOVO_BAIRRO que aparecer em qualquer tabela carregada — 25 da rodada
     de "fim das regiões" + 3 de "Aclimação/Vila Leopoldina/Alto de
@@ -127,14 +127,24 @@ def targets_carteira(tradutor):
     Caravelas" é pequeno/obscuro demais — nenhuma grafia sua teve 5+
     ocorrências em nenhuma região pra entrar na tabela original — continua
     na carteira, só que com 0 vendas/unidades até aparecer alguma linha
-    que aponte pra ele)."""
-    import sys as _sys
+    que aponte pra ele).
 
-    _sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from normalize import TARGETS
+    `targets_49`: lista dos 49 originais — recebida como parâmetro (não
+    importada de normalize.py) de propósito. normalize.py agora CALCULA
+    a carteira de 77 chamando esta função no import do módulo (ver
+    normalize._carregar_targets_77) — se esta função importasse
+    `normalize.TARGETS` ali dentro, seria um import circular (normalize
+    ainda não terminou de definir TARGETS nesse ponto). Só cai pro import
+    de `normalize.TARGETS_49_LEGACY` quando chamada standalone (scripts
+    antigos, fora do carregamento de normalize.py)."""
+    if targets_49 is None:
+        import sys as _sys
+
+        _sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from normalize import TARGETS_49_LEGACY as targets_49
 
     novos = {destino for destino, status in tradutor.values() if status == "NOVO_BAIRRO"}
-    return sorted(set(TARGETS) | novos)
+    return sorted(set(targets_49) | novos)
 
 
 def traduzir(bairro_raw, tradutor, cep=None, split_santo_amaro=None):

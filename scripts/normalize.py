@@ -24,10 +24,12 @@ ACCENTS = {
     "Ç": "C", "Ñ": "N",
 }
 
-# Os 49 bairros-alvo da carteira (47 originais de build_data.pl @TARGETS +
-# Jardim América/Jardim Paulistano, adicionados em 2026-09-24 a pedido do
-# usuário). Único lugar onde essa lista existe — não há config externa.
-TARGETS = [
+# Os 49 bairros-alvo da carteira ORIGINAL (47 de build_data.pl @TARGETS +
+# Jardim América/Jardim Paulistano, adicionados em 2026-09-24) — baseline
+# histórico, usado agora só como ponto de partida de
+# tradutor_bairro.targets_carteira() (a carteira de 77, ver TARGETS
+# abaixo). Não usar TARGETS_49_LEGACY em código novo.
+TARGETS_49_LEGACY = [
     "Vila Madalena", "Lapa", "Pinheiros", "Itaim Bibi", "Vila Olímpia", "Brooklin",
     "Chácara Santo Antônio", "Alto da Boa Vista", "Jardim dos Estados", "Jardim Petrópolis",
     "Vila Cordeiro", "Jardim Caravelas", "Jardim Santo Amaro", "Campo Belo", "Indianópolis",
@@ -39,7 +41,31 @@ TARGETS = [
     "Jardim da Glória", "Cambuci", "Vila da Saúde", "Ipiranga", "Mooca", "Tatuapé",
     "Jardim América", "Jardim Paulistano",
 ]
-assert len(TARGETS) == 49, f"esperava 49 bairros-alvo, achei {len(TARGETS)}"
+assert len(TARGETS_49_LEGACY) == 49, f"esperava 49 bairros-alvo (legado), achei {len(TARGETS_49_LEGACY)}"
+
+
+def _carregar_targets_77():
+    """Carteira nova (item 1 da Etapa 2, 2026-10-01): tradução por nome de
+    cadastro do IPTU + cascata de 5 métodos — ver tradutor_bairro.py e
+    scripts/cascata_completa.py. Calculada uma vez, no import deste
+    módulo (não há config externa pra essa lista, igual ao padrão já
+    usado pro TARGETS_49_LEGACY) — import local pra deixar explícito que
+    é a ÚNICA direção de dependência (tradutor_bairro nunca importa
+    normalize no nível do módulo; targets_carteira() recebe
+    TARGETS_49_LEGACY como parâmetro explícito em vez de importar
+    normalize, exatamente pra nunca criar import circular)."""
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    _sys.path.insert(0, str(_Path(__file__).resolve().parent))
+    import tradutor_bairro as _tb
+
+    tradutor = _tb.carregar_tradutor()
+    return _tb.targets_carteira(tradutor, TARGETS_49_LEGACY)
+
+
+TARGETS = _carregar_targets_77()
+assert len(TARGETS) == 77, f"esperava 77 bairros-alvo na carteira nova, achei {len(TARGETS)}"
 
 ALIASES = {
     "BROOKLIN PAULISTA": "BROOKLIN",

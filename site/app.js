@@ -320,7 +320,7 @@ const PANELS = [
   { id: "por-bairro", label: "Por Bairro/Região" },
   { id: "valor-oportunidade", label: "Valor de Oportunidade" },
   { id: "preco-m2", label: "Preço por m²" },
-  { id: "carteira-77", label: "Carteira 77 (beta)" },
+  { id: "carteira-77", label: "Carteira 77" },
 ];
 
 function setupTabs() {
@@ -335,7 +335,20 @@ function setupTabs() {
     // completo os painéis viram páginas sequenciais e precisam de um
     // cabeçalho próprio pra identificar qual análise é qual.
     const panelEl = document.querySelector(`.panel[data-panel="${p.id}"]`);
-    if (panelEl) panelEl.prepend(el("h1", { class: "panel-print-title" }, p.label));
+    if (!panelEl) return;
+    // Ordem final desejada (topo pro final): botão (só tela) -> título
+    // (só impressão) -> meta de período/filtros (só impressão) -> resto
+    // do conteúdo. prepend() empilha na ordem inversa de chamada, então
+    // insere nessa ordem invertida.
+    panelEl.prepend(el("div", { class: "panel-print-meta", id: `print-meta-${p.id}` }));
+    panelEl.prepend(el("h1", { class: "panel-print-title" }, p.label));
+    // Item 7 (2026-10-01): "Baixar esta página" — PDF só do painel atual
+    // (ver printPage). Botão visível na tela (escondido na impressão via
+    // .page-pdf-btn em @media print); meta-cabeçalho (período/filtros/
+    // data de geração) some na tela, só aparece impresso.
+    const pageBtn = el("button", { class: "page-pdf-btn", type: "button" }, "Baixar esta página ↓");
+    pageBtn.addEventListener("click", () => printPage(p.id, p.label));
+    panelEl.prepend(pageBtn);
   });
 }
 
@@ -427,6 +440,68 @@ function printCaptacaoGroup(detailsEl) {
     document.body.classList.remove("printing-captacao-group");
     detailsEl.open = wasOpen;
     if (rest) rest.style.display = prevRestDisplay;
+    window.removeEventListener("afterprint", cleanup);
+  };
+  window.addEventListener("afterprint", cleanup);
+  window.print();
+}
+
+// ---------------------------------------------------------------------------
+// Item 7 (2026-10-01): "Baixar esta página" — PDF só do painel ativo no
+// momento, com um cabeçalho impresso (nome da página, data/hora de
+// geração, período dos dados, filtros aplicados). Reusa a mesma
+// impressão nativa (window.print()) do botão "Baixar PDF" — nenhuma
+// dependência nova. document.title vira o nome sugerido pro arquivo
+// (é o único jeito de influenciar o nome padrão no diálogo nativo
+// "Salvar como PDF" do navegador) e volta ao normal depois.
+// ---------------------------------------------------------------------------
+const ORIGINAL_DOCUMENT_TITLE = document.title;
+
+function todayISODate() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function slugify(s) {
+  return s
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function filtrosResumoLabel() {
+  if (!filtersActive()) return "nenhum";
+  const parts = [];
+  if (FILTERS.bairros.size) parts.push(`bairros: ${[...FILTERS.bairros].sort().join(", ")}`);
+  if (FILTERS.priceMin != null || FILTERS.priceMax != null) {
+    const min = FILTERS.priceMin != null ? fmtMoney(FILTERS.priceMin) : "sem mínimo";
+    const max = FILTERS.priceMax != null ? fmtMoney(FILTERS.priceMax) : "sem máximo";
+    parts.push(`faixa de preço: ${min} – ${max}`);
+  }
+  return parts.join(" · ");
+}
+
+async function printPage(panelId, label) {
+  // Mesmo motivo do printFullDashboard: garante engine.js/raw.json
+  // carregados (Estoque × Demanda) antes de imprimir qualquer página.
+  await ensureEngineLoaded();
+  recomputeAndRenderAll();
+
+  const metaEl = document.getElementById(`print-meta-${panelId}`);
+  if (metaEl) {
+    const geradoEm = new Date().toLocaleString("pt-BR");
+    metaEl.textContent = `Gerado em ${geradoEm} · Período dos dados: ${periodo12mLabel()} · Filtros aplicados: ${filtrosResumoLabel()}`;
+  }
+
+  const isCaptacao = panelId === "captacao";
+  if (isCaptacao) expandAllCaptacao();
+
+  const prevTitle = document.title;
+  document.title = `torre-de-controle_${slugify(label)}_${todayISODate()}`;
+
+  const cleanup = () => {
+    document.title = prevTitle || ORIGINAL_DOCUMENT_TITLE;
+    if (isCaptacao) restoreAllCaptacao();
+    if (metaEl) metaEl.textContent = "";
     window.removeEventListener("afterprint", cleanup);
   };
   window.addEventListener("afterprint", cleanup);
@@ -542,7 +617,11 @@ function statTile(label, value, sub) {
 // Visão Geral
 // ---------------------------------------------------------------------------
 function renderVisaoGeral() {
-  const top10 = DATA.ranking.slice(0, 10);
+  // Etapa 2, item 3 (2026-10-01): bairro com < MIN_VENDAS_TOP10 (100)
+  // vendas de mercado em 12m (amostra_pequena_ranking, calculado em
+  // engine.py/engine.js) não entra no top 10 de "Onde anunciar agora" —
+  // ver badge "Amostra pequena" na tabela completa do Ranking.
+  const top10 = DATA.ranking.filter((name) => !DATA.bairros[name].amostra_pequena_ranking).slice(0, 10);
   rankRows(document.getElementById("visao-ranking"), top10, DATA, {
     scoreKey: "score",
     metaFmt: (b) => `${fmtInt(b.volume_mercado_12m)} vendas de mercado (12m, ${periodo12mLabel()}) · tendência ${b.trend_pct_mercado_12m != null ? fmtPct(b.trend_pct_mercado_12m) : "—"} · ${fmtInt(b.volume_12m)} no giro total (todas as transferências)`,
@@ -554,12 +633,23 @@ function renderVisaoGeral() {
     },
   });
 
+  // Etapa 2, item 5 (2026-10-01): texto atualizado pra base nova
+  // (revenda/planta separadas, carteira de 77) — antes mostrava
+  // total_itbi_rows_matched (qualquer transação residencial, metodologia
+  // antiga, "304.262 transações").
+  const fech = DATA.carteira_77.fechamento;
   const mesesIncompletosLabel = DATA.periodo_12m.meses_incompletos.map(fmtMesAno).join(" e ");
   document.getElementById("visao-sub").textContent =
-    `${DATA.meta.total_itbi_rows_matched.toLocaleString("pt-BR")} transações de ITBI residenciais válidas (${DATA.meta.years.join("–")}) · ${DATA.meta.usn.rows_matched.toLocaleString("pt-BR")} anúncios de venda no estoque atual. ` +
-    `Vendas dos últimos 12 meses: janela ${periodo12mLabel()} — ${mesesIncompletosLabel} ainda têm dado incompleto (guia paga com atraso chega depois), número tende a subir um pouco em execuções futuras.`;
+    `${fmtInt(fech.revenda.total)} vendas de revenda e ${fmtInt(fech.planta.total)} de planta na carteira de ${DATA.carteira_77.bairros ? Object.keys(DATA.carteira_77.bairros).length : 77} bairros (período ${periodo12mLabel()}) · ${DATA.meta.usn.rows_matched.toLocaleString("pt-BR")} anúncios de venda no estoque atual. ` +
+    `${mesesIncompletosLabel} ainda têm dado incompleto (guia paga com atraso chega depois), número tende a subir um pouco em execuções futuras.`;
 
+  // Item 4 (2026-10-01): limpa antes de montar — sem isso, os 4 cards e
+  // o placeholder de alertas duplicavam a cada recompute de fundo
+  // (background do engine.js/raw.json carregando, ou filtro aplicado
+  // antes desse carregamento terminar — cada passagem por renderAll()
+  // empilhava mais nós em cima dos anteriores).
   const tiles = document.getElementById("visao-tiles");
+  tiles.innerHTML = "";
   tiles.appendChild(statTile("Imóveis pontuados", fmtInt(DATA.imoveis_prioritarios.length)));
   tiles.appendChild(statTile("Endereços em Captação Ativa", fmtInt(DATA.meta.enderecos_captacao_ativa)));
   tiles.appendChild(statTile("Achados de Valor de Oportunidade", fmtInt(DATA.valor_oportunidade.imoveis.length)));
@@ -567,6 +657,7 @@ function renderVisaoGeral() {
   tiles.appendChild(statTile("Bairros Prioridade Máxima", fmtInt(prioritariosBairros.size)));
 
   const alertBox = document.getElementById("visao-alertas");
+  alertBox.innerHTML = "";
   // Etapa 3 (2026-09-29): alerta é por SEGMENTO (bairro + tipo de imóvel +
   // faixa de metragem), não por bairro inteiro — comparar "tudo que se
   // pede" contra "tudo que se pagou" misturava apartamento pequeno com
@@ -625,6 +716,11 @@ function renderRanking() {
           if (r.flag_oportunidade) wrap.appendChild(badge("Oportunidade", "gold"));
           if (r.flag_saturacao_alta) wrap.appendChild(badge("Saturação", "warning"));
           if (r.flag_alerta) wrap.appendChild(badge("Alerta preço", "critical"));
+          // Etapa 2, item 3 (2026-10-01): bairro com < 100 vendas de
+          // mercado em 12m não entra no top 10 de "Onde anunciar agora"
+          // (ver renderVisaoGeral) — aqui, na tabela completa, mostra o
+          // selo em vez de simplesmente sumir.
+          if (r.amostra_pequena_ranking) wrap.appendChild(badge("Amostra pequena", "neutral"));
           const si = searchInterestBadge(r);
           if (si) wrap.appendChild(si);
           return wrap;
@@ -1101,6 +1197,7 @@ function renderValorOportunidade() {
   });
 
   const bairrosBox = document.getElementById("valor-oportunidade-bairros");
+  bairrosBox.innerHTML = "";
   const porBairro = DATA.valor_oportunidade.por_bairro.slice(0, 15);
   if (!porBairro.length) {
     bairrosBox.appendChild(el("div", { class: "placeholder-block" }, "Nenhum achado no momento."));
