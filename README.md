@@ -1498,6 +1498,180 @@ planta, sem descarte por preço incoerente) é a que deve virar
 `engine.py`/`engine.js`, já que "se os números fecharem, implementar" foi
 a condição dada. Nada ligado em `engine.py`/`engine.js` ainda.
 
+## Item 3: correção da classificação revenda × planta (2026-09-30)
+
+A régua de revenda×planta reportada na seção anterior (endereço com 5+
+vendas em 182 dias) foi **rejeitada pelo usuário**: classificava
+condomínio grande e antigo como lançamento (Tatuapé: planta de 803 pra
+2.026) e lançamento pequeno/lento como revenda. Regra aprovada no lugar
+(`scripts/cascata_completa.classificar_revenda_planta_aprovada`):
+
+> Universo: natureza "1.Compra e venda", **qualquer uso** (não só
+> residencial).
+> - **REVENDA** = proporção transmitida 100% **e** uso IPTU residencial
+>   (10 ou 20).
+> - **PLANTA** = proporção transmitida <100% **e** uso IPTU NÃO
+>   residencial **e** (complemento contém AP/APTO/APART/TORRE/BLOCO/
+>   CASA/UNIDADE, **ou** financiamento é MCMV/SFH).
+> - **PARCIAL** = proporção <100% e uso residencial (herança/divórcio) —
+>   fora das duas.
+> - **DEMAIS** = resto — fora das duas.
+
+Achado-chave (do usuário): venda na planta é registrada no ITBI com o
+**uso do lote-mãe** (terreno, indústria, loja etc.), quase nunca um uso
+residencial — por isso o parse precisou ganhar
+`somente_uso_residencial=False` (`parse_itbi.py`, aditivo — o resto do
+pipeline, `build_data.py`/`engine.py`, chama sem esse argumento e
+continua só com uso residencial, comportamento inalterado) pra essas
+linhas pararem de ser descartadas antes mesmo de chegar à classificação.
+
+**Validação contra o teste do usuário** (dados de 2025 inteiro, antes da
+rodada de 3 anos): revenda 82.746 (referência do usuário: 82.789, -0,05%)
+· parcial 13.123 (referência: 13.281, -1,2%) · planta 72.172 (referência:
+65.578 — só batia a 1,7% numa variante errada do teste do usuário, que
+excluía SFH sem querer por procurar o texto "SFH" em vez de "1.Sistema
+Financeiro de Habitação"; confirmado que SFH sozinho, sem token no
+complemento, é sinal válido nessa combinação — proporção<100% + uso
+não-residencial só ocorre em venda de unidade nova).
+
+**Rodada completa (3 anos, 12 meses, com divisão de Santo Amaro
+aplicada)**:
+
+```
+revenda=82.820  planta=79.160  parcial=13.722  demais=35.339
+```
+
+79.160 plantas/ano fica um pouco acima da referência de 70-75 mil/ano
+(~5-13%), mas dentro de uma margem razoável (diferença de janela/
+crescimento ano a ano) — não investiguei mais fundo porque o usuário já
+confirmou a regra como está.
+
+**a) Tabela completa dos 77** (ANTES = regra antiga recomputada, DEPOIS
+revenda/planta = regra aprovada, com a divisão de Santo Amaro já
+aplicada; giro = depois-revenda ÷ unidades IPTU):
+
+| Bairro | ANTES | DEPOIS revenda | DEPOIS planta | Giro |
+|---|---:|---:|---:|---:|
+| Aclimação | 1.085 | 864 | 49 | 3,25% |
+| Alto da Boa Vista | 625 | 494 | 1.078 | 5,40% |
+| Alto da Lapa | 263 | 196 | 38 | 3,07% |
+| Alto da Mooca | 802 | 499 | 17 | 3,25% |
+| Alto de Pinheiros | 217 | 156 | 18 | 2,54% |
+| Bela Vista | 1.785 | 1.390 | 528 | 2,87% |
+| Bosque da Saúde | 127 | 94 | 23 | 3,56% |
+| Brooklin | 1.470 | 1.019 | 1.460 | 3,58% |
+| Cambuci | 756 | 635 | 1.065 | 2,91% |
+| Campo Belo | 1.330 | 1.004 | 219 | 4,48% |
+| Cerqueira César | 1.450 | 1.116 | 308 | 4,12% |
+| Chácara Inglesa | 178 | 130 | 83 | 2,85% |
+| Chácara Santo Antônio | 901 | 680 | 3.104 | 3,45% |
+| Cidade Monções | 80 | 55 | 0 | 1,90% |
+| Consolação | 1.587 | 1.327 | 371 | 4,51% |
+| Higienópolis | 534 | 415 | 16 | 4,03% |
+| Ibirapuera | 637 | 488 | 829 | 3,70% |
+| Indianópolis | 1.179 | 893 | 277 | 4,59% |
+| Ipiranga | 2.516 | 1.640 | 1.195 | 3,40% |
+| Itaim Bibi | 726 | 539 | 52 | 2,99% |
+| Jardim Aeroporto | 196 | 173 | 16 | 2,49% |
+| Jardim América | 708 | 586 | 90 | 4,44% |
+| Jardim Anália Franco | 79 | 67 | 0 | 3,94% |
+| Jardim Caravelas | 0 | 0 | 0 | — |
+| Jardim Europa | 72 | 45 | 0 | 2,11% |
+| Jardim Novo Mundo | 12 | 10 | 0 | 1,72% |
+| Jardim Paulista | 1.565 | 1.246 | 200 | 4,11% |
+| Jardim Paulistano | 100 | 82 | 0 | 1,80% |
+| Jardim Petrópolis | 31 | 25 | 0 | 2,53% |
+| Jardim Santo Amaro | 59 | 42 | 0 | 3,01% |
+| Jardim Vila Mariana | 25 | 24 | 25 | 2,98% |
+| Jardim da Glória | 82 | 61 | 0 | 2,66% |
+| Jardim da Saúde | 160 | 119 | 50 | 2,27% |
+| Jardim das Acácias | 149 | 127 | 131 | 4,30% |
+| Jardim das Bandeiras | 16 | 9 | 0 | 1,77% |
+| Jardim dos Estados | 34 | 25 | 0 | 2,78% |
+| Jardins | 29 | 25 | 2 | 4,57% |
+| Lapa | 1.557 | 1.244 | 3.744 | 3,70% |
+| Mirandópolis | 331 | 296 | 29 | 3,46% |
+| Moema | 790 | 645 | 516 | 3,24% |
+| Moinho Velho | 341 | 284 | 91 | 3,57% |
+| Mooca | 2.052 | 1.517 | 2.210 | 3,27% |
+| Pacaembu | 71 | 62 | 1 | 3,50% |
+| Paraíso | 708 | 511 | 12 | 3,79% |
+| Parque Fongaro | 54 | 47 | 0 | 2,11% |
+| Parque da Mooca | 166 | 137 | 0 | 2,99% |
+| Perdizes | 2.525 | 1.805 | 994 | 4,28% |
+| Pinheiros | 1.557 | 1.191 | 1.320 | 4,10% |
+| Planalto Paulista | 254 | 200 | 127 | 2,88% |
+| Pompéia | 591 | 456 | 211 | 3,69% |
+| Santa Cecília | 1.842 | 1.452 | 433 | 3,42% |
+| **Santo Amaro** | 441 | 395 | 475 | 3,37% |
+| Saúde | 3.417 | 2.368 | 538 | 3,34% |
+| Sumarezinho | 221 | 142 | 74 | 3,48% |
+| Sumaré | 205 | 166 | 23 | 3,52% |
+| Tatuapé | 4.207 | 2.900 | 838 | 3,40% |
+| Vila Antonieta | 355 | 254 | 11 | 3,01% |
+| Vila Bertioga | 100 | 81 | 1 | 2,77% |
+| Vila Clementino | 700 | 415 | 538 | 3,33% |
+| Vila Cordeiro | 39 | 99 | 1 | 3,95% |
+| Vila Firmiano Pinto | 64 | 55 | 388 | 3,52% |
+| Vila Gomes Cardim | 90 | 72 | 0 | 2,27% |
+| Vila Gumercindo | 172 | 136 | 4 | 2,40% |
+| Vila Ipojuca | 110 | 82 | 0 | 2,77% |
+| Vila Leopoldina | 475 | 409 | 1.443 | 3,24% |
+| Vila Madalena | 633 | 459 | 18 | 3,32% |
+| Vila Mariana | 2.998 | 2.118 | 801 | 3,99% |
+| Vila Monumento | 215 | 104 | 2 | 2,60% |
+| Vila Nova Conceição | 319 | 290 | 76 | 4,18% |
+| Vila Nova Manchester | 161 | 83 | 170 | 2,64% |
+| Vila Olímpia | 1.286 | 837 | 659 | 5,09% |
+| Vila Regente Feijó | 220 | 166 | 2 | 2,88% |
+| Vila Romana | 232 | 195 | 52 | 2,81% |
+| Vila São Francisco | 375 | 287 | 39 | 2,93% |
+| Vila Uberabinha | 38 | 26 | 23 | 2,50% |
+| Vila da Saúde | 41 | 25 | 0 | 3,53% |
+| Vila das Mercês | 221 | 167 | 19 | 2,31% |
+
+**b) Destaque — Santo Amaro e vizinhos** (antes | depois revenda | depois planta):
+
+| Bairro | Antes | Depois revenda | Depois planta |
+|---|---:|---:|---:|
+| Santo Amaro | 441 | 395 | 475 |
+| Alto da Boa Vista | 625 | 494 | 1.078 |
+| Chácara Santo Antônio | 901 | 680 | 3.104 |
+| Jardim Caravelas | 0 | 0 | 0 |
+| Jardim Santo Amaro | 59 | 42 | 0 |
+| Brooklin | 1.470 | 1.019 | 1.460 |
+| Campo Belo | 1.330 | 1.004 | 219 |
+
+**c) Fechamento da conta (77 bairros)**:
+
+| | Total | Carteira | Fora | Incerto |
+|---|---:|---:|---:|---:|
+| ANTES (regra antiga) | 117.468 | 44,0% | 49,2% | 6,7% |
+| REVENDA (regra aprovada) | 82.820 | 46,5% | 46,0% | 7,5% |
+| PLANTA (regra aprovada) | 79.160 | 34,3% | 62,7% | **3,0%** |
+| UNIDADES IPTU | 2.831.160 | 38,3% | 55,4% | 6,3% |
+
+**Planta incerto voltou pra ~3%** (meta do usuário), de 15,0% na rodada
+anterior (regra antiga) — confirma que a régua por endereço estava
+capturando nome de cadastro de pior qualidade junto com a classificação
+errada.
+
+20 exemplos de planta via SFH/MCMV sem token de unidade no complemento
+(conferência pedida pelo usuário) ficam no log de execução do script
+(`scripts/cascata_completa.py`, função `amostrar_planta_sfh_sem_token`) —
+amostra confirma padrão esperado: complemento tipo "2204 (R2V-1)", "300",
+"BL 1 STUDIO 111", sempre em uso não-residencial (terreno/indústria/loja
+do lote-mãe) com financiamento MCMV ou SFH.
+
+Protocolo novo (regra permanente do usuário, a partir de agora): todo
+script que gera número pra relatório ou decisão é commitado **antes** de
+o número ser reportado — nenhum número aprovado pode depender de código
+descartável. `scripts/cascata_completa.py` foi commitado antes desta
+rodada rodar.
+
+Nada ligado no `engine.py`/`engine.js` ainda — aguardando confirmação do
+usuário pra prosseguir com a implementação.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
