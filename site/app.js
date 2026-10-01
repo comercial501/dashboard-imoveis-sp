@@ -229,6 +229,13 @@ function mergeStaticMeta(computed) {
   computed.meta.total_itbi_rows_seen = SERVER_DATA.meta.total_itbi_rows_seen;
   computed.meta.total_itbi_rows_matched = SERVER_DATA.meta.total_itbi_rows_matched;
   computed.meta.usn = SERVER_DATA.meta.usn;
+  // Item 3 (2026-09-30): carteira_77 é estático (painel próprio, não
+  // recalcula com filtro — ver README) e vem só do data.json original;
+  // sem essa linha, computeEngine() (que não conhece esse campo) apagava
+  // carteira_77 assim que o recompute de fundo rodava (achado: o campo
+  // sumia do DATA poucos segundos depois do carregamento inicial, mesmo
+  // sem nenhum filtro ativo).
+  computed.carteira_77 = SERVER_DATA.carteira_77;
   return computed;
 }
 
