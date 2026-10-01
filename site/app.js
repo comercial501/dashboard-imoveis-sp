@@ -48,6 +48,19 @@ function fmtM2(n) {
   return fmtInt(n) + "m²";
 }
 function sum(arr) { return arr.reduce((a, b) => a + b, 0); }
+// Mesma função de engine.js (desempate alfabético case-insensitive, sem
+// localeCompare — ver comentário lá) — duplicada aqui porque app.js usa
+// isso (renderPerfilContent) na primeira passada de renderAll(), antes
+// de engine.js ter sido injetado (ensureEngineLoaded() só carrega
+// engine.js sob demanda, de forma assíncrona — bug real encontrado em
+// 2026-10-01 verificando o painel Carteira 77: sem isso, main() lançava
+// "cmpLower is not defined" e TODOS os painéis depois de "Perfil por
+// Bairro" ficavam vazios até o recompute de fundo rodar pela primeira
+// vez).
+function cmpLower(a, b) {
+  const al = a.toLowerCase(), bl = b.toLowerCase();
+  return al < bl ? -1 : al > bl ? 1 : 0;
+}
 // Vendas/mediana "de referência" usam pool/média dos 3 anos, não só o
 // último fechado (decisão do usuário, 2026-09-25) — ver engine.js/engine.py.
 function anosRefLabel() {
