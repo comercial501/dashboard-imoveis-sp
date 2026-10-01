@@ -13,6 +13,11 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from exportar_valor_pago_por_bairro import resolver_revenda_todos_anos
+from normalize import excel_serial_to_ym
+
 ROOT = Path(__file__).resolve().parent.parent
 DATA_JSON = ROOT / "site" / "data.json"
 
@@ -69,6 +74,34 @@ def main():
         incerto_pct = fech[universo]["incerto_pct"]
         if incerto_pct > 5.0:
             print(f"[test_carteira_77] AVISO: incerto de {universo} em {incerto_pct}%, acima da meta de ~3%")
+
+    # Revisão 2026-10-01 (item 4 do ajuste do valor_pago_por_bairro.csv):
+    # esse export tem um caminho de código PRÓPRIO (não chama
+    # resolver_registros_engine() nem gerar_dados_carteira_77()) — só
+    # compartilha a tabela de tradução/cascata/pool de votos de 3 anos.
+    # Confere que ele resolve pro MESMO bairro, na mesma janela de 12m,
+    # que carteira_77 — reparseia o ITBI (~3-4min), por isso não entra no
+    # validate_build.py (que roda a cada build automático).
+    print("\n[test_carteira_77] conferindo valor_pago_por_bairro.csv contra carteira_77 (caminho de código próprio)...")
+    ym_inicio = tuple(int(x) for x in c77["periodo_12m"]["inicio"].split("-"))
+    ym_fim = tuple(int(x) for x in c77["periodo_12m"]["fim"].split("-"))
+    revenda_resolvida, _stats = resolver_revenda_todos_anos()
+    contagem_12m = {}
+    for r in revenda_resolvida:
+        if r.get("day") is None:
+            continue
+        ym = excel_serial_to_ym(r["day"])
+        if ym_inicio <= ym <= ym_fim:
+            contagem_12m[r["bairro"]] = contagem_12m.get(r["bairro"], 0) + 1
+
+    divergencias = []
+    for b, v in bairros.items():
+        esperado = v["revenda_12m"]
+        achado = contagem_12m.get(b, 0)
+        if achado != esperado:
+            divergencias.append(f"{b}: carteira_77.revenda_12m={esperado} != valor_pago_por_bairro={achado}")
+    assert not divergencias, "valor_pago_por_bairro.csv diverge de carteira_77:\n  " + "\n  ".join(divergencias)
+    print(f"[test_carteira_77] OK — valor_pago_por_bairro.csv bate exato com carteira_77 em revenda_12m, {len(bairros)} bairros.")
 
     print("[test_carteira_77] OK — todas as checagens passaram.")
 

@@ -1,546 +1,453 @@
-bairro,tipo,periodo,n_vendas,p25,mediana,p75,amostra_pequena,variacao_pct_ano_anterior
-Aclimação,apartamento,2022,1,210000.0,210000.0,210000.0,True,
-Aclimação,apartamento,2023,4,271913.92,543799.0,546899.5,True,159.0
-Aclimação,apartamento,2024,733,302359.19,470000.0,747500.0,False,-13.6
-Aclimação,apartamento,2025,791,268978.62,430000.0,675000.0,False,-8.5
-Aclimação,apartamento,2026,536,255000.0,430000.0,660000.0,False,0.0
-Aclimação,casa,2024,70,600000.0,815000.0,1300000.0,False,
-Aclimação,casa,2025,66,550000.0,820000.0,1357500.0,False,0.6
-Aclimação,casa,2026,52,481250.0,685000.0,950000.0,False,-16.5
-Alto da Boa Vista,apartamento,2020,1,221930.0,221930.0,221930.0,True,
-Alto da Boa Vista,apartamento,2023,3,780000.0,850000.0,1495000.0,True,
-Alto da Boa Vista,apartamento,2024,262,349289.67,471000.0,720000.0,False,-44.6
-Alto da Boa Vista,apartamento,2025,340,348562.5,510766.0,718251.7,False,8.4
-Alto da Boa Vista,apartamento,2026,224,305000.0,475000.0,700000.0,False,-7.0
-Alto da Boa Vista,casa,2024,58,1325000.0,2100000.0,2950000.0,False,
-Alto da Boa Vista,casa,2025,54,962500.0,1975000.0,3160000.0,False,-6.0
-Alto da Boa Vista,casa,2026,30,1250000.0,2000000.0,3000000.0,False,1.3
-Alto da Lapa,apartamento,2023,2,102075.13,201383.42,300691.71,True,
-Alto da Lapa,apartamento,2024,140,650000.0,1000000.0,1450000.0,False,396.6
-Alto da Lapa,apartamento,2025,176,603750.0,907500.0,1468750.0,False,-9.2
-Alto da Lapa,apartamento,2026,102,665000.0,937500.0,1562500.0,False,3.3
-Alto da Lapa,casa,2024,43,837500.0,1310000.0,1700000.0,False,
-Alto da Lapa,casa,2025,65,995000.0,1385000.0,2097750.0,False,5.7
-Alto da Lapa,casa,2026,47,800000.0,1385800.0,2100000.0,False,0.1
-Alto da Mooca,apartamento,2023,1,550000.0,550000.0,550000.0,True,
-Alto da Mooca,apartamento,2024,304,283000.0,396500.0,523000.0,False,-27.9
-Alto da Mooca,apartamento,2025,365,285500.0,388000.0,565000.0,False,-2.1
-Alto da Mooca,apartamento,2026,203,251155.46,344686.0,480000.0,False,-11.2
-Alto da Mooca,casa,2024,102,420000.0,530000.0,750000.0,False,
-Alto da Mooca,casa,2025,136,391732.5,559000.0,693835.75,False,5.5
-Alto da Mooca,casa,2026,87,400000.0,550000.0,780000.0,False,-1.6
-Alto de Pinheiros,apartamento,2023,1,3500000.0,3500000.0,3500000.0,True,
-Alto de Pinheiros,apartamento,2024,124,500000.0,1570000.0,2837500.0,False,-55.1
-Alto de Pinheiros,apartamento,2025,115,527500.0,1900000.0,4888195.88,False,21.0
-Alto de Pinheiros,apartamento,2026,67,471750.0,980000.0,2199855.0,False,-48.4
-Alto de Pinheiros,casa,2024,63,2520000.0,3800000.0,5725000.0,False,
-Alto de Pinheiros,casa,2025,65,2950000.0,4450000.0,6218910.0,False,17.1
-Alto de Pinheiros,casa,2026,38,2112500.0,3660000.0,5162500.0,False,-17.8
-Bela Vista,apartamento,2010,1,60000.0,60000.0,60000.0,True,
-Bela Vista,apartamento,2019,1,1483.89,1483.89,1483.89,True,
-Bela Vista,apartamento,2022,1,875247.5,875247.5,875247.5,True,
-Bela Vista,apartamento,2023,11,362500.0,540000.0,654667.65,False,-38.3
-Bela Vista,apartamento,2024,1414,255000.0,352000.0,550000.0,False,-34.8
-Bela Vista,apartamento,2025,1354,260000.0,365000.0,570000.0,False,3.7
-Bela Vista,apartamento,2026,910,270000.0,377000.0,551045.0,False,3.3
-Bela Vista,casa,2024,27,475000.0,522500.0,862500.0,False,
-Bela Vista,casa,2025,18,410000.0,560000.0,770000.0,False,7.2
-Bela Vista,casa,2026,17,558000.0,650000.0,730000.0,False,16.1
-Bosque da Saúde,apartamento,2023,1,640000.0,640000.0,640000.0,True,
-Bosque da Saúde,apartamento,2024,42,467000.0,724121.69,933275.0,False,13.1
-Bosque da Saúde,apartamento,2025,64,360000.0,550000.0,700000.0,False,-24.0
-Bosque da Saúde,apartamento,2026,18,506125.0,638500.0,1067538.83,False,16.1
-Bosque da Saúde,casa,2024,22,464999.98,590000.0,807500.0,False,
-Bosque da Saúde,casa,2025,32,406400.0,600000.0,822500.0,False,1.7
-Bosque da Saúde,casa,2026,16,407500.0,565000.0,787500.0,False,-5.8
-Brooklin,apartamento,2023,3,607500.0,830000.0,1365000.0,True,
-Brooklin,apartamento,2024,773,530000.0,750000.0,1250000.0,False,-9.6
-Brooklin,apartamento,2025,1044,510000.0,778000.0,1150000.0,False,3.7
-Brooklin,apartamento,2026,643,550000.0,835000.0,1406000.0,False,7.3
-Brooklin,casa,2023,1,2300000.0,2300000.0,2300000.0,True,
-Brooklin,casa,2024,223,850000.0,1310000.0,2246500.0,False,-43.0
-Brooklin,casa,2025,164,775000.0,1250000.0,1925000.0,False,-4.6
-Brooklin,casa,2026,106,750000.0,1062500.0,1741750.0,False,-15.0
-Cambuci,apartamento,2006,1,64500.0,64500.0,64500.0,True,
-Cambuci,apartamento,2023,1,191462.1,191462.1,191462.1,True,
-Cambuci,apartamento,2024,516,250000.0,325000.0,430000.0,False,69.7
-Cambuci,apartamento,2025,557,260000.0,330000.0,438750.0,False,1.5
-Cambuci,apartamento,2026,387,280000.0,355000.0,447750.0,False,7.6
-Cambuci,casa,2024,60,398750.0,520000.0,772500.0,False,
-Cambuci,casa,2025,67,290000.0,450000.0,575000.0,False,-13.5
-Cambuci,casa,2026,45,412440.0,480000.0,600000.0,False,6.7
-Campo Belo,apartamento,2023,4,410000.0,1318692.86,2398039.29,True,
-Campo Belo,apartamento,2024,676,440000.0,676800.0,1190000.0,False,-48.7
-Campo Belo,apartamento,2025,876,450000.0,700000.0,1282581.27,False,3.4
-Campo Belo,apartamento,2026,532,480000.0,737173.37,1303675.0,False,5.3
-Campo Belo,casa,2024,109,661250.0,925000.0,1801500.0,False,
-Campo Belo,casa,2025,126,600000.0,867500.0,1651250.0,False,-6.2
-Campo Belo,casa,2026,73,640000.0,1150000.0,1780530.0,False,32.6
-Cerqueira César,apartamento,2018,1,130000.0,130000.0,130000.0,True,
-Cerqueira César,apartamento,2022,1,250000.0,250000.0,250000.0,True,
-Cerqueira César,apartamento,2023,5,353500.0,445000.0,920000.0,True,78.0
-Cerqueira César,apartamento,2024,1121,389348.73,767500.0,1561875.0,False,72.5
-Cerqueira César,apartamento,2025,1094,418355.63,809300.32,1550000.0,False,5.4
-Cerqueira César,apartamento,2026,744,415000.0,724009.28,1446210.22,False,-10.5
-Cerqueira César,casa,2024,11,680000.0,1850000.0,3425000.0,False,
-Cerqueira César,casa,2025,17,399888.72,1412500.0,2275000.0,False,-23.6
-Cerqueira César,casa,2026,9,750000.0,2650000.0,6824884.0,True,87.6
-Chácara Inglesa,apartamento,2024,96,342500.0,500000.0,784592.5,False,
-Chácara Inglesa,apartamento,2025,143,350000.0,540000.0,905000.0,False,8.0
-Chácara Inglesa,apartamento,2026,89,391638.81,467500.0,736250.0,False,-13.4
-Chácara Inglesa,casa,2024,12,593750.0,690000.0,766875.0,False,
-Chácara Inglesa,casa,2025,12,525000.0,700000.0,985000.0,False,1.4
-Chácara Inglesa,casa,2026,4,732500.0,790000.0,880000.0,True,12.9
-Chácara Santo Antônio,apartamento,2023,5,731250.0,777500.0,847500.0,True,
-Chácara Santo Antônio,apartamento,2024,516,510318.76,800000.0,1270000.0,False,2.9
-Chácara Santo Antônio,apartamento,2025,823,318750.0,491000.0,810690.79,False,-38.6
-Chácara Santo Antônio,apartamento,2026,411,424564.0,602212.19,1110000.0,False,22.7
-Chácara Santo Antônio,casa,1999,1,4000.0,4000.0,4000.0,True,
-Chácara Santo Antônio,casa,2024,78,500000.0,669400.0,1037500.0,False,
-Chácara Santo Antônio,casa,2025,114,605000.0,870000.0,1363000.0,False,30.0
-Chácara Santo Antônio,casa,2026,65,550000.0,815000.0,1250000.0,False,-6.3
-Cidade Monções,apartamento,2024,26,297500.0,1605000.0,2787500.0,False,
-Cidade Monções,apartamento,2025,56,195126.7,874250.0,2940000.0,False,-45.5
-Cidade Monções,apartamento,2026,27,216423.4,670000.0,2290000.0,False,-23.4
-Cidade Monções,casa,2024,5,1474665.66,2021443.77,2537500.0,True,
-Cidade Monções,casa,2025,8,785000.0,1237500.0,2710886.9,True,-38.8
-Cidade Monções,casa,2026,8,831250.0,1707500.0,2472624.25,True,38.0
-Consolação,apartamento,2021,1,75000.0,75000.0,75000.0,True,
-Consolação,apartamento,2022,3,62080.0,62080.0,147706.66,True,-17.2
-Consolação,apartamento,2023,11,335676.0,391000.0,392000.0,False,529.8
-Consolação,apartamento,2024,950,240000.0,318620.0,471213.01,False,-18.5
-Consolação,apartamento,2025,1258,240000.0,315000.0,440000.0,False,-1.1
-Consolação,apartamento,2026,884,250000.0,336509.62,450000.0,False,6.8
-Consolação,casa,2024,4,422500.0,1065000.0,2536342.5,True,
-Consolação,casa,2025,2,2875000.0,4600000.0,6325000.0,True,331.9
-Consolação,casa,2026,2,8172845.47,8345690.95,8518536.43,True,81.4
-Higienópolis,apartamento,2023,1,905000.0,905000.0,905000.0,True,
-Higienópolis,apartamento,2024,346,864972.0,1263591.0,1900000.0,False,39.6
-Higienópolis,apartamento,2025,356,850000.0,1385037.5,1900000.0,False,9.6
-Higienópolis,apartamento,2026,268,970000.0,1440000.0,2000000.0,False,4.0
-Higienópolis,casa,2026,2,3450000.0,3500000.0,3550000.0,True,
-Ibirapuera,apartamento,2023,3,437500.0,480000.0,842500.0,True,
-Ibirapuera,apartamento,2024,476,600000.0,900000.0,1500000.0,False,87.5
-Ibirapuera,apartamento,2025,484,503515.5,780000.0,1362500.0,False,-13.3
-Ibirapuera,apartamento,2026,296,565500.0,900000.0,1475000.0,False,15.4
-Ibirapuera,casa,2024,54,540000.0,1100000.0,2938051.23,False,
-Ibirapuera,casa,2025,61,600000.0,780000.0,1242000.0,False,-29.1
-Ibirapuera,casa,2026,35,662075.0,850000.0,2025000.0,False,9.0
-Indianópolis,apartamento,2007,2,95600.0,190400.0,285200.0,True,
-Indianópolis,apartamento,2014,1,109804.0,109804.0,109804.0,True,
-Indianópolis,apartamento,2023,2,267500.0,365000.0,462500.0,True,
-Indianópolis,apartamento,2024,771,480000.0,715000.0,1100000.0,False,95.9
-Indianópolis,apartamento,2025,978,476950.0,619000.0,1040000.0,False,-13.4
-Indianópolis,apartamento,2026,522,485000.0,720000.0,1227500.0,False,16.3
-Indianópolis,casa,2024,45,717500.0,1200000.0,2187500.0,False,
-Indianópolis,casa,2025,50,950000.0,1265000.0,2225000.0,False,5.4
-Indianópolis,casa,2026,29,950000.0,1374814.3,1906830.75,False,8.7
-Ipiranga,apartamento,2000,1,55000.0,55000.0,55000.0,True,
-Ipiranga,apartamento,2022,1,866539.0,866539.0,866539.0,True,
-Ipiranga,apartamento,2023,8,130138.96,284052.78,527500.0,True,-67.2
-Ipiranga,apartamento,2024,1290,285457.81,422580.0,642081.34,False,48.8
-Ipiranga,apartamento,2025,1338,289789.0,430000.0,660000.0,False,1.8
-Ipiranga,apartamento,2026,843,320000.0,480000.0,750549.68,False,11.6
-Ipiranga,casa,2024,279,350000.0,460000.0,600000.0,False,
-Ipiranga,casa,2025,319,340000.0,450000.0,634500.0,False,-2.2
-Ipiranga,casa,2026,193,365000.0,500000.0,675000.0,False,11.1
-Itaim Bibi,apartamento,2020,1,369000.0,369000.0,369000.0,True,
-Itaim Bibi,apartamento,2021,1,720000.0,720000.0,720000.0,True,95.1
-Itaim Bibi,apartamento,2023,5,1100060.0,1410000.0,2444000.0,True,
-Itaim Bibi,apartamento,2024,499,642684.75,967500.0,1500000.0,False,-31.4
-Itaim Bibi,apartamento,2025,510,675000.0,1126395.38,2000000.0,False,16.4
-Itaim Bibi,apartamento,2026,304,726077.0,1190000.0,2200000.0,False,5.6
-Itaim Bibi,casa,2023,1,2425956.0,2425956.0,2425956.0,True,
-Itaim Bibi,casa,2024,24,365064.12,810000.0,1725000.0,False,-66.6
-Itaim Bibi,casa,2025,32,345000.0,2500000.0,3771214.84,False,208.6
-Itaim Bibi,casa,2026,21,387500.0,2300000.0,3934537.97,False,-8.0
-Jardim Aeroporto,apartamento,2024,148,243719.0,355000.0,503696.5,False,
-Jardim Aeroporto,apartamento,2025,163,285000.0,380000.0,575000.0,False,7.0
-Jardim Aeroporto,apartamento,2026,98,313268.75,500000.0,732250.0,False,31.6
-Jardim Aeroporto,casa,2024,48,430000.0,508000.0,700000.0,False,
-Jardim Aeroporto,casa,2025,56,465000.0,570000.0,728000.0,False,12.2
-Jardim Aeroporto,casa,2026,43,426750.0,555000.0,667500.0,False,-2.6
-Jardim América,apartamento,2023,4,442500.0,500000.0,527500.0,True,
-Jardim América,apartamento,2024,454,547500.0,800000.0,1225500.0,False,60.0
-Jardim América,apartamento,2025,529,482275.0,780000.0,1300000.0,False,-2.5
-Jardim América,apartamento,2026,351,495000.0,730000.0,1100000.0,False,-6.4
-Jardim América,casa,2024,26,1618984.71,3312300.0,6340682.07,False,
-Jardim América,casa,2025,58,2352886.56,3975000.0,7839146.95,False,20.0
-Jardim América,casa,2026,23,4050000.0,8972648.66,22255000.0,False,125.7
-Jardim Anália Franco,apartamento,2023,2,1350000.0,1700000.0,2050000.0,True,
-Jardim Anália Franco,apartamento,2024,77,513568.0,700000.0,1150000.0,False,-58.8
-Jardim Anália Franco,apartamento,2025,62,568800.0,740000.0,1300000.0,False,5.7
-Jardim Anália Franco,apartamento,2026,40,514805.0,770000.0,1275000.0,False,4.1
-Jardim Anália Franco,casa,2024,3,570000.0,720000.0,770000.0,True,
-Jardim Anália Franco,casa,2025,8,670000.0,1000000.0,1125000.0,True,38.9
-Jardim Anália Franco,casa,2026,3,610500.0,850000.0,1425000.0,True,-15.0
-Jardim Europa,apartamento,2024,23,1417225.0,2708300.0,3712500.0,False,
-Jardim Europa,apartamento,2025,25,2325000.0,4000000.0,9850000.0,False,47.7
-Jardim Europa,apartamento,2026,14,2666500.0,4425000.0,7950000.0,False,10.6
-Jardim Europa,casa,2015,1,312630.0,312630.0,312630.0,True,
-Jardim Europa,casa,2024,13,3000000.0,4700000.0,6285000.0,False,
-Jardim Europa,casa,2025,28,6487500.0,10750000.0,14750000.0,False,128.7
-Jardim Europa,casa,2026,18,5220000.0,7650000.0,10595000.0,False,-28.8
-Jardim Novo Mundo,apartamento,2024,1,1515000.0,1515000.0,1515000.0,True,
-Jardim Novo Mundo,apartamento,2025,3,511500.0,540000.0,662500.0,True,-64.4
-Jardim Novo Mundo,apartamento,2026,5,638193.69,705000.0,915000.0,True,30.6
-Jardim Novo Mundo,casa,2024,10,1592500.0,2175000.0,3227000.0,False,
-Jardim Novo Mundo,casa,2025,6,1622500.0,1675000.0,1718750.0,True,-23.0
-Jardim Novo Mundo,casa,2026,4,1107500.0,1427500.0,1621250.0,True,-14.8
-Jardim Paulista,apartamento,2023,8,440000.0,1000000.0,1078007.52,True,
-Jardim Paulista,apartamento,2024,1093,498342.86,850000.0,1450000.0,False,-15.0
-Jardim Paulista,apartamento,2025,1162,575399.85,965000.0,1650000.0,False,13.5
-Jardim Paulista,apartamento,2026,810,588750.0,1005000.0,1773000.0,False,4.1
-Jardim Paulista,casa,2024,57,2209000.0,4000000.0,5500000.0,False,
-Jardim Paulista,casa,2025,50,1938575.68,3800000.0,6050000.0,False,-5.0
-Jardim Paulista,casa,2026,31,1900000.0,3200000.0,4100000.0,False,-15.8
-Jardim Paulistano,apartamento,2024,45,1006250.0,1575000.0,2297321.75,False,
-Jardim Paulistano,apartamento,2025,50,912500.0,2100000.0,3350000.0,False,33.3
-Jardim Paulistano,apartamento,2026,29,1850000.0,2812500.0,7831000.0,False,33.9
-Jardim Paulistano,casa,2023,1,4900000.0,4900000.0,4900000.0,True,
-Jardim Paulistano,casa,2024,27,2962500.0,4375000.0,5187500.0,False,-10.7
-Jardim Paulistano,casa,2025,35,3391500.0,5800000.0,14229809.6,False,32.6
-Jardim Paulistano,casa,2026,17,5380000.0,12608482.19,20500000.0,False,117.4
-Jardim Petrópolis,apartamento,2024,19,420000.0,450000.0,491000.0,False,
-Jardim Petrópolis,apartamento,2025,9,475000.0,515000.0,532750.0,True,14.4
-Jardim Petrópolis,apartamento,2026,8,460000.0,527500.0,545107.25,True,2.4
-Jardim Petrópolis,casa,2024,20,1375000.0,2000000.0,2692500.0,False,
-Jardim Petrópolis,casa,2025,17,1170000.0,2100000.0,3800000.0,False,5.0
-Jardim Petrópolis,casa,2026,12,1845000.0,3067500.0,4002500.0,False,46.1
-Jardim Santo Amaro,apartamento,2020,1,500000.0,500000.0,500000.0,True,
-Jardim Santo Amaro,apartamento,2024,15,232500.0,345000.0,450000.0,False,
-Jardim Santo Amaro,apartamento,2025,23,440000.0,500000.0,525000.0,False,44.9
-Jardim Santo Amaro,apartamento,2026,21,420300.0,517500.0,730000.0,False,3.5
-Jardim Santo Amaro,casa,2024,11,225000.0,300000.0,1275000.0,False,
-Jardim Santo Amaro,casa,2025,11,690000.0,1240000.0,1500000.0,False,313.3
-Jardim Santo Amaro,casa,2026,3,637500.0,950000.0,1625000.0,True,-23.4
-Jardim Vila Mariana,apartamento,2024,33,630000.0,950000.0,1800913.66,False,
-Jardim Vila Mariana,apartamento,2025,19,645000.0,1060000.0,1240000.0,False,11.6
-Jardim Vila Mariana,apartamento,2026,11,565000.0,1100000.0,1400000.0,False,3.8
-Jardim Vila Mariana,casa,2024,2,695000.0,990000.0,1285000.0,True,
-Jardim Vila Mariana,casa,2025,4,794500.0,1115000.0,1335000.0,True,12.6
-Jardim da Glória,apartamento,2024,21,430000.0,680000.0,1116984.0,False,
-Jardim da Glória,apartamento,2025,27,505000.0,665000.0,1130245.0,False,-2.2
-Jardim da Glória,apartamento,2026,26,520000.0,863930.67,1231255.0,False,29.9
-Jardim da Glória,casa,2023,1,1800000.0,1800000.0,1800000.0,True,
-Jardim da Glória,casa,2024,24,556250.0,745000.0,915000.0,False,-58.6
-Jardim da Glória,casa,2025,20,672566.63,956500.0,1212500.0,False,28.4
-Jardim da Glória,casa,2026,15,650000.0,750000.0,1000000.0,False,-21.6
-Jardim da Saúde,apartamento,2024,63,250000.0,400000.0,767787.95,False,
-Jardim da Saúde,apartamento,2025,75,190000.0,370000.0,551644.37,False,-7.5
-Jardim da Saúde,apartamento,2026,47,218750.0,320000.0,540000.0,False,-13.5
-Jardim da Saúde,casa,2024,47,559600.0,755000.0,1000000.0,False,
-Jardim da Saúde,casa,2025,73,500000.0,650000.0,940000.0,False,-13.9
-Jardim da Saúde,casa,2026,32,815375.0,1000000.0,1412500.0,False,53.8
-Jardim das Acácias,apartamento,2023,1,400000.0,400000.0,400000.0,True,
-Jardim das Acácias,apartamento,2024,405,423405.64,519520.83,736668.35,False,29.9
-Jardim das Acácias,apartamento,2025,130,336250.0,696527.35,892100.0,False,34.1
-Jardim das Acácias,apartamento,2026,59,370000.0,540000.0,900000.0,False,-22.5
-Jardim das Acácias,casa,2024,6,528750.0,913615.52,1240557.76,True,
-Jardim das Acácias,casa,2025,7,680000.0,964500.0,1099750.0,True,5.6
-Jardim das Acácias,casa,2026,4,346549.5,370000.0,412052.0,True,-61.6
-Jardim das Bandeiras,apartamento,2024,4,690000.0,780000.0,790000.0,True,
-Jardim das Bandeiras,apartamento,2025,3,590000.0,730000.0,742500.0,True,-6.4
-Jardim das Bandeiras,apartamento,2026,2,677500.0,785000.0,892500.0,True,7.5
-Jardim das Bandeiras,casa,2024,11,2175000.0,2685000.0,2950000.0,False,
-Jardim das Bandeiras,casa,2025,7,1500000.0,1900000.0,2525000.0,True,-29.2
-Jardim das Bandeiras,casa,2026,7,1965000.0,2200000.0,4955000.0,True,15.8
-Jardim dos Estados,apartamento,2024,8,437500.0,511000.0,524000.0,True,
-Jardim dos Estados,apartamento,2025,4,310100.13,483750.0,590000.0,True,-5.3
-Jardim dos Estados,apartamento,2026,9,378280.75,401061.5,441750.0,True,-17.1
-Jardim dos Estados,casa,2024,11,1825000.0,2255000.0,3391125.0,False,
-Jardim dos Estados,casa,2025,15,3162500.0,4228998.29,5000000.0,False,87.5
-Jardim dos Estados,casa,2026,18,2295222.75,3836874.71,5161110.21,False,-9.3
-Jardins,apartamento,2024,41,943750.0,1535000.0,2317000.0,False,
-Jardins,apartamento,2025,33,751250.0,1070000.0,2100000.0,False,-30.3
-Jardins,apartamento,2026,19,1240000.0,2030000.0,2248972.5,False,89.7
-Jardins,casa,2024,1,1800000.0,1800000.0,1800000.0,True,
-Jardins,casa,2025,1,5270000.0,5270000.0,5270000.0,True,192.8
-Jardins,casa,2026,1,2600000.0,2600000.0,2600000.0,True,-50.7
-Lapa,apartamento,2016,1,194117.34,194117.34,194117.34,True,
-Lapa,apartamento,2022,1,1286000.0,1286000.0,1286000.0,True,
-Lapa,apartamento,2023,7,305000.0,397750.0,643875.0,True,-69.1
-Lapa,apartamento,2024,997,300000.0,517000.0,825000.0,False,30.0
-Lapa,apartamento,2025,1045,305000.0,520000.0,825712.5,False,0.6
-Lapa,apartamento,2026,673,310000.0,526125.0,876250.0,False,1.2
-Lapa,casa,2024,126,451200.0,750000.0,1180000.0,False,
-Lapa,casa,2025,143,495000.0,790000.0,1362500.0,False,5.3
-Lapa,casa,2026,88,550000.0,908750.0,1250000.0,False,15.0
-Mirandópolis,apartamento,2024,180,341750.0,472500.0,670000.0,False,
-Mirandópolis,apartamento,2025,191,343750.0,470000.0,610662.04,False,-0.5
-Mirandópolis,apartamento,2026,128,320000.0,460000.0,650000.0,False,-2.1
-Mirandópolis,casa,2024,40,583750.0,735000.0,908750.0,False,
-Mirandópolis,casa,2025,43,638000.0,830000.0,1270000.0,False,12.9
-Mirandópolis,casa,2026,28,606250.0,770000.0,1085000.0,False,-7.2
-Moema,apartamento,2023,6,356591.25,444442.5,661020.0,True,
-Moema,apartamento,2024,626,450000.0,751500.0,1315000.0,False,69.1
-Moema,apartamento,2025,635,550000.0,890000.0,1350000.0,False,18.4
-Moema,apartamento,2026,419,554607.5,880000.0,1429100.0,False,-1.1
-Moema,casa,2024,17,1000000.0,1500000.0,1850000.0,False,
-Moema,casa,2025,30,730000.0,1350000.0,1765000.0,False,-10.0
-Moema,casa,2026,19,875000.0,1600000.0,2225000.0,False,18.5
-Moinho Velho,apartamento,2024,198,300000.0,355000.0,482937.63,False,
-Moinho Velho,apartamento,2025,221,280000.0,385000.0,490000.0,False,8.5
-Moinho Velho,apartamento,2026,127,320000.0,420000.0,510000.0,False,9.1
-Moinho Velho,casa,2024,63,308934.05,410000.0,522500.0,False,
-Moinho Velho,casa,2025,61,350000.0,450000.0,615000.0,False,9.8
-Moinho Velho,casa,2026,51,350000.0,500000.0,565000.0,False,11.1
-Mooca,apartamento,2012,1,160000.0,160000.0,160000.0,True,
-Mooca,apartamento,2017,1,258527.0,258527.0,258527.0,True,
-Mooca,apartamento,2022,2,159260.79,256173.86,353086.93,True,
-Mooca,apartamento,2023,6,228699.79,250000.0,268486.26,True,-2.4
-Mooca,apartamento,2024,1203,290000.0,408000.0,600000.0,False,63.2
-Mooca,apartamento,2025,1317,264000.0,380000.0,570000.0,False,-6.9
-Mooca,apartamento,2026,920,260000.0,371805.0,547500.0,False,-2.2
-Mooca,casa,2000,1,160000.0,160000.0,160000.0,True,
-Mooca,casa,2023,1,460000.0,460000.0,460000.0,True,
-Mooca,casa,2024,219,360500.0,550000.0,734000.0,False,19.6
-Mooca,casa,2025,243,342500.0,495000.0,700000.0,False,-10.0
-Mooca,casa,2026,151,380000.0,539000.0,822500.0,False,8.9
-Pacaembu,apartamento,2024,24,469500.0,590661.0,2107500.0,False,
-Pacaembu,apartamento,2025,48,510000.0,872620.0,1192792.5,False,47.7
-Pacaembu,apartamento,2026,28,535000.0,1045286.33,1357403.34,False,19.8
-Pacaembu,casa,2024,35,1652302.0,2500000.0,3325000.0,False,
-Pacaembu,casa,2025,23,1893750.0,3075000.0,3410000.0,False,23.0
-Pacaembu,casa,2026,22,2018750.0,2390000.0,3017520.0,False,-22.3
-Paraíso,apartamento,2023,1,630000.0,630000.0,630000.0,True,
-Paraíso,apartamento,2024,407,460000.0,790000.0,1100000.0,False,25.4
-Paraíso,apartamento,2025,521,450000.0,719500.0,1097500.0,False,-8.9
-Paraíso,apartamento,2026,343,410000.0,682500.0,1027505.0,False,-5.1
-Paraíso,casa,2024,10,700000.0,800000.0,1950000.0,False,
-Paraíso,casa,2025,15,2420000.0,3510345.5,4208676.0,False,338.8
-Paraíso,casa,2026,2,2518835.77,3037671.54,3556507.32,True,-13.5
-Parque Fongaro,apartamento,2024,36,233105.5,262500.0,280250.0,False,
-Parque Fongaro,apartamento,2025,34,215000.0,251075.0,278750.0,False,-4.4
-Parque Fongaro,apartamento,2026,24,250000.0,283464.5,294750.0,False,12.9
-Parque Fongaro,casa,2024,18,310000.0,384000.0,532500.0,False,
-Parque Fongaro,casa,2025,19,350000.0,400000.0,500000.0,False,4.2
-Parque Fongaro,casa,2026,9,370000.0,415000.0,510000.0,True,3.8
-Parque da Mooca,apartamento,2024,159,510000.0,897777.44,1253751.87,False,
-Parque da Mooca,apartamento,2025,115,430000.0,765000.0,1105000.0,False,-14.8
-Parque da Mooca,apartamento,2026,73,378000.0,510000.0,892500.0,False,-33.3
-Parque da Mooca,casa,2024,25,630000.0,915000.0,1277500.0,False,
-Parque da Mooca,casa,2025,22,485625.0,522500.0,886787.5,False,-42.9
-Parque da Mooca,casa,2026,19,560000.0,741500.0,1087500.0,False,41.9
-Perdizes,apartamento,2023,14,590000.0,731743.84,900000.0,False,
-Perdizes,apartamento,2024,1613,430000.0,650000.0,995034.67,False,-11.2
-Perdizes,apartamento,2025,1592,450000.0,709187.8,1060000.0,False,9.1
-Perdizes,apartamento,2026,1113,431703.05,660000.0,1071600.0,False,-6.9
-Perdizes,casa,2024,86,725000.0,1100000.0,1500000.0,False,
-Perdizes,casa,2025,83,882026.5,1195000.0,1765593.21,False,8.6
-Perdizes,casa,2026,50,775000.0,1010000.0,1425000.0,False,-15.5
-Pinheiros,apartamento,2023,1,983000.0,983000.0,983000.0,True,
-Pinheiros,apartamento,2024,816,490000.0,725000.0,1050000.0,False,-26.2
-Pinheiros,apartamento,2025,1212,350000.0,622000.0,1005000.04,False,-14.2
-Pinheiros,apartamento,2026,693,398157.5,697500.0,1135375.0,False,12.1
-Pinheiros,casa,2023,1,500000.0,500000.0,500000.0,True,
-Pinheiros,casa,2024,85,1037500.0,1357500.0,1956607.92,False,171.5
-Pinheiros,casa,2025,89,1262500.0,2231000.0,2962938.5,False,64.3
-Pinheiros,casa,2026,57,866250.0,1350000.0,2097500.0,False,-39.5
-Planalto Paulista,apartamento,2024,52,400000.0,460000.0,1000000.0,False,
-Planalto Paulista,apartamento,2025,86,432427.75,730000.0,883347.21,False,58.7
-Planalto Paulista,apartamento,2026,59,404964.0,602682.19,850000.0,False,-17.4
-Planalto Paulista,casa,2023,1,530000.0,530000.0,530000.0,True,
-Planalto Paulista,casa,2024,83,550000.0,800000.0,1200000.0,False,50.9
-Planalto Paulista,casa,2025,111,580000.0,790000.0,1100000.0,False,-1.2
-Planalto Paulista,casa,2026,77,690000.0,1085000.0,1446250.0,False,37.3
-Pompéia,apartamento,2022,2,166555.05,327703.36,488851.68,True,
-Pompéia,apartamento,2023,5,527000.0,585949.0,950000.0,True,78.8
-Pompéia,apartamento,2024,376,535000.0,680000.0,859820.0,False,16.1
-Pompéia,apartamento,2025,412,534544.85,675000.0,850000.0,False,-0.7
-Pompéia,apartamento,2026,318,522084.0,700000.0,950000.0,False,3.7
-Pompéia,casa,2024,31,535000.0,680000.0,890000.0,False,
-Pompéia,casa,2025,37,565000.0,795000.0,1225000.0,False,16.9
-Pompéia,casa,2026,36,690000.0,827500.0,1025000.0,False,4.1
-Santa Cecília,apartamento,2023,4,512500.0,525000.0,537500.0,True,
-Santa Cecília,apartamento,2024,1203,260719.5,400000.0,630000.0,False,-23.8
-Santa Cecília,apartamento,2025,1356,270000.0,396610.63,640000.0,False,-0.8
-Santa Cecília,apartamento,2026,930,290625.0,420000.0,680000.0,False,5.9
-Santa Cecília,casa,2024,11,410000.0,465000.0,1936000.0,False,
-Santa Cecília,casa,2025,8,587500.0,635000.0,982011.29,True,36.6
-Santa Cecília,casa,2026,9,800000.0,2300000.0,2591000.0,True,262.2
-Santo Amaro,apartamento,2006,1,188288.0,188288.0,188288.0,True,
-Santo Amaro,apartamento,2023,3,677500.0,755000.0,870000.0,True,
-Santo Amaro,apartamento,2024,355,360132.66,612500.0,860000.0,False,-18.9
-Santo Amaro,apartamento,2025,374,386250.0,680000.0,1000000.0,False,11.0
-Santo Amaro,apartamento,2026,229,378750.0,700000.0,1100000.0,False,2.9
-Santo Amaro,casa,2024,29,453000.0,580000.0,712500.0,False,
-Santo Amaro,casa,2025,48,500000.0,620000.0,750000.0,False,6.9
-Santo Amaro,casa,2026,30,460036.56,610000.0,861875.0,False,-1.6
-Saúde,apartamento,2015,1,3097.53,3097.53,3097.53,True,
-Saúde,apartamento,2018,1,464619.55,464619.55,464619.55,True,
-Saúde,apartamento,2023,16,297947.3,442500.0,577500.0,False,
-Saúde,apartamento,2024,2042,286940.0,430000.0,630000.0,False,-2.8
-Saúde,apartamento,2025,2170,290000.0,432000.0,670327.13,False,0.5
-Saúde,apartamento,2026,1406,300000.0,440000.0,650000.0,False,1.9
-Saúde,casa,1999,1,37000.0,37000.0,37000.0,True,
-Saúde,casa,2024,219,400000.0,540000.0,700000.0,False,
-Saúde,casa,2025,243,390250.0,530000.0,725000.0,False,-1.9
-Saúde,casa,2026,176,403750.0,520000.0,695000.0,False,-1.9
-Sumarezinho,apartamento,2023,4,277416.5,279833.0,279833.0,True,
-Sumarezinho,apartamento,2024,202,415000.0,646550.0,893730.0,False,131.0
-Sumarezinho,apartamento,2025,154,400000.0,577500.0,806250.0,False,-10.7
-Sumarezinho,apartamento,2026,96,403750.0,561120.21,862756.25,False,-2.8
-Sumarezinho,casa,2024,23,929125.0,1572500.0,2008750.0,False,
-Sumarezinho,casa,2025,11,900000.0,1450000.0,1585000.0,False,-7.8
-Sumarezinho,casa,2026,4,1775000.0,2245000.0,2992500.0,True,54.8
-Sumaré,apartamento,2024,90,628500.0,866750.0,1262500.0,False,
-Sumaré,apartamento,2025,107,555000.0,850000.0,1180000.0,False,-1.9
-Sumaré,apartamento,2026,71,615000.0,850000.0,1100000.0,False,0.0
-Sumaré,casa,2024,27,1460000.0,2300000.0,2925000.0,False,
-Sumaré,casa,2025,27,1500000.0,1900000.0,2350000.0,False,-17.4
-Sumaré,casa,2026,21,1550000.0,2250000.0,2515000.0,False,18.4
-Tatuapé,apartamento,2004,1,171671.0,171671.0,171671.0,True,
-Tatuapé,apartamento,2021,1,861200.0,861200.0,861200.0,True,
-Tatuapé,apartamento,2022,1,1028.16,1028.16,1028.16,True,-99.9
-Tatuapé,apartamento,2023,20,445000.0,473000.0,600000.0,False,45904.5
-Tatuapé,apartamento,2024,2380,339500.0,490000.0,744500.0,False,3.6
-Tatuapé,apartamento,2025,2265,329000.0,471575.12,725000.0,False,-3.8
-Tatuapé,apartamento,2026,1628,350000.0,522062.0,803573.8,False,10.7
-Tatuapé,casa,2023,1,700000.0,700000.0,700000.0,True,
-Tatuapé,casa,2024,461,368000.0,530000.0,690000.0,False,-24.3
-Tatuapé,casa,2025,448,376000.0,570000.0,800000.0,False,7.5
-Tatuapé,casa,2026,327,400000.0,556000.0,740000.0,False,-2.5
-Vila Antonieta,apartamento,2014,1,261000.0,261000.0,261000.0,True,
-Vila Antonieta,apartamento,2023,2,90237.78,180158.52,270079.26,True,
-Vila Antonieta,apartamento,2024,178,260000.0,305000.0,350000.0,False,69.3
-Vila Antonieta,apartamento,2025,179,262400.0,314000.0,360000.0,False,3.0
-Vila Antonieta,apartamento,2026,135,298500.0,334675.49,384100.3,False,6.6
-Vila Antonieta,casa,2023,1,415000.0,415000.0,415000.0,True,
-Vila Antonieta,casa,2024,50,303750.0,390000.0,530000.0,False,-6.0
-Vila Antonieta,casa,2025,70,302250.0,415000.0,480000.0,False,6.4
-Vila Antonieta,casa,2026,41,400000.0,450000.0,580000.0,False,8.4
-Vila Bertioga,apartamento,2024,58,370000.0,477000.0,627500.0,False,
-Vila Bertioga,apartamento,2025,67,415000.0,550000.0,836500.0,False,15.3
-Vila Bertioga,apartamento,2026,38,434350.0,499000.0,887500.0,False,-9.3
-Vila Bertioga,casa,2024,12,397659.0,411500.0,500000.0,False,
-Vila Bertioga,casa,2025,22,390500.0,660000.0,1087500.0,False,60.4
-Vila Bertioga,casa,2026,19,350000.0,447500.0,756500.0,False,-32.2
-Vila Clementino,apartamento,1999,1,69300.0,69300.0,69300.0,True,
-Vila Clementino,apartamento,2023,2,180396.76,360264.51,540132.26,True,
-Vila Clementino,apartamento,2024,356,332755.0,500000.0,928500.0,False,38.8
-Vila Clementino,apartamento,2025,383,335000.0,550000.0,1082250.0,False,10.0
-Vila Clementino,apartamento,2026,285,359204.97,510000.0,863344.5,False,-7.3
-Vila Clementino,casa,2024,34,804500.0,1050595.0,1600000.0,False,
-Vila Clementino,casa,2025,44,787500.0,1300000.0,1510187.77,False,23.7
-Vila Clementino,casa,2026,25,613750.0,750000.0,1672157.58,False,-42.3
-Vila Cordeiro,apartamento,2024,18,572500.0,655000.0,863500.0,False,
-Vila Cordeiro,apartamento,2025,148,281597.13,290768.08,303865.08,False,-55.6
-Vila Cordeiro,apartamento,2026,33,286659.53,307547.4,544748.44,False,5.8
-Vila Cordeiro,casa,2023,1,964.47,964.47,964.47,True,
-Vila Cordeiro,casa,2024,18,685000.0,809000.0,1025000.0,False,83780.3
-Vila Cordeiro,casa,2025,13,750000.0,1100000.0,1850000.0,False,36.0
-Vila Cordeiro,casa,2026,5,831250.0,1067500.0,1401250.0,True,-3.0
-Vila Firmiano Pinto,apartamento,2024,23,480000.0,800000.0,1320000.0,False,
-Vila Firmiano Pinto,apartamento,2025,129,314820.2,388000.0,523325.45,False,-51.5
-Vila Firmiano Pinto,apartamento,2026,68,316966.5,335000.0,445750.0,False,-13.7
-Vila Firmiano Pinto,casa,2024,2,620000.0,670000.0,720000.0,True,
-Vila Firmiano Pinto,casa,2025,3,750000.0,1100000.0,1130276.01,True,64.2
-Vila Firmiano Pinto,casa,2026,2,922500.0,1015000.0,1107500.0,True,-7.7
-Vila Gomes Cardim,apartamento,2019,1,5541.03,5541.03,5541.03,True,
-Vila Gomes Cardim,apartamento,2024,65,450000.0,820000.0,1164000.0,False,
-Vila Gomes Cardim,apartamento,2025,65,500000.0,875087.5,1139017.14,False,6.7
-Vila Gomes Cardim,apartamento,2026,41,569000.0,780000.0,1510000.0,False,-10.9
-Vila Gomes Cardim,casa,2024,13,483750.0,650000.0,800000.0,False,
-Vila Gomes Cardim,casa,2025,10,543750.0,750000.0,1229500.0,False,15.4
-Vila Gomes Cardim,casa,2026,7,762500.0,1100000.0,1150000.0,True,46.7
-Vila Gumercindo,apartamento,2023,1,820000.0,820000.0,820000.0,True,
-Vila Gumercindo,apartamento,2024,171,405000.0,540000.0,1050000.0,False,-34.1
-Vila Gumercindo,apartamento,2025,172,411000.0,525000.0,1040000.0,False,-2.8
-Vila Gumercindo,apartamento,2026,92,420000.0,555000.0,896250.0,False,5.7
-Vila Gumercindo,casa,2024,20,450000.0,530000.0,680000.0,False,
-Vila Gumercindo,casa,2025,17,345000.0,600000.0,630000.0,False,13.2
-Vila Gumercindo,casa,2026,12,508841.87,652500.0,787500.0,False,8.8
-Vila Ipojuca,apartamento,2024,87,520000.0,720000.0,880000.0,False,
-Vila Ipojuca,apartamento,2025,71,538792.59,753500.0,914661.3,False,4.7
-Vila Ipojuca,apartamento,2026,35,500000.0,620000.0,900000.0,False,-17.7
-Vila Ipojuca,casa,2024,12,377500.0,480000.0,728750.0,False,
-Vila Ipojuca,casa,2025,15,375000.0,630000.0,850000.0,False,31.2
-Vila Ipojuca,casa,2026,20,458750.0,910000.0,1515000.0,False,44.4
-Vila Leopoldina,apartamento,2023,5,575000.0,725000.0,1800000.0,True,
-Vila Leopoldina,apartamento,2024,549,588902.27,850000.0,1400000.0,False,17.2
-Vila Leopoldina,apartamento,2025,435,596115.8,810000.0,1359000.0,False,-4.7
-Vila Leopoldina,apartamento,2026,253,620000.0,907000.0,1648000.0,False,12.0
-Vila Leopoldina,casa,2024,48,535000.0,750000.0,945000.0,False,
-Vila Leopoldina,casa,2025,30,550000.0,585000.0,725000.0,False,-22.0
-Vila Leopoldina,casa,2026,16,580500.0,650000.0,825000.0,False,11.1
-Vila Madalena,apartamento,2023,4,1389552.81,1716105.63,1758052.81,True,
-Vila Madalena,apartamento,2024,426,530000.0,796290.0,1250000.0,False,-53.6
-Vila Madalena,apartamento,2025,409,515000.0,820000.0,1280000.0,False,3.0
-Vila Madalena,apartamento,2026,207,530000.0,852098.98,1210000.0,False,3.9
-Vila Madalena,casa,2023,3,1810500.0,2150000.0,2975000.0,True,
-Vila Madalena,casa,2024,91,1238250.0,1722000.0,2662500.0,False,-19.9
-Vila Madalena,casa,2025,87,1395000.0,1815000.0,2725000.0,False,5.4
-Vila Madalena,casa,2026,53,1375000.0,1900000.0,2556250.0,False,4.7
-Vila Mariana,apartamento,2007,1,25000.0,25000.0,25000.0,True,
-Vila Mariana,apartamento,2023,12,518750.0,880000.0,1185000.0,False,
-Vila Mariana,apartamento,2024,1700,414012.31,625500.0,920000.0,False,-28.9
-Vila Mariana,apartamento,2025,2004,421689.11,646500.0,1076500.0,False,3.4
-Vila Mariana,apartamento,2026,1291,430824.7,683907.49,1107562.5,False,5.8
-Vila Mariana,casa,2024,188,800000.0,1350000.0,2061884.41,False,
-Vila Mariana,casa,2025,139,715000.0,1100000.0,1633214.28,False,-18.5
-Vila Mariana,casa,2026,91,850000.0,1175000.0,1837500.0,False,6.8
-Vila Monumento,apartamento,2024,64,376746.5,450000.0,585000.0,False,
-Vila Monumento,apartamento,2025,73,298750.0,380000.0,502500.0,False,-15.6
-Vila Monumento,apartamento,2026,58,300000.0,450000.0,595000.0,False,18.4
-Vila Monumento,casa,2024,23,465000.0,720000.0,985000.0,False,
-Vila Monumento,casa,2025,39,490000.0,750000.0,870000.0,False,4.2
-Vila Monumento,casa,2026,22,470000.0,535000.0,752928.0,False,-28.7
-Vila Nova Conceição,apartamento,2024,195,683750.0,1120671.46,2182500.0,False,
-Vila Nova Conceição,apartamento,2025,195,917500.0,1656128.12,3669520.0,False,47.8
-Vila Nova Conceição,apartamento,2026,175,1150000.0,2684851.87,5405025.0,False,62.1
-Vila Nova Conceição,casa,2024,16,2551250.0,2875000.0,3475000.0,False,
-Vila Nova Conceição,casa,2025,22,1950000.0,3466000.0,13702192.38,False,20.6
-Vila Nova Conceição,casa,2026,19,3255000.0,4800000.0,8953925.61,False,38.5
-Vila Nova Manchester,apartamento,2024,48,152500.0,245000.0,370000.0,False,
-Vila Nova Manchester,apartamento,2025,57,219000.0,295000.0,425000.0,False,20.4
-Vila Nova Manchester,apartamento,2026,46,195000.0,305000.0,405000.0,False,3.4
-Vila Nova Manchester,casa,2024,31,302000.0,476000.0,807500.0,False,
-Vila Nova Manchester,casa,2025,24,395000.0,480000.0,581500.0,False,0.8
-Vila Nova Manchester,casa,2026,15,506250.0,615000.0,875000.0,False,28.1
-Vila Olímpia,apartamento,2023,7,695000.0,765000.0,1145000.0,True,
-Vila Olímpia,apartamento,2024,794,319003.02,600000.0,975909.58,False,-21.6
-Vila Olímpia,apartamento,2025,878,346804.82,573412.83,868750.0,False,-4.4
-Vila Olímpia,apartamento,2026,555,353687.86,611445.45,1030874.5,False,6.6
-Vila Olímpia,casa,2024,36,1385000.0,1914318.01,2840000.0,False,
-Vila Olímpia,casa,2025,33,1123750.0,2182000.0,3474777.67,False,14.0
-Vila Olímpia,casa,2026,12,1032500.0,1480000.0,1695000.0,False,-32.2
-Vila Regente Feijó,apartamento,2023,2,444912.5,663275.0,881637.5,True,
-Vila Regente Feijó,apartamento,2024,144,500000.0,790000.0,1095000.0,False,19.1
-Vila Regente Feijó,apartamento,2025,180,347500.0,600000.0,985000.0,False,-24.1
-Vila Regente Feijó,apartamento,2026,109,373000.0,596500.0,1005000.0,False,-0.6
-Vila Regente Feijó,casa,2024,20,300000.0,450000.0,530000.0,False,
-Vila Regente Feijó,casa,2025,23,400000.0,575000.0,750000.0,False,27.8
-Vila Regente Feijó,casa,2026,18,460000.0,540000.0,712500.0,False,-6.1
-Vila Romana,apartamento,2024,126,657500.0,1010000.0,2011750.0,False,
-Vila Romana,apartamento,2025,129,580000.0,900000.0,1450000.0,False,-10.9
-Vila Romana,apartamento,2026,104,606000.0,1000000.0,1717500.0,False,11.1
-Vila Romana,casa,2024,47,645000.0,990000.0,1359722.63,False,
-Vila Romana,casa,2025,51,597500.0,1130000.0,1412000.0,False,14.1
-Vila Romana,casa,2026,27,870000.0,1200000.0,1450000.0,False,6.2
-Vila São Francisco,apartamento,2023,1,1180000.0,1180000.0,1180000.0,True,
-Vila São Francisco,apartamento,2024,227,293165.5,651880.0,958750.0,False,-44.8
-Vila São Francisco,apartamento,2025,242,268750.0,600000.0,972500.0,False,-8.0
-Vila São Francisco,apartamento,2026,122,395900.0,830000.0,1100000.0,False,38.3
-Vila São Francisco,casa,2022,1,615.78,615.78,615.78,True,
-Vila São Francisco,casa,2024,75,350000.0,505000.0,735000.0,False,
-Vila São Francisco,casa,2025,60,373615.0,570000.0,825000.0,False,12.9
-Vila São Francisco,casa,2026,40,465000.0,600000.0,770000.0,False,5.3
-Vila Uberabinha,apartamento,2024,37,710500.0,1160320.0,1625000.0,False,
-Vila Uberabinha,apartamento,2025,26,705000.0,1149000.0,1456141.31,False,-1.0
-Vila Uberabinha,apartamento,2026,22,1097500.0,1846259.0,2127500.0,False,60.7
-Vila Uberabinha,casa,2024,3,1387500.0,1925000.0,1925000.0,True,
-Vila Uberabinha,casa,2026,1,1500000.0,1500000.0,1500000.0,True,
-Vila da Saúde,apartamento,2024,49,395000.0,530000.0,646250.0,False,
-Vila da Saúde,apartamento,2025,32,377500.0,580000.0,622500.0,False,9.4
-Vila da Saúde,apartamento,2026,24,370000.0,410000.0,680000.0,False,-29.3
-Vila da Saúde,casa,2024,1,490000.0,490000.0,490000.0,True,
-Vila da Saúde,casa,2025,3,625000.0,750000.0,1175000.0,True,53.1
-Vila da Saúde,casa,2026,1,550000.0,550000.0,550000.0,True,-26.7
-Vila das Mercês,apartamento,2023,1,460000.0,460000.0,460000.0,True,
-Vila das Mercês,apartamento,2024,133,266250.0,317500.0,422250.0,False,-31.0
-Vila das Mercês,apartamento,2025,142,261250.0,304000.0,428750.0,False,-4.3
-Vila das Mercês,apartamento,2026,88,273750.0,322500.0,400991.25,False,6.1
-Vila das Mercês,casa,2024,32,386250.0,435000.0,561250.0,False,
-Vila das Mercês,casa,2025,26,273750.0,361875.0,457500.0,False,-16.8
-Vila das Mercês,casa,2026,27,302500.0,395000.0,525000.0,False,9.2
+bairro,tipo,periodo,meses_cobertos,n_vendas,p25,mediana,p75,amostra_pequena,variacao_pct_ano_anterior
+Aclimação,apartamento,2024,jan–dez,733,302359.19,470000.0,747500.0,False,
+Aclimação,apartamento,2025,jan–dez,791,268978.62,430000.0,675000.0,False,-8.5
+Aclimação,apartamento,2026,jan–set,536,255000.0,430000.0,660000.0,False,0.0
+Aclimação,casa,2024,jan–dez,70,600000.0,815000.0,1300000.0,False,
+Aclimação,casa,2025,jan–dez,66,550000.0,820000.0,1357500.0,False,0.6
+Aclimação,casa,2026,jan–ago,52,481250.0,685000.0,950000.0,False,-16.5
+Alto da Boa Vista,apartamento,2024,jan–dez,262,349289.67,471000.0,720000.0,False,
+Alto da Boa Vista,apartamento,2025,jan–dez,340,348562.5,510766.0,718251.7,False,8.4
+Alto da Boa Vista,apartamento,2026,jan–ago,224,305000.0,475000.0,700000.0,False,-7.0
+Alto da Boa Vista,casa,2024,jan–dez,58,1325000.0,2100000.0,2950000.0,False,
+Alto da Boa Vista,casa,2025,jan–dez,54,962500.0,1975000.0,3160000.0,False,-6.0
+Alto da Boa Vista,casa,2026,fev–ago,30,1250000.0,2000000.0,3000000.0,False,1.3
+Alto da Lapa,apartamento,2024,jan–dez,140,650000.0,1000000.0,1450000.0,False,
+Alto da Lapa,apartamento,2025,jan–dez,176,603750.0,907500.0,1468750.0,False,-9.2
+Alto da Lapa,apartamento,2026,jan–ago,102,665000.0,937500.0,1562500.0,False,3.3
+Alto da Lapa,casa,2024,jan–dez,43,837500.0,1310000.0,1700000.0,False,
+Alto da Lapa,casa,2025,jan–dez,65,995000.0,1385000.0,2097750.0,False,5.7
+Alto da Lapa,casa,2026,jan–ago,47,800000.0,1385800.0,2100000.0,False,0.1
+Alto da Mooca,apartamento,2024,jan–dez,304,283000.0,396500.0,523000.0,False,
+Alto da Mooca,apartamento,2025,jan–dez,365,285500.0,388000.0,565000.0,False,-2.1
+Alto da Mooca,apartamento,2026,jan–set,203,251155.46,344686.0,480000.0,False,-11.2
+Alto da Mooca,casa,2024,jan–dez,102,420000.0,530000.0,750000.0,False,
+Alto da Mooca,casa,2025,jan–dez,136,391732.5,559000.0,693835.75,False,5.5
+Alto da Mooca,casa,2026,jan–ago,87,400000.0,550000.0,780000.0,False,-1.6
+Alto de Pinheiros,apartamento,2024,jan–dez,124,500000.0,1570000.0,2837500.0,False,
+Alto de Pinheiros,apartamento,2025,jan–dez,115,527500.0,1900000.0,4888195.88,False,21.0
+Alto de Pinheiros,apartamento,2026,jan–ago,67,471750.0,980000.0,2199855.0,False,-48.4
+Alto de Pinheiros,casa,2024,jan–dez,63,2520000.0,3800000.0,5725000.0,False,
+Alto de Pinheiros,casa,2025,jan–dez,65,2950000.0,4450000.0,6218910.0,False,17.1
+Alto de Pinheiros,casa,2026,jan–ago,38,2112500.0,3660000.0,5162500.0,False,-17.8
+Bela Vista,apartamento,2024,jan–dez,1414,255000.0,352000.0,550000.0,False,
+Bela Vista,apartamento,2025,jan–dez,1354,260000.0,365000.0,570000.0,False,3.7
+Bela Vista,apartamento,2026,jan–set,910,270000.0,377000.0,551045.0,False,3.3
+Bela Vista,casa,2024,jan–dez,27,475000.0,522500.0,862500.0,False,
+Bela Vista,casa,2025,jan–out,18,410000.0,560000.0,770000.0,False,7.2
+Bela Vista,casa,2026,jan–ago,17,558000.0,650000.0,730000.0,False,16.1
+Bosque da Saúde,apartamento,2024,fev–dez,42,467000.0,724121.69,933275.0,False,
+Bosque da Saúde,apartamento,2025,jan–dez,64,360000.0,550000.0,700000.0,False,-24.0
+Bosque da Saúde,apartamento,2026,mar–ago,18,506125.0,638500.0,1067538.83,False,16.1
+Bosque da Saúde,casa,2024,jan–dez,22,464999.98,590000.0,807500.0,False,
+Bosque da Saúde,casa,2025,jan–dez,32,406400.0,600000.0,822500.0,False,1.7
+Bosque da Saúde,casa,2026,jan–jul,16,407500.0,565000.0,787500.0,False,-5.8
+Brooklin,apartamento,2024,jan–dez,773,530000.0,750000.0,1250000.0,False,
+Brooklin,apartamento,2025,jan–dez,1044,510000.0,778000.0,1150000.0,False,3.7
+Brooklin,apartamento,2026,jan–ago,643,550000.0,835000.0,1406000.0,False,7.3
+Brooklin,casa,2024,jan–dez,223,850000.0,1310000.0,2246500.0,False,
+Brooklin,casa,2025,jan–dez,164,775000.0,1250000.0,1925000.0,False,-4.6
+Brooklin,casa,2026,jan–ago,106,750000.0,1062500.0,1741750.0,False,-15.0
+Cambuci,apartamento,2024,jan–dez,516,250000.0,325000.0,430000.0,False,
+Cambuci,apartamento,2025,jan–dez,557,260000.0,330000.0,438750.0,False,1.5
+Cambuci,apartamento,2026,jan–set,387,280000.0,355000.0,447750.0,False,7.6
+Cambuci,casa,2024,fev–nov,60,398750.0,520000.0,772500.0,False,
+Cambuci,casa,2025,jan–dez,67,290000.0,450000.0,575000.0,False,-13.5
+Cambuci,casa,2026,jan–ago,45,412440.0,480000.0,600000.0,False,6.7
+Campo Belo,apartamento,2024,jan–dez,676,440000.0,676800.0,1190000.0,False,
+Campo Belo,apartamento,2025,jan–dez,876,450000.0,700000.0,1282581.27,False,3.4
+Campo Belo,apartamento,2026,jan–set,532,480000.0,737173.37,1303675.0,False,5.3
+Campo Belo,casa,2024,jan–dez,109,661250.0,925000.0,1801500.0,False,
+Campo Belo,casa,2025,jan–dez,126,600000.0,867500.0,1651250.0,False,-6.2
+Campo Belo,casa,2026,jan–set,73,640000.0,1150000.0,1780530.0,False,32.6
+Cerqueira César,apartamento,2024,jan–dez,1121,389348.73,767500.0,1561875.0,False,
+Cerqueira César,apartamento,2025,jan–dez,1094,418355.63,809300.32,1550000.0,False,5.4
+Cerqueira César,apartamento,2026,jan–set,744,415000.0,724009.28,1446210.22,False,-10.5
+Cerqueira César,casa,2024,abr–dez,11,680000.0,1850000.0,3425000.0,False,
+Cerqueira César,casa,2025,fev–dez,17,399888.72,1412500.0,2275000.0,False,-23.6
+Cerqueira César,casa,2026,fev–jul,9,750000.0,2650000.0,6824884.0,True,
+Chácara Inglesa,apartamento,2024,jan–dez,96,342500.0,500000.0,784592.5,False,
+Chácara Inglesa,apartamento,2025,jan–dez,143,350000.0,540000.0,905000.0,False,8.0
+Chácara Inglesa,apartamento,2026,jan–ago,89,391638.81,467500.0,736250.0,False,-13.4
+Chácara Inglesa,casa,2024,fev–dez,12,593750.0,690000.0,766875.0,False,
+Chácara Inglesa,casa,2025,abr–nov,12,525000.0,700000.0,985000.0,False,1.4
+Chácara Inglesa,casa,2026,mar–jul,4,732500.0,790000.0,880000.0,True,
+Chácara Santo Antônio,apartamento,2024,jan–dez,516,510318.76,800000.0,1270000.0,False,
+Chácara Santo Antônio,apartamento,2025,jan–dez,823,318750.0,491000.0,810690.79,False,-38.6
+Chácara Santo Antônio,apartamento,2026,jan–ago,411,424564.0,602212.19,1110000.0,False,22.7
+Chácara Santo Antônio,casa,2024,jan–dez,78,500000.0,669400.0,1037500.0,False,
+Chácara Santo Antônio,casa,2025,jan–dez,114,605000.0,870000.0,1363000.0,False,30.0
+Chácara Santo Antônio,casa,2026,jan–ago,65,550000.0,815000.0,1250000.0,False,-6.3
+Cidade Monções,apartamento,2024,jan–dez,26,297500.0,1605000.0,2787500.0,False,
+Cidade Monções,apartamento,2025,jan–dez,56,195126.7,874250.0,2940000.0,False,-45.5
+Cidade Monções,apartamento,2026,jan–ago,27,216423.4,670000.0,2290000.0,False,-23.4
+Cidade Monções,casa,2024,jan–dez,5,1474665.66,2021443.77,2537500.0,True,
+Cidade Monções,casa,2025,fev–out,8,785000.0,1237500.0,2710886.9,True,
+Cidade Monções,casa,2026,fev–jul,8,831250.0,1707500.0,2472624.25,True,
+Consolação,apartamento,2024,jan–dez,950,240000.0,318620.0,471213.01,False,
+Consolação,apartamento,2025,jan–dez,1258,240000.0,315000.0,440000.0,False,-1.1
+Consolação,apartamento,2026,jan–ago,884,250000.0,336509.62,450000.0,False,6.8
+Consolação,casa,2024,mar–out,4,422500.0,1065000.0,2536342.5,True,
+Consolação,casa,2025,fev–mar,2,2875000.0,4600000.0,6325000.0,True,
+Consolação,casa,2026,mar–abr,2,8172845.47,8345690.95,8518536.43,True,
+Higienópolis,apartamento,2024,jan–dez,346,864972.0,1263591.0,1900000.0,False,
+Higienópolis,apartamento,2025,jan–dez,356,850000.0,1385037.5,1900000.0,False,9.6
+Higienópolis,apartamento,2026,jan–ago,268,970000.0,1440000.0,2000000.0,False,4.0
+Higienópolis,casa,2026,mar–mai,2,3450000.0,3500000.0,3550000.0,True,
+Ibirapuera,apartamento,2024,jan–dez,476,600000.0,900000.0,1500000.0,False,
+Ibirapuera,apartamento,2025,jan–dez,484,503515.5,780000.0,1362500.0,False,-13.3
+Ibirapuera,apartamento,2026,jan–ago,296,565500.0,900000.0,1475000.0,False,15.4
+Ibirapuera,casa,2024,jan–nov,54,540000.0,1100000.0,2938051.23,False,
+Ibirapuera,casa,2025,jan–dez,61,600000.0,780000.0,1242000.0,False,-29.1
+Ibirapuera,casa,2026,jan–ago,35,662075.0,850000.0,2025000.0,False,9.0
+Indianópolis,apartamento,2024,jan–dez,771,480000.0,715000.0,1100000.0,False,
+Indianópolis,apartamento,2025,jan–dez,978,476950.0,619000.0,1040000.0,False,-13.4
+Indianópolis,apartamento,2026,jan–set,522,485000.0,720000.0,1227500.0,False,16.3
+Indianópolis,casa,2024,jan–dez,45,717500.0,1200000.0,2187500.0,False,
+Indianópolis,casa,2025,jan–dez,50,950000.0,1265000.0,2225000.0,False,5.4
+Indianópolis,casa,2026,jan–set,29,950000.0,1374814.3,1906830.75,False,8.7
+Ipiranga,apartamento,2024,jan–dez,1290,285457.81,422580.0,642081.34,False,
+Ipiranga,apartamento,2025,jan–dez,1338,289789.0,430000.0,660000.0,False,1.8
+Ipiranga,apartamento,2026,jan–set,843,320000.0,480000.0,750549.68,False,11.6
+Ipiranga,casa,2024,jan–dez,279,350000.0,460000.0,600000.0,False,
+Ipiranga,casa,2025,jan–dez,319,340000.0,450000.0,634500.0,False,-2.2
+Ipiranga,casa,2026,jan–ago,193,365000.0,500000.0,675000.0,False,11.1
+Itaim Bibi,apartamento,2024,jan–dez,499,642684.75,967500.0,1500000.0,False,
+Itaim Bibi,apartamento,2025,jan–dez,510,675000.0,1126395.38,2000000.0,False,16.4
+Itaim Bibi,apartamento,2026,jan–ago,304,726077.0,1190000.0,2200000.0,False,5.6
+Itaim Bibi,casa,2024,jan–dez,24,365064.12,810000.0,1725000.0,False,
+Itaim Bibi,casa,2025,fev–dez,32,345000.0,2500000.0,3771214.84,False,208.6
+Itaim Bibi,casa,2026,jan–jul,21,387500.0,2300000.0,3934537.97,False,-8.0
+Jardim Aeroporto,apartamento,2024,jan–dez,148,243719.0,355000.0,503696.5,False,
+Jardim Aeroporto,apartamento,2025,jan–dez,163,285000.0,380000.0,575000.0,False,7.0
+Jardim Aeroporto,apartamento,2026,jan–ago,98,313268.75,500000.0,732250.0,False,31.6
+Jardim Aeroporto,casa,2024,jan–dez,48,430000.0,508000.0,700000.0,False,
+Jardim Aeroporto,casa,2025,jan–dez,56,465000.0,570000.0,728000.0,False,12.2
+Jardim Aeroporto,casa,2026,jan–set,43,426750.0,555000.0,667500.0,False,-2.6
+Jardim América,apartamento,2024,jan–dez,454,547500.0,800000.0,1225500.0,False,
+Jardim América,apartamento,2025,jan–dez,529,482275.0,780000.0,1300000.0,False,-2.5
+Jardim América,apartamento,2026,jan–set,351,495000.0,730000.0,1100000.0,False,-6.4
+Jardim América,casa,2024,jan–dez,26,1618984.71,3312300.0,6340682.07,False,
+Jardim América,casa,2025,jan–dez,58,2352886.56,3975000.0,7839146.95,False,20.0
+Jardim América,casa,2026,jan–ago,23,4050000.0,8972648.66,22255000.0,False,125.7
+Jardim Anália Franco,apartamento,2024,jan–dez,77,513568.0,700000.0,1150000.0,False,
+Jardim Anália Franco,apartamento,2025,jan–dez,62,568800.0,740000.0,1300000.0,False,5.7
+Jardim Anália Franco,apartamento,2026,jan–ago,40,514805.0,770000.0,1275000.0,False,4.1
+Jardim Anália Franco,casa,2024,mai–dez,3,570000.0,720000.0,770000.0,True,
+Jardim Anália Franco,casa,2025,jan–dez,8,670000.0,1000000.0,1125000.0,True,
+Jardim Anália Franco,casa,2026,jan–jul,3,610500.0,850000.0,1425000.0,True,
+Jardim Europa,apartamento,2024,abr–dez,23,1417225.0,2708300.0,3712500.0,False,
+Jardim Europa,apartamento,2025,jan–dez,25,2325000.0,4000000.0,9850000.0,False,47.7
+Jardim Europa,apartamento,2026,jan–ago,14,2666500.0,4425000.0,7950000.0,False,10.6
+Jardim Europa,casa,2024,jan–dez,13,3000000.0,4700000.0,6285000.0,False,
+Jardim Europa,casa,2025,jan–dez,28,6487500.0,10750000.0,14750000.0,False,128.7
+Jardim Europa,casa,2026,fev–ago,18,5220000.0,7650000.0,10595000.0,False,-28.8
+Jardim Novo Mundo,apartamento,2024,mar–mar,1,1515000.0,1515000.0,1515000.0,True,
+Jardim Novo Mundo,apartamento,2025,fev–jun,3,511500.0,540000.0,662500.0,True,
+Jardim Novo Mundo,apartamento,2026,jan–jul,5,638193.69,705000.0,915000.0,True,
+Jardim Novo Mundo,casa,2024,jan–dez,10,1592500.0,2175000.0,3227000.0,False,
+Jardim Novo Mundo,casa,2025,mar–nov,6,1622500.0,1675000.0,1718750.0,True,
+Jardim Novo Mundo,casa,2026,mai–jul,4,1107500.0,1427500.0,1621250.0,True,
+Jardim Paulista,apartamento,2024,jan–dez,1093,498342.86,850000.0,1450000.0,False,
+Jardim Paulista,apartamento,2025,jan–dez,1162,575399.85,965000.0,1650000.0,False,13.5
+Jardim Paulista,apartamento,2026,jan–set,810,588750.0,1005000.0,1773000.0,False,4.1
+Jardim Paulista,casa,2024,jan–dez,57,2209000.0,4000000.0,5500000.0,False,
+Jardim Paulista,casa,2025,jan–dez,50,1938575.68,3800000.0,6050000.0,False,-5.0
+Jardim Paulista,casa,2026,jan–ago,31,1900000.0,3200000.0,4100000.0,False,-15.8
+Jardim Paulistano,apartamento,2024,jan–nov,45,1006250.0,1575000.0,2297321.75,False,
+Jardim Paulistano,apartamento,2025,jan–dez,50,912500.0,2100000.0,3350000.0,False,33.3
+Jardim Paulistano,apartamento,2026,jan–ago,29,1850000.0,2812500.0,7831000.0,False,33.9
+Jardim Paulistano,casa,2024,jan–dez,27,2962500.0,4375000.0,5187500.0,False,
+Jardim Paulistano,casa,2025,jan–dez,35,3391500.0,5800000.0,14229809.6,False,32.6
+Jardim Paulistano,casa,2026,jan–ago,17,5380000.0,12608482.19,20500000.0,False,117.4
+Jardim Petrópolis,apartamento,2024,jan–dez,19,420000.0,450000.0,491000.0,False,
+Jardim Petrópolis,apartamento,2025,fev–nov,9,475000.0,515000.0,532750.0,True,
+Jardim Petrópolis,apartamento,2026,jan–ago,8,460000.0,527500.0,545107.25,True,
+Jardim Petrópolis,casa,2024,jan–dez,20,1375000.0,2000000.0,2692500.0,False,
+Jardim Petrópolis,casa,2025,jan–dez,17,1170000.0,2100000.0,3800000.0,False,5.0
+Jardim Petrópolis,casa,2026,fev–ago,12,1845000.0,3067500.0,4002500.0,False,46.1
+Jardim Santo Amaro,apartamento,2024,fev–dez,15,232500.0,345000.0,450000.0,False,
+Jardim Santo Amaro,apartamento,2025,jan–dez,23,440000.0,500000.0,525000.0,False,44.9
+Jardim Santo Amaro,apartamento,2026,jan–ago,21,420300.0,517500.0,730000.0,False,3.5
+Jardim Santo Amaro,casa,2024,jan–nov,11,225000.0,300000.0,1275000.0,False,
+Jardim Santo Amaro,casa,2025,jan–nov,11,690000.0,1240000.0,1500000.0,False,313.3
+Jardim Santo Amaro,casa,2026,abr–ago,3,637500.0,950000.0,1625000.0,True,
+Jardim Vila Mariana,apartamento,2024,mar–dez,33,630000.0,950000.0,1800913.66,False,
+Jardim Vila Mariana,apartamento,2025,jan–dez,19,645000.0,1060000.0,1240000.0,False,11.6
+Jardim Vila Mariana,apartamento,2026,jan–ago,11,565000.0,1100000.0,1400000.0,False,3.8
+Jardim Vila Mariana,casa,2024,ago–set,2,695000.0,990000.0,1285000.0,True,
+Jardim Vila Mariana,casa,2025,jul–dez,4,794500.0,1115000.0,1335000.0,True,
+Jardim da Glória,apartamento,2024,jan–dez,21,430000.0,680000.0,1116984.0,False,
+Jardim da Glória,apartamento,2025,fev–dez,27,505000.0,665000.0,1130245.0,False,-2.2
+Jardim da Glória,apartamento,2026,jan–ago,26,520000.0,863930.67,1231255.0,False,29.9
+Jardim da Glória,casa,2024,jan–dez,24,556250.0,745000.0,915000.0,False,
+Jardim da Glória,casa,2025,jan–dez,20,672566.63,956500.0,1212500.0,False,28.4
+Jardim da Glória,casa,2026,jan–ago,15,650000.0,750000.0,1000000.0,False,-21.6
+Jardim da Saúde,apartamento,2024,jan–dez,63,250000.0,400000.0,767787.95,False,
+Jardim da Saúde,apartamento,2025,jan–dez,75,190000.0,370000.0,551644.37,False,-7.5
+Jardim da Saúde,apartamento,2026,jan–ago,47,218750.0,320000.0,540000.0,False,-13.5
+Jardim da Saúde,casa,2024,jan–dez,47,559600.0,755000.0,1000000.0,False,
+Jardim da Saúde,casa,2025,jan–dez,73,500000.0,650000.0,940000.0,False,-13.9
+Jardim da Saúde,casa,2026,jan–ago,32,815375.0,1000000.0,1412500.0,False,53.8
+Jardim das Acácias,apartamento,2024,jan–dez,405,423405.64,519520.83,736668.35,False,
+Jardim das Acácias,apartamento,2025,jan–dez,130,336250.0,696527.35,892100.0,False,34.1
+Jardim das Acácias,apartamento,2026,jan–ago,59,370000.0,540000.0,900000.0,False,-22.5
+Jardim das Acácias,casa,2024,jan–dez,6,528750.0,913615.52,1240557.76,True,
+Jardim das Acácias,casa,2025,mar–dez,7,680000.0,964500.0,1099750.0,True,
+Jardim das Acácias,casa,2026,jan–jul,4,346549.5,370000.0,412052.0,True,
+Jardim das Bandeiras,apartamento,2024,jan–nov,4,690000.0,780000.0,790000.0,True,
+Jardim das Bandeiras,apartamento,2025,abr–set,3,590000.0,730000.0,742500.0,True,
+Jardim das Bandeiras,apartamento,2026,jun–jul,2,677500.0,785000.0,892500.0,True,
+Jardim das Bandeiras,casa,2024,mar–dez,11,2175000.0,2685000.0,2950000.0,False,
+Jardim das Bandeiras,casa,2025,fev–out,7,1500000.0,1900000.0,2525000.0,True,
+Jardim das Bandeiras,casa,2026,jan–jul,7,1965000.0,2200000.0,4955000.0,True,
+Jardim dos Estados,apartamento,2024,fev–dez,8,437500.0,511000.0,524000.0,True,
+Jardim dos Estados,apartamento,2025,mai–jul,4,310100.13,483750.0,590000.0,True,
+Jardim dos Estados,apartamento,2026,mar–ago,9,378280.75,401061.5,441750.0,True,
+Jardim dos Estados,casa,2024,fev–dez,11,1825000.0,2255000.0,3391125.0,False,
+Jardim dos Estados,casa,2025,fev–dez,15,3162500.0,4228998.29,5000000.0,False,87.5
+Jardim dos Estados,casa,2026,jan–ago,18,2295222.75,3836874.71,5161110.21,False,-9.3
+Jardins,apartamento,2024,jan–dez,41,943750.0,1535000.0,2317000.0,False,
+Jardins,apartamento,2025,jan–dez,33,751250.0,1070000.0,2100000.0,False,-30.3
+Jardins,apartamento,2026,fev–ago,19,1240000.0,2030000.0,2248972.5,False,89.7
+Jardins,casa,2024,mai–mai,1,1800000.0,1800000.0,1800000.0,True,
+Jardins,casa,2025,nov–nov,1,5270000.0,5270000.0,5270000.0,True,
+Jardins,casa,2026,ago–ago,1,2600000.0,2600000.0,2600000.0,True,
+Lapa,apartamento,2024,jan–dez,997,300000.0,517000.0,825000.0,False,
+Lapa,apartamento,2025,jan–dez,1045,305000.0,520000.0,825712.5,False,0.6
+Lapa,apartamento,2026,jan–set,673,310000.0,526125.0,876250.0,False,1.2
+Lapa,casa,2024,jan–dez,126,451200.0,750000.0,1180000.0,False,
+Lapa,casa,2025,jan–dez,143,495000.0,790000.0,1362500.0,False,5.3
+Lapa,casa,2026,jan–ago,88,550000.0,908750.0,1250000.0,False,15.0
+Mirandópolis,apartamento,2024,jan–dez,180,341750.0,472500.0,670000.0,False,
+Mirandópolis,apartamento,2025,jan–dez,191,343750.0,470000.0,610662.04,False,-0.5
+Mirandópolis,apartamento,2026,jan–ago,128,320000.0,460000.0,650000.0,False,-2.1
+Mirandópolis,casa,2024,jan–dez,40,583750.0,735000.0,908750.0,False,
+Mirandópolis,casa,2025,fev–dez,43,638000.0,830000.0,1270000.0,False,12.9
+Mirandópolis,casa,2026,jan–ago,28,606250.0,770000.0,1085000.0,False,-7.2
+Moema,apartamento,2024,jan–dez,626,450000.0,751500.0,1315000.0,False,
+Moema,apartamento,2025,jan–dez,635,550000.0,890000.0,1350000.0,False,18.4
+Moema,apartamento,2026,jan–ago,419,554607.5,880000.0,1429100.0,False,-1.1
+Moema,casa,2024,jan–dez,17,1000000.0,1500000.0,1850000.0,False,
+Moema,casa,2025,jan–nov,30,730000.0,1350000.0,1765000.0,False,-10.0
+Moema,casa,2026,jan–ago,19,875000.0,1600000.0,2225000.0,False,18.5
+Moinho Velho,apartamento,2024,jan–dez,198,300000.0,355000.0,482937.63,False,
+Moinho Velho,apartamento,2025,jan–dez,221,280000.0,385000.0,490000.0,False,8.5
+Moinho Velho,apartamento,2026,jan–ago,127,320000.0,420000.0,510000.0,False,9.1
+Moinho Velho,casa,2024,jan–dez,63,308934.05,410000.0,522500.0,False,
+Moinho Velho,casa,2025,jan–dez,61,350000.0,450000.0,615000.0,False,9.8
+Moinho Velho,casa,2026,jan–ago,51,350000.0,500000.0,565000.0,False,11.1
+Mooca,apartamento,2024,jan–dez,1203,290000.0,408000.0,600000.0,False,
+Mooca,apartamento,2025,jan–dez,1317,264000.0,380000.0,570000.0,False,-6.9
+Mooca,apartamento,2026,jan–set,920,260000.0,371805.0,547500.0,False,-2.2
+Mooca,casa,2024,jan–dez,219,360500.0,550000.0,734000.0,False,
+Mooca,casa,2025,jan–dez,243,342500.0,495000.0,700000.0,False,-10.0
+Mooca,casa,2026,jan–ago,151,380000.0,539000.0,822500.0,False,8.9
+Pacaembu,apartamento,2024,jan–dez,24,469500.0,590661.0,2107500.0,False,
+Pacaembu,apartamento,2025,jan–dez,48,510000.0,872620.0,1192792.5,False,47.7
+Pacaembu,apartamento,2026,jan–set,28,535000.0,1045286.33,1357403.34,False,19.8
+Pacaembu,casa,2024,jan–nov,35,1652302.0,2500000.0,3325000.0,False,
+Pacaembu,casa,2025,jan–dez,23,1893750.0,3075000.0,3410000.0,False,23.0
+Pacaembu,casa,2026,jan–ago,22,2018750.0,2390000.0,3017520.0,False,-22.3
+Paraíso,apartamento,2024,jan–dez,407,460000.0,790000.0,1100000.0,False,
+Paraíso,apartamento,2025,jan–dez,521,450000.0,719500.0,1097500.0,False,-8.9
+Paraíso,apartamento,2026,jan–set,343,410000.0,682500.0,1027505.0,False,-5.1
+Paraíso,casa,2024,jan–nov,10,700000.0,800000.0,1950000.0,False,
+Paraíso,casa,2025,fev–dez,15,2420000.0,3510345.5,4208676.0,False,338.8
+Paraíso,casa,2026,fev–mai,2,2518835.77,3037671.54,3556507.32,True,
+Parque Fongaro,apartamento,2024,jan–dez,36,233105.5,262500.0,280250.0,False,
+Parque Fongaro,apartamento,2025,jan–dez,34,215000.0,251075.0,278750.0,False,-4.4
+Parque Fongaro,apartamento,2026,jan–ago,24,250000.0,283464.5,294750.0,False,12.9
+Parque Fongaro,casa,2024,jan–dez,18,310000.0,384000.0,532500.0,False,
+Parque Fongaro,casa,2025,jan–nov,19,350000.0,400000.0,500000.0,False,4.2
+Parque Fongaro,casa,2026,jan–ago,9,370000.0,415000.0,510000.0,True,
+Parque da Mooca,apartamento,2024,jan–dez,159,510000.0,897777.44,1253751.87,False,
+Parque da Mooca,apartamento,2025,jan–dez,115,430000.0,765000.0,1105000.0,False,-14.8
+Parque da Mooca,apartamento,2026,jan–ago,73,378000.0,510000.0,892500.0,False,-33.3
+Parque da Mooca,casa,2024,jan–dez,25,630000.0,915000.0,1277500.0,False,
+Parque da Mooca,casa,2025,jan–dez,22,485625.0,522500.0,886787.5,False,-42.9
+Parque da Mooca,casa,2026,fev–ago,19,560000.0,741500.0,1087500.0,False,41.9
+Perdizes,apartamento,2024,jan–dez,1613,430000.0,650000.0,995034.67,False,
+Perdizes,apartamento,2025,jan–dez,1592,450000.0,709187.8,1060000.0,False,9.1
+Perdizes,apartamento,2026,jan–set,1113,431703.05,660000.0,1071600.0,False,-6.9
+Perdizes,casa,2024,jan–dez,86,725000.0,1100000.0,1500000.0,False,
+Perdizes,casa,2025,jan–dez,83,882026.5,1195000.0,1765593.21,False,8.6
+Perdizes,casa,2026,jan–ago,50,775000.0,1010000.0,1425000.0,False,-15.5
+Pinheiros,apartamento,2024,jan–dez,816,490000.0,725000.0,1050000.0,False,
+Pinheiros,apartamento,2025,jan–dez,1212,350000.0,622000.0,1005000.04,False,-14.2
+Pinheiros,apartamento,2026,jan–set,693,398157.5,697500.0,1135375.0,False,12.1
+Pinheiros,casa,2024,jan–dez,85,1037500.0,1357500.0,1956607.92,False,
+Pinheiros,casa,2025,jan–dez,89,1262500.0,2231000.0,2962938.5,False,64.3
+Pinheiros,casa,2026,jan–ago,57,866250.0,1350000.0,2097500.0,False,-39.5
+Planalto Paulista,apartamento,2024,jan–dez,52,400000.0,460000.0,1000000.0,False,
+Planalto Paulista,apartamento,2025,jan–dez,86,432427.75,730000.0,883347.21,False,58.7
+Planalto Paulista,apartamento,2026,jan–ago,59,404964.0,602682.19,850000.0,False,-17.4
+Planalto Paulista,casa,2024,jan–dez,83,550000.0,800000.0,1200000.0,False,
+Planalto Paulista,casa,2025,jan–dez,111,580000.0,790000.0,1100000.0,False,-1.2
+Planalto Paulista,casa,2026,jan–set,77,690000.0,1085000.0,1446250.0,False,37.3
+Pompéia,apartamento,2024,jan–dez,376,535000.0,680000.0,859820.0,False,
+Pompéia,apartamento,2025,jan–dez,412,534544.85,675000.0,850000.0,False,-0.7
+Pompéia,apartamento,2026,jan–set,318,522084.0,700000.0,950000.0,False,3.7
+Pompéia,casa,2024,jan–dez,31,535000.0,680000.0,890000.0,False,
+Pompéia,casa,2025,jan–dez,37,565000.0,795000.0,1225000.0,False,16.9
+Pompéia,casa,2026,jan–ago,36,690000.0,827500.0,1025000.0,False,4.1
+Santa Cecília,apartamento,2024,jan–dez,1203,260719.5,400000.0,630000.0,False,
+Santa Cecília,apartamento,2025,jan–dez,1356,270000.0,396610.63,640000.0,False,-0.8
+Santa Cecília,apartamento,2026,jan–set,930,290625.0,420000.0,680000.0,False,5.9
+Santa Cecília,casa,2024,fev–dez,11,410000.0,465000.0,1936000.0,False,
+Santa Cecília,casa,2025,jan–dez,8,587500.0,635000.0,982011.29,True,
+Santa Cecília,casa,2026,fev–jun,9,800000.0,2300000.0,2591000.0,True,
+Santo Amaro,apartamento,2024,jan–dez,355,360132.66,612500.0,860000.0,False,
+Santo Amaro,apartamento,2025,jan–dez,374,386250.0,680000.0,1000000.0,False,11.0
+Santo Amaro,apartamento,2026,jan–set,229,378750.0,700000.0,1100000.0,False,2.9
+Santo Amaro,casa,2024,jan–dez,29,453000.0,580000.0,712500.0,False,
+Santo Amaro,casa,2025,jan–dez,48,500000.0,620000.0,750000.0,False,6.9
+Santo Amaro,casa,2026,jan–ago,30,460036.56,610000.0,861875.0,False,-1.6
+Saúde,apartamento,2024,jan–dez,2042,286940.0,430000.0,630000.0,False,
+Saúde,apartamento,2025,jan–dez,2170,290000.0,432000.0,670327.13,False,0.5
+Saúde,apartamento,2026,jan–set,1406,300000.0,440000.0,650000.0,False,1.9
+Saúde,casa,2024,jan–dez,219,400000.0,540000.0,700000.0,False,
+Saúde,casa,2025,jan–dez,243,390250.0,530000.0,725000.0,False,-1.9
+Saúde,casa,2026,jan–set,176,403750.0,520000.0,695000.0,False,-1.9
+Sumarezinho,apartamento,2024,jan–dez,202,415000.0,646550.0,893730.0,False,
+Sumarezinho,apartamento,2025,jan–dez,154,400000.0,577500.0,806250.0,False,-10.7
+Sumarezinho,apartamento,2026,jan–ago,96,403750.0,561120.21,862756.25,False,-2.8
+Sumarezinho,casa,2024,jan–dez,23,929125.0,1572500.0,2008750.0,False,
+Sumarezinho,casa,2025,jan–dez,11,900000.0,1450000.0,1585000.0,False,-7.8
+Sumarezinho,casa,2026,jan–ago,4,1775000.0,2245000.0,2992500.0,True,
+Sumaré,apartamento,2024,jan–dez,90,628500.0,866750.0,1262500.0,False,
+Sumaré,apartamento,2025,jan–dez,107,555000.0,850000.0,1180000.0,False,-1.9
+Sumaré,apartamento,2026,jan–ago,71,615000.0,850000.0,1100000.0,False,0.0
+Sumaré,casa,2024,jan–dez,27,1460000.0,2300000.0,2925000.0,False,
+Sumaré,casa,2025,jan–dez,27,1500000.0,1900000.0,2350000.0,False,-17.4
+Sumaré,casa,2026,jan–ago,21,1550000.0,2250000.0,2515000.0,False,18.4
+Tatuapé,apartamento,2024,jan–dez,2380,339500.0,490000.0,744500.0,False,
+Tatuapé,apartamento,2025,jan–dez,2265,329000.0,471575.12,725000.0,False,-3.8
+Tatuapé,apartamento,2026,jan–set,1628,350000.0,522062.0,803573.8,False,10.7
+Tatuapé,casa,2024,jan–dez,461,368000.0,530000.0,690000.0,False,
+Tatuapé,casa,2025,jan–dez,448,376000.0,570000.0,800000.0,False,7.5
+Tatuapé,casa,2026,jan–ago,327,400000.0,556000.0,740000.0,False,-2.5
+Vila Antonieta,apartamento,2024,jan–dez,178,260000.0,305000.0,350000.0,False,
+Vila Antonieta,apartamento,2025,jan–dez,179,262400.0,314000.0,360000.0,False,3.0
+Vila Antonieta,apartamento,2026,jan–set,135,298500.0,334675.49,384100.3,False,6.6
+Vila Antonieta,casa,2024,jan–dez,50,303750.0,390000.0,530000.0,False,
+Vila Antonieta,casa,2025,jan–dez,70,302250.0,415000.0,480000.0,False,6.4
+Vila Antonieta,casa,2026,jan–ago,41,400000.0,450000.0,580000.0,False,8.4
+Vila Bertioga,apartamento,2024,jan–dez,58,370000.0,477000.0,627500.0,False,
+Vila Bertioga,apartamento,2025,jan–dez,67,415000.0,550000.0,836500.0,False,15.3
+Vila Bertioga,apartamento,2026,jan–ago,38,434350.0,499000.0,887500.0,False,-9.3
+Vila Bertioga,casa,2024,jan–out,12,397659.0,411500.0,500000.0,False,
+Vila Bertioga,casa,2025,jan–dez,22,390500.0,660000.0,1087500.0,False,60.4
+Vila Bertioga,casa,2026,jan–ago,19,350000.0,447500.0,756500.0,False,-32.2
+Vila Clementino,apartamento,2024,jan–dez,356,332755.0,500000.0,928500.0,False,
+Vila Clementino,apartamento,2025,jan–dez,383,335000.0,550000.0,1082250.0,False,10.0
+Vila Clementino,apartamento,2026,jan–ago,285,359204.97,510000.0,863344.5,False,-7.3
+Vila Clementino,casa,2024,jan–dez,34,804500.0,1050595.0,1600000.0,False,
+Vila Clementino,casa,2025,jan–dez,44,787500.0,1300000.0,1510187.77,False,23.7
+Vila Clementino,casa,2026,jan–ago,25,613750.0,750000.0,1672157.58,False,-42.3
+Vila Cordeiro,apartamento,2024,fev–dez,18,572500.0,655000.0,863500.0,False,
+Vila Cordeiro,apartamento,2025,jan–dez,148,281597.13,290768.08,303865.08,False,-55.6
+Vila Cordeiro,apartamento,2026,jan–ago,33,286659.53,307547.4,544748.44,False,5.8
+Vila Cordeiro,casa,2024,jan–dez,18,685000.0,809000.0,1025000.0,False,
+Vila Cordeiro,casa,2025,jan–dez,13,750000.0,1100000.0,1850000.0,False,36.0
+Vila Cordeiro,casa,2026,mar–ago,5,831250.0,1067500.0,1401250.0,True,
+Vila Firmiano Pinto,apartamento,2024,jan–dez,23,480000.0,800000.0,1320000.0,False,
+Vila Firmiano Pinto,apartamento,2025,jan–dez,129,314820.2,388000.0,523325.45,False,-51.5
+Vila Firmiano Pinto,apartamento,2026,jan–ago,68,316966.5,335000.0,445750.0,False,-13.7
+Vila Firmiano Pinto,casa,2024,mar–ago,2,620000.0,670000.0,720000.0,True,
+Vila Firmiano Pinto,casa,2025,abr–dez,3,750000.0,1100000.0,1130276.01,True,
+Vila Firmiano Pinto,casa,2026,fev–fev,2,922500.0,1015000.0,1107500.0,True,
+Vila Gomes Cardim,apartamento,2024,jan–dez,65,450000.0,820000.0,1164000.0,False,
+Vila Gomes Cardim,apartamento,2025,jan–dez,65,500000.0,875087.5,1139017.14,False,6.7
+Vila Gomes Cardim,apartamento,2026,jan–ago,41,569000.0,780000.0,1510000.0,False,-10.9
+Vila Gomes Cardim,casa,2024,abr–dez,13,483750.0,650000.0,800000.0,False,
+Vila Gomes Cardim,casa,2025,jan–dez,10,543750.0,750000.0,1229500.0,False,15.4
+Vila Gomes Cardim,casa,2026,mar–ago,7,762500.0,1100000.0,1150000.0,True,
+Vila Gumercindo,apartamento,2024,jan–dez,171,405000.0,540000.0,1050000.0,False,
+Vila Gumercindo,apartamento,2025,jan–dez,172,411000.0,525000.0,1040000.0,False,-2.8
+Vila Gumercindo,apartamento,2026,jan–set,92,420000.0,555000.0,896250.0,False,5.7
+Vila Gumercindo,casa,2024,jan–dez,20,450000.0,530000.0,680000.0,False,
+Vila Gumercindo,casa,2025,fev–dez,17,345000.0,600000.0,630000.0,False,13.2
+Vila Gumercindo,casa,2026,jan–ago,12,508841.87,652500.0,787500.0,False,8.8
+Vila Ipojuca,apartamento,2024,jan–dez,87,520000.0,720000.0,880000.0,False,
+Vila Ipojuca,apartamento,2025,jan–dez,71,538792.59,753500.0,914661.3,False,4.7
+Vila Ipojuca,apartamento,2026,jan–ago,35,500000.0,620000.0,900000.0,False,-17.7
+Vila Ipojuca,casa,2024,mar–dez,12,377500.0,480000.0,728750.0,False,
+Vila Ipojuca,casa,2025,jan–dez,15,375000.0,630000.0,850000.0,False,31.2
+Vila Ipojuca,casa,2026,jan–ago,20,458750.0,910000.0,1515000.0,False,44.4
+Vila Leopoldina,apartamento,2024,jan–dez,549,588902.27,850000.0,1400000.0,False,
+Vila Leopoldina,apartamento,2025,jan–dez,435,596115.8,810000.0,1359000.0,False,-4.7
+Vila Leopoldina,apartamento,2026,jan–ago,253,620000.0,907000.0,1648000.0,False,12.0
+Vila Leopoldina,casa,2024,jan–dez,48,535000.0,750000.0,945000.0,False,
+Vila Leopoldina,casa,2025,jan–dez,30,550000.0,585000.0,725000.0,False,-22.0
+Vila Leopoldina,casa,2026,jan–jul,16,580500.0,650000.0,825000.0,False,11.1
+Vila Madalena,apartamento,2024,jan–dez,426,530000.0,796290.0,1250000.0,False,
+Vila Madalena,apartamento,2025,jan–dez,409,515000.0,820000.0,1280000.0,False,3.0
+Vila Madalena,apartamento,2026,jan–ago,207,530000.0,852098.98,1210000.0,False,3.9
+Vila Madalena,casa,2024,jan–dez,91,1238250.0,1722000.0,2662500.0,False,
+Vila Madalena,casa,2025,jan–dez,87,1395000.0,1815000.0,2725000.0,False,5.4
+Vila Madalena,casa,2026,jan–ago,53,1375000.0,1900000.0,2556250.0,False,4.7
+Vila Mariana,apartamento,2024,jan–dez,1700,414012.31,625500.0,920000.0,False,
+Vila Mariana,apartamento,2025,jan–dez,2004,421689.11,646500.0,1076500.0,False,3.4
+Vila Mariana,apartamento,2026,jan–set,1291,430824.7,683907.49,1107562.5,False,5.8
+Vila Mariana,casa,2024,jan–dez,188,800000.0,1350000.0,2061884.41,False,
+Vila Mariana,casa,2025,jan–dez,139,715000.0,1100000.0,1633214.28,False,-18.5
+Vila Mariana,casa,2026,jan–ago,91,850000.0,1175000.0,1837500.0,False,6.8
+Vila Monumento,apartamento,2024,jan–dez,64,376746.5,450000.0,585000.0,False,
+Vila Monumento,apartamento,2025,jan–dez,73,298750.0,380000.0,502500.0,False,-15.6
+Vila Monumento,apartamento,2026,jan–ago,58,300000.0,450000.0,595000.0,False,18.4
+Vila Monumento,casa,2024,jan–dez,23,465000.0,720000.0,985000.0,False,
+Vila Monumento,casa,2025,jan–dez,39,490000.0,750000.0,870000.0,False,4.2
+Vila Monumento,casa,2026,jan–ago,22,470000.0,535000.0,752928.0,False,-28.7
+Vila Nova Conceição,apartamento,2024,jan–dez,195,683750.0,1120671.46,2182500.0,False,
+Vila Nova Conceição,apartamento,2025,jan–dez,195,917500.0,1656128.12,3669520.0,False,47.8
+Vila Nova Conceição,apartamento,2026,jan–ago,175,1150000.0,2684851.87,5405025.0,False,62.1
+Vila Nova Conceição,casa,2024,jan–dez,16,2551250.0,2875000.0,3475000.0,False,
+Vila Nova Conceição,casa,2025,jan–dez,22,1950000.0,3466000.0,13702192.38,False,20.6
+Vila Nova Conceição,casa,2026,jan–ago,19,3255000.0,4800000.0,8953925.61,False,38.5
+Vila Nova Manchester,apartamento,2024,jan–dez,48,152500.0,245000.0,370000.0,False,
+Vila Nova Manchester,apartamento,2025,jan–dez,57,219000.0,295000.0,425000.0,False,20.4
+Vila Nova Manchester,apartamento,2026,jan–ago,46,195000.0,305000.0,405000.0,False,3.4
+Vila Nova Manchester,casa,2024,jan–dez,31,302000.0,476000.0,807500.0,False,
+Vila Nova Manchester,casa,2025,jan–nov,24,395000.0,480000.0,581500.0,False,0.8
+Vila Nova Manchester,casa,2026,jan–jul,15,506250.0,615000.0,875000.0,False,28.1
+Vila Olímpia,apartamento,2024,jan–dez,794,319003.02,600000.0,975909.58,False,
+Vila Olímpia,apartamento,2025,jan–dez,878,346804.82,573412.83,868750.0,False,-4.4
+Vila Olímpia,apartamento,2026,jan–ago,555,353687.86,611445.45,1030874.5,False,6.6
+Vila Olímpia,casa,2024,jan–dez,36,1385000.0,1914318.01,2840000.0,False,
+Vila Olímpia,casa,2025,jan–dez,33,1123750.0,2182000.0,3474777.67,False,14.0
+Vila Olímpia,casa,2026,jan–ago,12,1032500.0,1480000.0,1695000.0,False,-32.2
+Vila Regente Feijó,apartamento,2024,jan–dez,144,500000.0,790000.0,1095000.0,False,
+Vila Regente Feijó,apartamento,2025,jan–dez,180,347500.0,600000.0,985000.0,False,-24.1
+Vila Regente Feijó,apartamento,2026,jan–ago,109,373000.0,596500.0,1005000.0,False,-0.6
+Vila Regente Feijó,casa,2024,fev–dez,20,300000.0,450000.0,530000.0,False,
+Vila Regente Feijó,casa,2025,jan–nov,23,400000.0,575000.0,750000.0,False,27.8
+Vila Regente Feijó,casa,2026,fev–ago,18,460000.0,540000.0,712500.0,False,-6.1
+Vila Romana,apartamento,2024,jan–dez,126,657500.0,1010000.0,2011750.0,False,
+Vila Romana,apartamento,2025,jan–dez,129,580000.0,900000.0,1450000.0,False,-10.9
+Vila Romana,apartamento,2026,jan–ago,104,606000.0,1000000.0,1717500.0,False,11.1
+Vila Romana,casa,2024,fev–dez,47,645000.0,990000.0,1359722.63,False,
+Vila Romana,casa,2025,jan–dez,51,597500.0,1130000.0,1412000.0,False,14.1
+Vila Romana,casa,2026,jan–ago,27,870000.0,1200000.0,1450000.0,False,6.2
+Vila São Francisco,apartamento,2024,jan–dez,227,293165.5,651880.0,958750.0,False,
+Vila São Francisco,apartamento,2025,jan–dez,242,268750.0,600000.0,972500.0,False,-8.0
+Vila São Francisco,apartamento,2026,jan–set,122,395900.0,830000.0,1100000.0,False,38.3
+Vila São Francisco,casa,2024,jan–dez,75,350000.0,505000.0,735000.0,False,
+Vila São Francisco,casa,2025,jan–dez,60,373615.0,570000.0,825000.0,False,12.9
+Vila São Francisco,casa,2026,jan–ago,40,465000.0,600000.0,770000.0,False,5.3
+Vila Uberabinha,apartamento,2024,jan–dez,37,710500.0,1160320.0,1625000.0,False,
+Vila Uberabinha,apartamento,2025,jan–dez,26,705000.0,1149000.0,1456141.31,False,-1.0
+Vila Uberabinha,apartamento,2026,jan–set,22,1097500.0,1846259.0,2127500.0,False,60.7
+Vila Uberabinha,casa,2024,mai–dez,3,1387500.0,1925000.0,1925000.0,True,
+Vila Uberabinha,casa,2026,jul–jul,1,1500000.0,1500000.0,1500000.0,True,
+Vila da Saúde,apartamento,2024,jan–dez,49,395000.0,530000.0,646250.0,False,
+Vila da Saúde,apartamento,2025,jan–dez,32,377500.0,580000.0,622500.0,False,9.4
+Vila da Saúde,apartamento,2026,jan–ago,24,370000.0,410000.0,680000.0,False,-29.3
+Vila da Saúde,casa,2024,ago–ago,1,490000.0,490000.0,490000.0,True,
+Vila da Saúde,casa,2025,fev–ago,3,625000.0,750000.0,1175000.0,True,
+Vila da Saúde,casa,2026,jun–jun,1,550000.0,550000.0,550000.0,True,
+Vila das Mercês,apartamento,2024,jan–dez,133,266250.0,317500.0,422250.0,False,
+Vila das Mercês,apartamento,2025,jan–dez,142,261250.0,304000.0,428750.0,False,-4.3
+Vila das Mercês,apartamento,2026,jan–ago,88,273750.0,322500.0,400991.25,False,6.1
+Vila das Mercês,casa,2024,jan–dez,32,386250.0,435000.0,561250.0,False,
+Vila das Mercês,casa,2025,jan–dez,26,273750.0,361875.0,457500.0,False,-16.8
+Vila das Mercês,casa,2026,jan–ago,27,302500.0,395000.0,525000.0,False,9.2
