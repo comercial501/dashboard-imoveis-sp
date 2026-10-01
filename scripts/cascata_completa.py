@@ -315,15 +315,29 @@ def resolver_universo_itbi(cascata, records):
 def resolver_universo_itbi_votos_separados(cascata, records_para_votos, records_para_resolver):
     """Como resolver_universo_itbi, mas os votos de endereço/CEP são
     construídos só a partir de `records_para_votos` (não precisa ser a
-    mesma lista que vai ser resolvida). Usado por
-    resolver_registros_engine() (2026-10-01, item 1.1 da Etapa 2): os
-    votos têm que vir só da janela de 12 meses (o mesmo universo que
-    gerar_dados_carteira_77() usa) pra bater exato com carteira_77, mas
-    engine.py precisa resolver TODOS os anos (trend/preço pooled de 3
-    anos) — sem isso, o pool de votos ficava maior (3 anos em vez de 12
-    meses) e dava bairro diferente em endereços/CEPs ambíguos, mesmo
-    usando a mesma tabela/cascata (bug real, pego pelo teste de
-    consistência)."""
+    mesma lista que vai ser resolvida).
+
+    Revisão 2026-10-01 (item 2 da revisão da Etapa 2): `records_para_
+    votos` agora é SEMPRE o universo de 3 anos inteiros (revenda/planta
+    de todos os anos), nos DOIS caminhos que usam essa função —
+    gerar_dados_carteira_77()/rodar() (vota com 3 anos, resolve só a
+    janela de 12m) e resolver_registros_engine() (vota com 3 anos,
+    resolve os 3 anos — na prática equivale a resolver_universo_itbi
+    simples, já que agora vota e resolve são o mesmo universo lá).
+    Motivo: com o pool de votos restrito a 12m (versão anterior), uma
+    venda antiga (fora da janela de 12m) num endereço/CEP sem NENHUMA
+    venda recente perdia o voto do bairro certo e podia cair em
+    vizinho/fora_carteira — isso encolhe artificialmente a contagem do
+    "ano anterior" da tendência, inflando a tendência calculada
+    (principalmente em bairros pequenos — achado do usuário: Jardim das
+    Acácias, 127 vendas, tendência de +69,3%, parte dela gerada por
+    exatamente esse artefato). Pool de 3 anos em ambos os lados também
+    mantém o teste de consistência passando (mesmos votos, resultado
+    idêntico pra quem só olha a fatia de 12m).
+
+    Retorna (contagem_por_bairro, fora, incerto, metodos, resolucao) —
+    mesmo formato de resolver_universo_itbi, calculado só sobre
+    `records_para_resolver`."""
     cascata.alimentar_votos(
         records_para_votos,
         get_bairro_raw=lambda r: r["bairro_raw"],
@@ -331,11 +345,22 @@ def resolver_universo_itbi_votos_separados(cascata, records_para_votos, records_
         get_cep=lambda r: r["cep"],
         get_num_norm=lambda r: None,
     )
+    contagem = {}
+    metodos = {}
+    fora = 0
+    incerto = 0
     resolucao = {}
     for r in records_para_resolver:
         destino, metodo = cascata.resolver(r["bairro_raw"], r["addr_key"], r["cep"], _sq_itbi(r))
+        metodos[metodo] = metodos.get(metodo, 0) + 1
         resolucao[_rkey(r)] = (destino, metodo)
-    return resolucao
+        if metodo == "fora_carteira":
+            fora += 1
+        elif metodo == "incerto":
+            incerto += 1
+        elif destino:
+            contagem[destino] = contagem.get(destino, 0) + 1
+    return contagem, fora, incerto, metodos, resolucao
 
 
 def resolver_universo_iptu(cascata, registros):
@@ -445,8 +470,25 @@ def rodar(usar_split_santo_amaro, label):
     print(f"[regra antiga/antes] revenda={len(revenda_antiga)} planta={len(planta_antiga)} combinado={len(antes_combinado)}")
 
     # --- coluna "depois": regra aprovada (revisão 2 — uso do lote-mãe) ---
+    # Revisão 2026-10-01 (item 2 da revisão da Etapa 2): classifica sobre
+    # TODOS OS ANOS (itbi_dedup_todos, não mais só itbi_12m_todos) — os
+    # votos de endereço/CEP (abaixo) precisam vir do universo de 3 anos
+    # inteiro, não só da janela de 12m; ver resolver_registros_engine()
+    # para o motivo (achado do usuário: venda antiga num endereço sem
+    # venda recente perdia o voto do bairro certo e caía em vizinho/fora,
+    # encolhendo artificialmente o "ano anterior" da tendência — Jardim
+    # das Acácias, +69,3%). revenda_12m/planta_12m (as métricas da
+    # carteira_77) continuam sendo só a fatia de 12m, filtrada depois de
+    # classificar — resolvida com votos de 3 anos.
+    buckets_todos_anos = classificar_revenda_planta_aprovada(itbi_dedup_todos)
+    revenda_todos_anos, planta_todos_anos = buckets_todos_anos["revenda"], buckets_todos_anos["planta"]
+    revenda_12m_alvo = filtrar_janela_12m(revenda_todos_anos, periodo_12m)
+    planta_12m_alvo = filtrar_janela_12m(planta_todos_anos, periodo_12m)
+    # buckets (nome mantido pros prints de fechamento abaixo, que são só
+    # sobre o universo de 12m) — reclassifica só pra manter os contadores
+    # de parcial/demais/fora_do_universo no mesmo escopo de sempre.
     buckets = classificar_revenda_planta_aprovada(itbi_12m_todos)
-    revenda, planta = buckets["revenda"], buckets["planta"]
+    revenda, planta = revenda_12m_alvo, planta_12m_alvo
     n_parcial = len(buckets["parcial"])
     n_demais = len(buckets["demais"])
     soma_buckets = len(revenda) + len(planta) + n_parcial + n_demais
@@ -475,11 +517,19 @@ def rodar(usar_split_santo_amaro, label):
     cascata_revenda_antiga = fabrica_cascata()
     _, _, _, _, resolucao_revenda_antiga = resolver_universo_itbi(cascata_revenda_antiga, revenda_antiga)
 
+    # Revisão 2026-10-01: votos construídos com revenda/planta de TODOS
+    # OS ANOS (revenda_todos_anos/planta_todos_anos), resolvendo só a
+    # fatia de 12m (revenda/planta acima, já filtradas) — ver docstring
+    # de resolver_universo_itbi_votos_separados.
     cascata_revenda = fabrica_cascata()
-    contagem_revenda, fora_r, incerto_r, _, resolucao_revenda = resolver_universo_itbi(cascata_revenda, revenda)
+    contagem_revenda, fora_r, incerto_r, _, resolucao_revenda = resolver_universo_itbi_votos_separados(
+        cascata_revenda, revenda_todos_anos, revenda
+    )
 
     cascata_planta = fabrica_cascata()
-    contagem_planta, fora_p, incerto_p, _, _ = resolver_universo_itbi(cascata_planta, planta)
+    contagem_planta, fora_p, incerto_p, _, _ = resolver_universo_itbi_votos_separados(
+        cascata_planta, planta_todos_anos, planta
+    )
 
     print("[iptu] carregando unidades residenciais (apto + residência)...")
     unidades = carregar_unidades_iptu()
@@ -631,20 +681,27 @@ def resolver_registros_engine():
     buckets = classificar_revenda_planta_aprovada(itbi_dedup_todos)
     print(f"[engine] revenda(todos os anos)={len(buckets['revenda'])} planta(todos os anos)={len(buckets['planta'])}")
 
-    # Os votos de endereço/CEP só podem vir da janela de 12 meses (mesmo
-    # universo de gerar_dados_carteira_77()) — ver docstring de
-    # resolver_universo_itbi_votos_separados. A RESOLUÇÃO, por outro
-    # lado, roda sobre todos os anos (engine.py precisa do histórico
-    # completo).
-    revenda_12m_para_votos = filtrar_janela_12m(buckets["revenda"], periodo_externo[0])
-    planta_12m_para_votos = filtrar_janela_12m(buckets["planta"], periodo_externo[0])
-    print(f"[engine] revenda(12m, p/ votos)={len(revenda_12m_para_votos)} planta(12m, p/ votos)={len(planta_12m_para_votos)}")
-
+    # Revisão 2026-10-01 (item 2 da revisão da Etapa 2): os votos de
+    # endereço/CEP agora vêm de TODOS OS ANOS (mesmo universo de 3 anos
+    # que vai ser resolvido aqui, e o MESMO universo de votos que
+    # gerar_dados_carteira_77()/rodar() agora usa — ver docstring de
+    # resolver_universo_itbi_votos_separados). Antes, os votos vinham só
+    # da janela de 12m: uma venda antiga num endereço/CEP sem venda
+    # recente perdia o voto do bairro certo e podia cair em vizinho/fora,
+    # encolhendo artificialmente o "ano anterior" da tendência do
+    # Ranking. Como aqui vota e resolve são o mesmo universo, isso
+    # equivale a resolver_universo_itbi simples — mantido como
+    # resolver_universo_itbi_votos_separados(x, x, y) só pra reusar a
+    # mesma função (e o mesmo contrato de retorno) nos dois caminhos.
     cascata_revenda = fabrica_cascata()
-    resolucao_revenda = resolver_universo_itbi_votos_separados(cascata_revenda, revenda_12m_para_votos, buckets["revenda"])
+    _, _, _, _, resolucao_revenda = resolver_universo_itbi_votos_separados(
+        cascata_revenda, buckets["revenda"], buckets["revenda"]
+    )
 
     cascata_planta = fabrica_cascata()
-    resolucao_planta = resolver_universo_itbi_votos_separados(cascata_planta, planta_12m_para_votos, buckets["planta"])
+    _, _, _, _, resolucao_planta = resolver_universo_itbi_votos_separados(
+        cascata_planta, buckets["planta"], buckets["planta"]
+    )
 
     out = []
     fora_ou_incerto = 0
