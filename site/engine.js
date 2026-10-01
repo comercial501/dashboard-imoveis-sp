@@ -148,10 +148,6 @@ function round(v, digits = 1) {
   return Math.round(v * f) / f;
 }
 
-function confidence(rel) {
-  return { individual: 1.0, regional: 0.5, insufficient: 0.0 }[rel];
-}
-
 function tercile(sortedVals, frac) {
   let idx = Math.floor(sortedVals.length * frac);
   idx = Math.min(idx, sortedVals.length - 1);
@@ -448,7 +444,9 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     return s.mediana_pago_m2;
   };
 
-  // Etapa 2, item 1.2d (2026-10-01) — espelha engine.py._lookup_valor_total_mediana.
+  // SUSPENSA (passo 2b, 2026-10-01) — nenhum chamador usa mais esta
+  // função hoje (ver nota equivalente em engine.py._lookup_valor_total_
+  // mediana); mantida pro backlog de calibração de área.
   const lookupValorTotalMediana = (segmentosBairro, tipoImovel, area) => {
     if (tipoImovel !== "apartamento" || !area) return null;
     const f = faixaMetragem(area, C.faixas_metragem);
@@ -956,18 +954,32 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     const s = 100 - (0.7 - ratio) * 200;
     return { score: Math.max(30, s), zone: "cautela", ratio };
   };
-  const diffScore = (a, b) => {
-    if (a == null || b == null) return 50;
-    const diff = Math.abs(a - b);
-    return diff === 0 ? 100 : diff === 1 ? 50 : 0;
+  // Passo 2b (2026-10-01): pesos redistribuídos pra apartamento (sem o
+  // componente de preço) — mesma derivação de scripts/engine.py.PESOS_
+  // PAINEL8_APARTAMENTO, calculada aqui a partir de C.pesos_painel8 (não
+  // precisa de constante nova em raw.json).
+  const pesosPainel8AptoSoma = C.pesos_painel8.revenda + C.pesos_painel8.aderencia + C.pesos_painel8.captacao;
+  const pesosPainel8Apartamento = {
+    revenda: C.pesos_painel8.revenda / pesosPainel8AptoSoma,
+    aderencia: C.pesos_painel8.aderencia / pesosPainel8AptoSoma,
+    captacao: C.pesos_painel8.captacao / pesosPainel8AptoSoma,
   };
-  const resumoImovel = (price, aderenciaFinal, areaConf, scoreRevendaBairro, temCaptacao) => {
+
+  const resumoImovel = (price, aderenciaFinal, tipoImovel, scoreRevendaBairro, temCaptacao) => {
     const frases = [];
-    const ratio = price.ratio;
-    if (price.zone === "cautela" && ratio != null) frases.push(`R$/m² ${Math.round((1 - ratio) * 100)}% abaixo do histórico de imóveis do mesmo tipo/tamanho — vale checar antes de anunciar`);
-    else if (price.zone === "acima" && price.score < 60 && ratio != null) frases.push(`R$/m² ${Math.round((ratio - 1) * 100)}% acima do que se pagou em imóveis do mesmo tipo/tamanho`);
-    else if (price.zone === "normal" && ratio != null && ratio < 0.97) frases.push(`R$/m² ${Math.round((1 - ratio) * 100)}% abaixo da mediana paga em imóveis do mesmo tipo/tamanho`);
-    if (aderenciaFinal >= 80) frases.push(`Bate com o perfil vencedor do bairro${areaConf < 1 ? " (estimativa regional)" : ""}`);
+    // Passo 2b: componente de preço suspenso pra apartamento — mensagem
+    // fixa em vez do zone/ratio de R$/m², que não existe mais pra esse tipo.
+    if (tipoImovel === "apartamento") {
+      frases.push("Comparação indisponível para apartamentos: aguardando calibração de área");
+    } else {
+      const ratio = price.ratio;
+      if (price.zone === "cautela" && ratio != null) frases.push(`R$/m² ${Math.round((1 - ratio) * 100)}% abaixo do histórico de imóveis do mesmo tipo/tamanho — vale checar antes de anunciar`);
+      else if (price.zone === "acima" && price.score < 60 && ratio != null) frases.push(`R$/m² ${Math.round((ratio - 1) * 100)}% acima do que se pagou em imóveis do mesmo tipo/tamanho`);
+      else if (price.zone === "normal" && ratio != null && ratio < 0.97) frases.push(`R$/m² ${Math.round((1 - ratio) * 100)}% abaixo da mediana paga em imóveis do mesmo tipo/tamanho`);
+    }
+    // Passo 2b: aderência agora é faixa de preço v2 — sem conceito de
+    // "estimativa regional" (era reliability de área, v1).
+    if (aderenciaFinal >= 80) frases.push("Bate com a faixa de preço vencedora do bairro (revenda, 12m)");
     if (scoreRevendaBairro >= 70) frases.push("Bairro com liquidez de revenda alta");
     if (temCaptacao) frases.push("Prédio com histórico de giro comprovado");
     return frases.slice(0, 2).join(" · ");
@@ -980,48 +992,44 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     const b = bairrosOut[u.bairro];
     if (!b) continue;
 
-    // Etapa 3 (2026-09-29): R$/m² do anúncio x mediana do MESMO tipo de
-    // imóvel + faixa de metragem, não valor total x mediana do bairro
-    // inteiro — ver scripts/engine.py._compute_imoveis_prioritarios.
-    // Etapa 2, item 1.2d (2026-10-01): apartamento compara VALOR TOTAL
-    // pedido x mediana de revenda (não mais R$/m²) — casa não muda.
-    let valorComparacao, medianaComparacao;
-    if (u.tipoImovel === "apartamento") {
-      medianaComparacao = lookupValorTotalMediana(b.preco_m2_segmentos, u.tipoImovel, u.area);
-      valorComparacao = u.valor;
+    const isApto = u.tipoImovel === "apartamento";
+    // Passo 2b (2026-10-01): componente de preço SUSPENSO pra apartamento
+    // — ver nota equivalente em scripts/engine.py._compute_imoveis_prioritarios.
+    let price;
+    if (isApto) {
+      price = { score: null, zone: "indisponivel_apartamento", ratio: null };
     } else {
-      valorComparacao = u.area ? u.valor / u.area : null;
-      medianaComparacao = lookupMedianaPagoM2(b.preco_m2_segmentos, u.tipoImovel, u.area);
+      const valorComparacao = u.area ? u.valor / u.area : null;
+      const medianaComparacao = lookupMedianaPagoM2(b.preco_m2_segmentos, u.tipoImovel, u.area);
+      price = priceAlignmentScore(valorComparacao, medianaComparacao);
     }
-    const price = priceAlignmentScore(valorComparacao, medianaComparacao);
-    const areaBand = b.area_band, areaConf = confidence(b.area_band_reliability);
-    let areaRaw = 50;
-    if (areaBand && u.area != null) {
-      const [lo, hi] = areaBand;
-      if (u.area >= lo && u.area < hi) areaRaw = 100;
+
+    // Passo 2b: aderência migrada de area_band (v1) pra faixa de preço v2.
+    const faixaV2 = (b.perfil_vencedor_faixa_preco_v2 || {})[u.tipoImovel];
+    let aderencia = 50;
+    if (faixaV2 && u.valor != null) {
+      const [lo, hi] = faixaV2;
+      if (u.valor >= lo && u.valor <= hi) aderencia = 100;
       else {
         const bandWidth = hi - lo;
-        const dist = u.area < lo ? lo - u.area : u.area - hi;
-        areaRaw = bandWidth > 0 ? Math.max(0, 100 - (dist / bandWidth) * 100) : 50;
+        const dist = u.valor < lo ? lo - u.valor : u.valor - hi;
+        aderencia = bandWidth > 0 ? Math.max(0, 100 - (dist / bandWidth) * 100) : 50;
       }
     }
-    const areaScore = 50 + (areaRaw - 50) * areaConf;
-    const profileConf = confidence(b.profile_reliability);
-    const quartosScore = 50 + (diffScore(u.quartos, b.profile_quartos) - 50) * profileConf;
-    const vagasScore = 50 + (diffScore(u.vagas, b.profile_vagas) - 50) * profileConf;
-    const aderencia = mean([areaScore, quartosScore, vagasScore]);
+
     const temCaptacao = u.addrKey != null && addrInCaptacaoAtiva.has(String(u.addrKey));
     const bonus = temCaptacao ? 100 : 0;
-    const finalScore = C.pesos_painel8.revenda * b.score_revenda + C.pesos_painel8.preco * price.score
-      + C.pesos_painel8.aderencia * aderencia + C.pesos_painel8.captacao * bonus;
+    const finalScore = isApto
+      ? pesosPainel8Apartamento.revenda * b.score_revenda + pesosPainel8Apartamento.aderencia * aderencia + pesosPainel8Apartamento.captacao * bonus
+      : C.pesos_painel8.revenda * b.score_revenda + C.pesos_painel8.preco * price.score
+        + C.pesos_painel8.aderencia * aderencia + C.pesos_painel8.captacao * bonus;
 
     imoveisPrioritarios.push({
       bairro: u.bairro, endereco: u.addrDisplay, codigo: u.codigo, link: u.link,
       valor: u.valor, area: u.area, quartos: u.quartos, vagas: u.vagas, tipo_imovel: u.tipoImovel, addr_key: u.addrKey,
       score_bairro_revenda: round(b.score_revenda), price_alignment: round(price.score),
       profile_adherence: round(aderencia), tem_captacao_ativa: temCaptacao,
-      area_band_reliability: b.area_band_reliability, profile_reliability: b.profile_reliability,
-      final_score: round(finalScore, 2), resumo: resumoImovel(price, aderencia, areaConf, b.score_revenda, temCaptacao),
+      final_score: round(finalScore, 2), resumo: resumoImovel(price, aderencia, u.tipoImovel, b.score_revenda, temCaptacao),
     });
   }
   // Desempate por endereço (minúsculas) + código — nunca addr_key: aqui é
@@ -1053,12 +1061,12 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   for (const im of imoveisPrioritarios) {
     const b = bairrosOut[im.bairro];
     const isApto = im.tipo_imovel === "apartamento";
-    // Etapa 2, item 1.2d (2026-10-01): apartamento compara VALOR TOTAL
-    // pedido x mediana de revenda — casa não muda.
+    // Passo 2b (2026-10-01): comparação suspensa pra apartamento — ver
+    // nota equivalente em scripts/engine.py._compute_valor_oportunidade.
     let medianaRef, valorRef;
     if (isApto) {
-      medianaRef = lookupValorTotalMediana(b.preco_m2_segmentos, im.tipo_imovel, im.area);
-      valorRef = im.valor;
+      medianaRef = null;
+      valorRef = null;
     } else {
       medianaRef = lookupMedianaPagoM2(b.preco_m2_segmentos, im.tipo_imovel, im.area);
       valorRef = im.area ? im.valor / im.area : null;

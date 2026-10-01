@@ -103,9 +103,19 @@ MIN_VENDAS_TOP10 = 100  # bairro com menos que isso em revenda_12m não entra no
 PESOS_PAINEL8 = {"revenda": 0.35, "preco": 0.30, "aderencia": 0.25, "captacao": 0.10}
 PESOS_PRONTIDAO = {"f1": 0.15, "f2": 0.20, "f3": 0.15, "f4": 0.15, "f5": 0.25, "f6": 0.10}
 
+# Passo 2b (2026-10-01): componente de preço do Painel 8 suspenso pra
+# apartamento (faixa_metragem() comparava área construída do ITBI x área
+# útil do anúncio — mesma distorção do backlog de calibração). Peso de
+# "preco" redistribuído PROPORCIONALMENTE entre os 3 componentes
+# restantes, só pra apartamento — casa usa PESOS_PAINEL8 normalmente.
+_PESOS_PAINEL8_APTO_SOMA = PESOS_PAINEL8["revenda"] + PESOS_PAINEL8["aderencia"] + PESOS_PAINEL8["captacao"]
+PESOS_PAINEL8_APARTAMENTO = {
+    "revenda": PESOS_PAINEL8["revenda"] / _PESOS_PAINEL8_APTO_SOMA,
+    "aderencia": PESOS_PAINEL8["aderencia"] / _PESOS_PAINEL8_APTO_SOMA,
+    "captacao": PESOS_PAINEL8["captacao"] / _PESOS_PAINEL8_APTO_SOMA,
+}
 
-def _confidence(reliability):
-    return {"individual": 1.0, "regional": 0.5, "insufficient": 0.0}[reliability]
+
 
 
 def _round(v, digits=1):
@@ -977,11 +987,17 @@ def _lookup_mediana_pago_m2(segmentos_bairro, tipo_imovel, area):
 
 
 def _lookup_valor_total_mediana(segmentos_bairro, tipo_imovel, area):
-    """Mediana de VALOR TOTAL pago em revenda do segmento (faixa) — só
-    apartamento (Etapa 2, item 1.2d, 2026-10-01): substitui R$/m² como
-    referência de alinhamento de preço/Valor de Oportunidade pra
-    apartamento. None se amostra pequena ou sem segmento (mesma regra de
-    _lookup_mediana_pago_m2)."""
+    """Mediana de VALOR TOTAL pago em revenda do segmento (faixa de
+    metragem) — só apartamento.
+
+    SUSPENSA (passo 2b, 2026-10-01): nenhum chamador usa mais esta
+    função hoje — ela ainda bucketiza por faixa_metragem(area), que
+    compara área CONSTRUÍDA do segmento ITBI x área ÚTIL do anúncio
+    (mesma distorção do backlog de calibração de área). Mantida (não
+    removida) porque o backlog prevê reviver exatamente esta lógica
+    assim que existir um fator de calibração construída/útil — ver
+    scripts/validate_build.check_faixa_metragem_apartamento_suspensa,
+    que trava o build se ela voltar a ser chamada pra apartamento."""
     if tipo_imovel != "apartamento" or not area:
         return None
     f = faixa_metragem(area)
@@ -1033,26 +1049,29 @@ def _price_alignment_score(valor, mediana):
         return {"score": max(30, s), "zone": "cautela", "ratio": ratio}
 
 
-def _diff_score(a, b):
-    if a is None or b is None:
-        return 50
-    diff = abs(a - b)
-    return 100 if diff == 0 else (50 if diff == 1 else 0)
 
 
-def _resumo_imovel(price, aderencia_final, area_conf, score_revenda_bairro, tem_captacao):
+def _resumo_imovel(price, aderencia_final, tipo_imovel, score_revenda_bairro, tem_captacao):
     frases = []
-    ratio = price["ratio"]
-    if price["zone"] == "cautela" and ratio is not None:
-        frases.append(f"R$/m² {round((1 - ratio) * 100)}% abaixo do histórico de imóveis do mesmo tipo/tamanho — vale checar antes de anunciar")
-    elif price["zone"] == "acima" and price["score"] < 60 and ratio is not None:
-        frases.append(f"R$/m² {round((ratio - 1) * 100)}% acima do que se pagou em imóveis do mesmo tipo/tamanho")
-    elif price["zone"] == "normal" and ratio is not None and ratio < 0.97:
-        frases.append(f"R$/m² {round((1 - ratio) * 100)}% abaixo da mediana paga em imóveis do mesmo tipo/tamanho")
+    # Passo 2b (2026-10-01): componente de preço suspenso pra apartamento
+    # (ver PESOS_PAINEL8_APARTAMENTO) — mensagem fixa em vez do zone/ratio
+    # de R$/m², que não existe mais pra esse tipo.
+    if tipo_imovel == "apartamento":
+        frases.append("Comparação indisponível para apartamentos: aguardando calibração de área")
+    else:
+        ratio = price["ratio"]
+        if price["zone"] == "cautela" and ratio is not None:
+            frases.append(f"R$/m² {round((1 - ratio) * 100)}% abaixo do histórico de imóveis do mesmo tipo/tamanho — vale checar antes de anunciar")
+        elif price["zone"] == "acima" and price["score"] < 60 and ratio is not None:
+            frases.append(f"R$/m² {round((ratio - 1) * 100)}% acima do que se pagou em imóveis do mesmo tipo/tamanho")
+        elif price["zone"] == "normal" and ratio is not None and ratio < 0.97:
+            frases.append(f"R$/m² {round((1 - ratio) * 100)}% abaixo da mediana paga em imóveis do mesmo tipo/tamanho")
 
+    # Passo 2b: aderência agora é faixa de preço v2 (valor pago em
+    # revenda, por tipo) — não tem mais conceito de "estimativa regional"
+    # (esse era um reliability de área, v1).
     if aderencia_final >= 80:
-        sufixo = " (estimativa regional)" if area_conf < 1 else ""
-        frases.append(f"Bate com o perfil vencedor do bairro{sufixo}")
+        frases.append("Bate com a faixa de preço vencedora do bairro (revenda, 12m)")
     if score_revenda_bairro >= 70:
         frases.append("Bairro com liquidez de revenda alta")
     if tem_captacao:
@@ -1070,53 +1089,55 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, addr_in_captacao_ati
         if not b:
             continue
 
-        # Etapa 3 (2026-09-29): alinhamento de preço compara R$/m² do
-        # anúncio contra a mediana paga do MESMO tipo de imóvel + faixa de
-        # metragem, não o valor total contra a mediana do bairro inteiro
-        # (comparava apto pequeno com casa grande, por ex.).
-        # Etapa 2, item 1.2d (2026-10-01): apartamento agora compara VALOR
-        # TOTAL (pedido x mediana de revenda) em vez de R$/m² — casa não
-        # muda. _price_alignment_score é agnóstico de unidade (só faz
-        # ratio), então funciona igual pros dois casos.
-        if u.get("tipo_imovel") == "apartamento":
-            mediana_comparacao = _lookup_valor_total_mediana(b["preco_m2_segmentos"], u.get("tipo_imovel"), u["area"])
-            valor_comparacao = u["valor"]
+        is_apto = u.get("tipo_imovel") == "apartamento"
+        # Passo 2b (2026-10-01): componente de preço SUSPENSO pra
+        # apartamento — a antiga comparação usava _lookup_valor_total_
+        # mediana, que bucketiza por faixa_metragem() (área CONSTRUÍDA do
+        # segmento ITBI x área ÚTIL do anúncio — mesma distorção do
+        # backlog de calibração). Sem lookup nenhum até ter um fator de
+        # calibração; peso redistribuído (PESOS_PAINEL8_APARTAMENTO,
+        # abaixo). Casa não muda (R$/m², faixa_metragem mantida).
+        if is_apto:
+            price = {"score": None, "zone": "indisponivel_apartamento", "ratio": None}
         else:
             valor_comparacao = (u["valor"] / u["area"]) if u["area"] else None
             mediana_comparacao = _lookup_mediana_pago_m2(b["preco_m2_segmentos"], u.get("tipo_imovel"), u["area"])
-        price = _price_alignment_score(valor_comparacao, mediana_comparacao)
+            price = _price_alignment_score(valor_comparacao, mediana_comparacao)
 
-        area_band = b["area_band"]
-        area_conf = _confidence(b["area_band_reliability"])
-        area_raw = 50
-        if area_band and u["area"] is not None:
-            lo, hi = area_band
-            if lo <= u["area"] < hi:
-                area_raw = 100
+        # Passo 2b: aderência migrada de area_band (v1, metragem) pra
+        # faixa de preço v2 (valor pago em revenda, 12m, por tipo) — não
+        # depende mais de profile_quartos/profile_vagas/*_reliability
+        # (v1); v2 não tem conceito de dormitórios/vagas típicos nem de
+        # confiança regional, então a pontuação é direta (sem multiplicador).
+        faixa_v2 = (b.get("perfil_vencedor_faixa_preco_v2") or {}).get(u.get("tipo_imovel"))
+        aderencia = 50
+        if faixa_v2 and u["valor"] is not None:
+            lo, hi = faixa_v2
+            if lo <= u["valor"] <= hi:
+                aderencia = 100
             else:
                 band_width = hi - lo
-                dist = (lo - u["area"]) if u["area"] < lo else (u["area"] - hi)
-                area_raw = max(0, 100 - (dist / band_width) * 100) if band_width > 0 else 50
-        area_score = 50 + (area_raw - 50) * area_conf
+                dist = (lo - u["valor"]) if u["valor"] < lo else (u["valor"] - hi)
+                aderencia = max(0, 100 - (dist / band_width) * 100) if band_width > 0 else 50
 
-        profile_conf = _confidence(b["profile_reliability"])
-        quartos_raw = _diff_score(u["quartos"], b["profile_quartos"])
-        vagas_raw = _diff_score(u["vagas"], b["profile_vagas"])
-        quartos_score = 50 + (quartos_raw - 50) * profile_conf
-        vagas_score = 50 + (vagas_raw - 50) * profile_conf
-
-        aderencia = mean([area_score, quartos_score, vagas_score])
         tem_captacao = u["addr_key"] is not None and u["addr_key"] in addr_in_captacao_ativa
         bonus = 100 if tem_captacao else 0
 
-        final_score = (
-            PESOS_PAINEL8["revenda"] * b["score_revenda"]
-            + PESOS_PAINEL8["preco"] * price["score"]
-            + PESOS_PAINEL8["aderencia"] * aderencia
-            + PESOS_PAINEL8["captacao"] * bonus
-        )
+        if is_apto:
+            final_score = (
+                PESOS_PAINEL8_APARTAMENTO["revenda"] * b["score_revenda"]
+                + PESOS_PAINEL8_APARTAMENTO["aderencia"] * aderencia
+                + PESOS_PAINEL8_APARTAMENTO["captacao"] * bonus
+            )
+        else:
+            final_score = (
+                PESOS_PAINEL8["revenda"] * b["score_revenda"]
+                + PESOS_PAINEL8["preco"] * price["score"]
+                + PESOS_PAINEL8["aderencia"] * aderencia
+                + PESOS_PAINEL8["captacao"] * bonus
+            )
 
-        resumo = _resumo_imovel(price, aderencia, area_conf, b["score_revenda"], tem_captacao)
+        resumo = _resumo_imovel(price, aderencia, u.get("tipo_imovel"), b["score_revenda"], tem_captacao)
 
         out.append({
             "bairro": u["bairro"], "endereco": u["addr_display"], "codigo": u["codigo"], "link": u["link"],
@@ -1124,8 +1145,11 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, addr_in_captacao_ati
             "tipo_imovel": u.get("tipo_imovel"),
             "addr_key": u["addr_key"],
             "score_bairro_revenda": _round(b["score_revenda"]), "price_alignment": _round(price["score"]),
+            # Passo 2b (2026-10-01): price_alignment é None pra apartamento
+            # (componente suspenso, ver price["zone"] == "indisponivel_
+            # apartamento"). area_band_reliability/profile_reliability (v1)
+            # removidos daqui — não alimentam mais nada neste painel.
             "profile_adherence": _round(aderencia), "tem_captacao_ativa": tem_captacao,
-            "area_band_reliability": b["area_band_reliability"], "profile_reliability": b["profile_reliability"],
             "final_score": _round(final_score, 2), "resumo": resumo,
         })
 
@@ -1154,11 +1178,16 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
     for im in imoveis_prioritarios:
         b = bairros_out[im["bairro"]]
         is_apto = im.get("tipo_imovel") == "apartamento"
-        # Etapa 2, item 1.2d (2026-10-01): apartamento compara VALOR TOTAL
-        # pedido x mediana de revenda (não mais R$/m²) — casa não muda.
+        # Passo 2b (2026-10-01): comparação suspensa pra apartamento —
+        # _lookup_valor_total_mediana bucketizava por faixa_metragem()
+        # (área construída do ITBI x área útil do anúncio). Sem fator de
+        # calibração ainda (ver backlog), apartamento nunca mais vira
+        # achado aqui — mediana_ref/valor_ref ficam None, o gate abaixo
+        # (`if mediana_ref is None...`) já pula o resto do loop pra ele.
+        # Casa não muda (R$/m², faixa_metragem mantida).
         if is_apto:
-            mediana_ref = _lookup_valor_total_mediana(b["preco_m2_segmentos"], im.get("tipo_imovel"), im.get("area"))
-            valor_ref = im["valor"]
+            mediana_ref = None
+            valor_ref = None
         else:
             mediana_ref = _lookup_mediana_pago_m2(b["preco_m2_segmentos"], im.get("tipo_imovel"), im.get("area"))
             valor_ref = (im["valor"] / im["area"]) if im.get("area") else None

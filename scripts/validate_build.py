@@ -161,12 +161,12 @@ def check_linhas_lidas(year_to_path, itbi_stats):
             f"{sheets_checked} abas, {header_rows} são cabeçalho (esperado {esperado} "
             f"linhas de dado), mas o parser leu {lido}. Diferença: {lido - esperado:+d}."
         )
-    print(f"[validate_build] OK 1/6 — linhas lidas batem: {lido} == {total_rows} totais - {header_rows} cabeçalho, em {sheets_checked} abas.")
+    print(f"[validate_build] OK 1/7 — linhas lidas batem: {lido} == {total_rows} totais - {header_rows} cabeçalho, em {sheets_checked} abas.")
 
 
 def check_variacao_bairros(new_bairros, old_data_path):
     if not old_data_path.exists():
-        print("[validate_build] OK 2/6 — sem versão publicada anterior pra comparar (primeira execução).")
+        print("[validate_build] OK 2/7 — sem versão publicada anterior pra comparar (primeira execução).")
         return
     try:
         old_data = json.loads(old_data_path.read_text(encoding="utf-8"))
@@ -203,7 +203,7 @@ def check_variacao_bairros(new_bairros, old_data_path):
             f"Se a mudança é esperada (correção deliberada de metodologia), rode de novo com "
             f"ALLOW_LARGE_CHANGES=1 no ambiente."
         )
-    print(f"[validate_build] OK 2/6 — nenhum bairro variou mais que {VARIACAO_MAX*100:.0f}% em volume_primary_year.")
+    print(f"[validate_build] OK 2/7 — nenhum bairro variou mais que {VARIACAO_MAX*100:.0f}% em volume_primary_year.")
 
 
 def check_formato_paineis(data):
@@ -224,7 +224,7 @@ def check_formato_paineis(data):
     if not isinstance(data.get("ranking"), list) or len(data["ranking"]) != len(TARGETS):
         raise ValidationError(f"'ranking' deveria ter {len(TARGETS)} bairros, tem {len(data.get('ranking'))}.")
 
-    print(f"[validate_build] OK 3/6 — formato de data.json íntegro: {len(bairros)} bairros, todas as chaves esperadas presentes.")
+    print(f"[validate_build] OK 3/7 — formato de data.json íntegro: {len(bairros)} bairros, todas as chaves esperadas presentes.")
 
 
 def check_consistencia_carteira_77(data):
@@ -262,7 +262,7 @@ def check_consistencia_carteira_77(data):
             f"consistência carteira_77 FALHOU — {len(divergencias)} divergência(s) entre bairros_out e "
             f"carteira_77 (deveriam ser idênticos):\n{linhas}{a_mais}"
         )
-    print(f"[validate_build] OK 4/6 — {len(TARGETS)} bairros batem exato com carteira_77 em {len(campos)} campos.")
+    print(f"[validate_build] OK 4/7 — {len(TARGETS)} bairros batem exato com carteira_77 em {len(campos)} campos.")
 
 
 def check_prontidao_consistencia(data):
@@ -297,38 +297,34 @@ def check_prontidao_consistencia(data):
             f"bairro(s) com amostra pequena (< 100 revendas em 12m) no top 10 do Prontidão: {top10_amostra_pequena} "
             "— não deveriam ocupar posição de topo (gate de merge pedido pelo usuário)."
         )
-    print(f"[validate_build] OK 5/6 — Prontidão: {len(TARGETS)} bairros com nota, top 10 sem amostra pequena.")
+    print(f"[validate_build] OK 5/7 — Prontidão: {len(TARGETS)} bairros com nota, top 10 sem amostra pequena.")
 
 
 def check_perfil_v1_obsoleto(data):
-    """Passo 2 da migração do perfil vencedor (2026-10-01), item 2 pedido
-    pelo usuário: "nenhum painel pode ler a faixa antiga (v1)" — trava o
-    build se Captação Ativa Estratégica, Estoque×Demanda ou flag_
-    prioridade_maxima voltarem a depender do sistema de perfil por
-    METRAGEM (area_band/price_band/profile_quartos/profile_vagas/
-    profile_reliability/stock_matching_profile).
+    """Passo 2 (2026-10-01) + passo 2b: "nenhum painel pode ler a faixa
+    antiga (v1)" — trava o build se Captação Ativa Estratégica,
+    Estoque×Demanda, flag_prioridade_maxima OU a aderência do Painel 8
+    (Imóveis Prioritários — estendido no passo 2b) voltarem a depender
+    do sistema de perfil por METRAGEM (area_band/price_band/profile_
+    quartos/profile_vagas/profile_reliability/stock_matching_profile).
 
     NÃO é uma proibição geral desses campos no código — eles continuam
     existindo em data.json (obsoletos, não removidos) e ainda alimentam
-    dois consumidores fora do escopo desta migração, que o usuário pediu
-    pra só REPORTAR (item 3), não corrigir: o painel "Perfil por Bairro"
-    (que exibe o v1 por definição) e a "aderência" do Painel 8 (Imóveis
-    Prioritários). Esta checagem é específica aos 3 painéis migrados:
+    um consumidor fora do escopo desta migração, que o usuário pediu pra
+    só REPORTAR: o painel "Perfil por Bairro" (que exibe o v1 por
+    definição). Checagens:
 
       1. data.json: `captacao_estrategica[*].perfil` não pode ter chaves
-         v1 (area_band/price_band/profile_quartos/profile_vagas/
-         profile_reliability) — só faixa_preco/estoque_perfil_faixa_
-         preco/estoque_fora_do_perfil (v2).
+         v1 — só faixa_preco/estoque_perfil_faixa_preco/estoque_fora_do_
+         perfil (v2).
       2. data.json: flag_prioridade_maxima de cada bairro precisa bater
-         com a recomputação usando estoque_perfil_faixa_preco (v2) — se
-         alguém reverter a fórmula pra stock_matching_profile (v1), os
-         dois só coincidem por acaso (bairro a bairro costumam divergir:
-         ver relatório), então essa checagem pega a regressão na prática,
-         não só por leitura de código.
-      3. site/app.js (único arquivo de painéis/UI): a string literal
-         "stock_matching_profile" não pode mais aparecer (hoje só é lida
-         pela Estoque×Demanda, que migrou) — scan de texto, ignora linhas
-         de comentário (`//`)."""
+         com a recomputação usando estoque_perfil_faixa_preco (v2).
+      3. site/app.js: a string literal "stock_matching_profile" não pode
+         mais aparecer fora de comentário.
+      4. (passo 2b) data.json: `imoveis_prioritarios[*]` não pode ter as
+         chaves v1 "area_band_reliability"/"profile_reliability" (a
+         aderência agora é só faixa de preço v2, sem conceito de
+         confiança regional nem de dormitórios/vagas típicos)."""
     import engine
 
     divergencias = []
@@ -359,21 +355,70 @@ def check_perfil_v1_obsoleto(data):
             + "; ".join(f"linha {n}: {l.strip()}" for n, l in linhas_proibidas[:10])
         )
 
+    chaves_v1_painel8 = {"area_band_reliability", "profile_reliability"}
+    for im in data.get("imoveis_prioritarios", []):
+        presentes = chaves_v1_painel8 & im.keys()
+        if presentes:
+            divergencias.append(f"imoveis_prioritarios[{im.get('endereco')}] ainda tem chave(s) v1: {sorted(presentes)}")
+            break  # 1 exemplo basta — evita centenas de linhas repetidas no erro
+
     if divergencias:
         linhas = "\n".join(f"  - {d}" for d in divergencias[:30])
         raise ValidationError(f"perfil vencedor v1 ainda em uso onde deveria ser v2:\n{linhas}")
-    print("[validate_build] OK 6/6 — Captação Estratégica/Estoque×Demanda/flag_prioridade_maxima só usam a faixa de preço v2.")
+    print("[validate_build] OK 6/7 — Captação Estratégica/Estoque×Demanda/flag_prioridade_maxima/Painel 8 só usam a faixa de preço v2.")
+
+
+def check_faixa_metragem_apartamento_suspensa(data):
+    """Passo 2b (2026-10-01), item 2 pedido pelo usuário: a comparação
+    por faixa_metragem() entre área CONSTRUÍDA (segmento ITBI) e área
+    ÚTIL (anúncio) fica suspensa pra APARTAMENTO no componente de preço
+    do Painel 8 e no Valor de Oportunidade (aguardando fator de
+    calibração — ver backlog). Casa não muda. Trava o build se:
+
+      1. algum imóvel apartamento em `imoveis_prioritarios` tiver
+         price_alignment != None (teria que ter vindo de uma comparação
+         por faixa de metragem revivida).
+      2. existir algum achado de apartamento em
+         `valor_oportunidade.imoveis` (deveriam ser só casa agora)."""
+    divergencias = []
+
+    aptos_com_price = [
+        im for im in data.get("imoveis_prioritarios", [])
+        if im.get("tipo_imovel") == "apartamento" and im.get("price_alignment") is not None
+    ]
+    if aptos_com_price:
+        ex = aptos_com_price[0]
+        divergencias.append(
+            f"{len(aptos_com_price)} apartamento(s) em imoveis_prioritarios com price_alignment != None "
+            f"(ex.: {ex.get('endereco')} = {ex.get('price_alignment')}) — faixa_metragem() parece ter voltado a comparar apartamento."
+        )
+
+    aptos_valor_oportunidade = [
+        im for im in data.get("valor_oportunidade", {}).get("imoveis", [])
+        if im.get("tipo_imovel") == "apartamento"
+    ]
+    if aptos_valor_oportunidade:
+        divergencias.append(
+            f"{len(aptos_valor_oportunidade)} achado(s) de apartamento em valor_oportunidade.imoveis "
+            "(deveriam ser só casa — comparação por faixa de metragem suspensa pra apartamento)."
+        )
+
+    if divergencias:
+        linhas = "\n".join(f"  - {d}" for d in divergencias)
+        raise ValidationError(f"faixa_metragem() voltou a comparar apartamento ITBI x anúncio:\n{linhas}")
+    print("[validate_build] OK 7/7 — faixa_metragem() não compara apartamento ITBI x anúncio em nenhum painel.")
 
 
 def validate_before_publish(year_to_path, itbi_stats, data, out_path):
     """Chamado por build_data.py logo antes de escrever site/data.json.
     Levanta SystemExit (para o processo com código != 0) se qualquer
     checagem falhar — build_data.py não deve capturar essa exceção."""
-    print("[validate_build] rodando as 6 checagens antes de publicar...")
+    print("[validate_build] rodando as 7 checagens antes de publicar...")
     check_linhas_lidas(year_to_path, itbi_stats)
     check_variacao_bairros(data["bairros"], out_path)
     check_formato_paineis(data)
     check_consistencia_carteira_77(data)
     check_prontidao_consistencia(data)
     check_perfil_v1_obsoleto(data)
+    check_faixa_metragem_apartamento_suspensa(data)
     print("[validate_build] todas as checagens passaram — liberado pra publicar.")
