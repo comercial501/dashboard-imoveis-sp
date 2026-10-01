@@ -1672,6 +1672,144 @@ rodada rodar.
 Nada ligado no `engine.py`/`engine.js` ainda — aguardando confirmação do
 usuário pra prosseguir com a implementação.
 
+## Item 3: relatório final antes do merge — incerto, giro, quedas de revenda, implementação (2026-09-30)
+
+Números aprovados pelo usuário para implementação (campos aditivos,
+testes, relatório antes×depois). Merge continua bloqueado — pendências
+abaixo.
+
+### 1) Incerto da revenda: 7,5% → investigado e corrigido
+
+Causa raiz encontrada em `tradutor_bairro.Cascata.resolver()`: quando o
+nome de cadastro era reconhecido como lixo (`status == "AUTO_IGNORAR"` —
+"TORRE 1", "BLOCO F" etc.), a função retornava `"incerto"` **direto**,
+sem nunca chegar a consultar `quadras_qualquer_bairro` — o sinal que diz
+se a quadra fiscal daquele imóvel tem um bairro majoritário reconhecível
+no IPTU (prédio genuinamente localizável, só com o campo Bairro
+preenchido com nome de torre). Essa checagem já existia pro caso "nome
+desconhecido" (status `None`), mas nunca foi estendida pro caso "nome
+reconhecido como lixo" — a mesma classe de bug da correção anterior,
+só que num ramo diferente do código.
+
+Amostra de 25 "incerto" de revenda confirmou o padrão: ~80% tinham
+`bairro_raw` tipo "TORRE 1"/"BLOCO F", `quadra74=None` (a quadra não tinha
+voto majoritário pra um dos 77) mas `tem_qualquer_bairro=True` (a mesma
+quadra tinha um bairro majoritário no IPTU sem filtro). Corrigido
+removendo o atalho — os dois casos agora caem no mesmo check final.
+
+**Resultado**: revenda incerto caiu de 7,5% para **0,9%** — melhor que a
+meta de ≤3% e melhor que a rodada anterior (5,4%). Efeito colateral
+esperado (não é regressão): "fora da carteira" subiu proporcionalmente
+(46,0%→52,6%), porque os casos que eram "incerto" por engano agora caem
+corretamente em "fora_carteira" (end bairro real, só não um dos 77) —
+carteira continua igual.
+
+| | Antes da correção | Depois da correção |
+|---|---:|---:|
+| ANTES (regra antiga) — fora/incerto | 49,2% / 6,7% | 55,1% / 0,9% |
+| REVENDA — fora/incerto | 46,0% / 7,5% | 52,6% / **0,9%** |
+| PLANTA — fora/incerto | 62,7% / 3,0% | 62,9% / 2,9% |
+| UNIDADES IPTU — fora/incerto | 55,4% / 6,3% | 60,6% / 1,0% |
+
+### 2) Taxa de giro dos 77 (revenda ÷ unidades) — nenhum acima de 10%
+
+Maior giro: Alto da Boa Vista (5,4%). Nenhum dos 77 bairros passa de
+10% — sem sinal de contaminação de bairro/região nem de dupla-contagem
+na nova régua.
+
+### 3) Quedas de revenda ≥25% — decomposição
+
+**Achado importante**: Brooklin (−31%) e Campo Belo (−25%), citados no
+relatório anterior, eram um **artefato de comparação não-equivalente** —
+comparavam "antes" (revenda+planta da regra antiga, **combinados**) com
+"depois revenda" (só revenda da regra nova). Comparando revenda PURA
+antiga × revenda PURA nova (resolvidas cada uma na sua própria cascata),
+os dois bairros na verdade **aumentaram**: Brooklin 725→1.019 (+40,6%),
+Campo Belo 674→1.004 (+49,0%).
+
+Refeita a comparação corretamente (revenda × revenda), só **4 bairros**
+caem ≥25%:
+
+| Bairro | Antigo → Novo | Queda | Causa |
+|---|---:|---:|---|
+| Vila Monumento | 199 → 104 | −47,7% | quase toda a queda é classificação: 74 registros viraram "parcial" (fração de herança/divórcio), só 8 mudaram de bairro |
+| Jardim das Bandeiras | 16 → 9 | −43,8% | amostra pequena; 2 parcial + 1 demais + 3 fora do universo |
+| Vila Nova Manchester | 134 → 83 | −38,1% | classificação: 21 parcial + 9 demais + 12 viraram planta; 0 mudaram de bairro |
+| Jardim Europa | 71 → 45 | −36,6% | metade classificação (9 parcial), metade mudança de bairro (9 reassociados) |
+
+Em todos os 4, a decomposição mostra que a queda vem **quase inteiramente
+da classificação** (registros corretamente identificados como fração
+ideal/herança-divórcio, não mais contados como revenda) — não da cascata
+de bairro. Lista completa dos 77 (quem subiu e quem caiu, com a mesma
+decomposição) fica no log de execução de `scripts/cascata_completa.py`.
+
+### 4) 20 exemplos de planta via SFH/MCMV sem token de unidade no complemento
+
+| Endereço | Complemento | Uso (IPTU) | Financiamento |
+|---|---|---|---|
+| Rua Itapeva, 342 | STUDIO R 806 | 62 | 1.Sistema Financeiro de Habitação |
+| Avenida Giovanni Gronchi, 7020 | SPHER PARK A2 1512 | 64 | 1.Sistema Financeiro de Habitação |
+| Avenida Nsra De Sabará, 4780 | AURORA TE AP907 | 84 | 2.Minha Casa Minha Vida |
+| Avenida Corifeu De Azevedo Marques, s/n | TR-B APT 611B | 0 | 2.Minha Casa Minha Vida |
+| Avenida Sta Marina, 1317 | APT 1517 TR A | 50 | 2.Minha Casa Minha Vida |
+| Rua Dr Plínio Do Amaral, 103 | RESIDENCIA 1 | 12 | 1.Sistema Financeiro de Habitação |
+| Rua Joaquim Carlos, 580 | M BELEM TD AP1306 | 51 | 1.Sistema Financeiro de Habitação |
+| Rua Claudino Pinto, 36 | 2009 | 12 | 2.Minha Casa Minha Vida |
+| Avenida Guilherme, 754 | BL. T1, AP504 | 0 | 2.Minha Casa Minha Vida |
+| Rua Americo Sugai, s/n | 410 | 0 | 2.Minha Casa Minha Vida |
+| Rua Alexandre Benois, 17 | A_MORUMBI CC205 | 0 | 1.Sistema Financeiro de Habitação |
+| Avenida Das Nações Unidas, 19847 | APT 1408 | 43 | 2.Minha Casa Minha Vida |
+| Avenida Afonso De Sampaio E Sousa, 299 | EUCAL TB AP1308 | 50 | 1.Sistema Financeiro de Habitação |
+| Avenida Onofrio Milano, s/n | APT 18 TR A | 0 | 2.Minha Casa Minha Vida |
+| Rua Herval, s/n | BL 1 STUDIO 111 | 0 | 1.Sistema Financeiro de Habitação |
+| Rua Sertões De Canindé, 46 | FR 1303 | 64 | 2.Minha Casa Minha Vida |
+| Rua Dr Rubens Gomes Bueno, 158 | APT 1225 TOR 2 | 50 | 1.Sistema Financeiro de Habitação |
+| Avenida Nsra De Sabará, 4780 | AURORA TC AP1406 | 84 | 1.Sistema Financeiro de Habitação |
+| Avenida Roland Garros, 2187 | BL. T2, AP311 | 40 | 2.Minha Casa Minha Vida |
+| Rua James Holland, 500 | V ANTART T.A 1011 | 51 | 1.Sistema Financeiro de Habitação |
+
+Padrão confirmado: sempre uso não-residencial (lote-mãe), sempre
+financiamento MCMV ou SFH, complemento reconhecidamente de unidade em
+construção mesmo sem um token da lista (ex: "FR 1303", "2009", "410") —
+amostra consistente com venda na planta de verdade, não falso positivo.
+
+### 5) Implementação no engine.py/engine.js (branch) — feita e verificada
+
+- `scripts/cascata_completa.gerar_dados_carteira_77()` empacota o cálculo
+  acima num formato pronto pra `site/data.json`.
+- `scripts/build_data.py` chama essa função e grava o resultado como
+  **campo aditivo novo** `data["carteira_77"]` — nenhum campo existente
+  foi tocado (os 49 bairros/ranking/etc. continuam exatamente como
+  estavam). Falha nessa etapa é isolada (try/except) e não derruba o
+  resto do build.
+- Painel novo no site, "Carteira 77 (beta)": fechamento + tabela
+  ordenável (revenda/planta/unidades/giro) dos 77 bairros. **Estático**
+  — não recalcula com os filtros de preço/bairro dos outros painéis
+  (isso exigiria portar a cascata inteira pra `engine.js`/`raw.json`,
+  escopo bem maior que o pedido atual; posso fazer como próximo passo se
+  for útil).
+- **Bug encontrado e corrigido durante a verificação**: `mergeStaticMeta()`
+  (em `site/app.js`) reconstrói `DATA` a partir de `computeEngine()`
+  sempre que o recompute de fundo roda (mesmo sem filtro ativo, pra
+  manter a lista de imóveis por faixa disponível) — como `computeEngine`
+  não sabe de `carteira_77`, o campo **sumia silenciosamente** poucos
+  segundos depois do carregamento inicial. Corrigido copiando
+  `carteira_77` de `SERVER_DATA`, igual aos outros campos estáticos já
+  tratados ali (`generated_at`, `meta.usn`).
+- `scripts/test_carteira_77.py`: valida o formato/números do campo em
+  `site/data.json` (77 bairros, campos obrigatórios, fechamento somando
+  ~100%, sem valores negativos). Rodado com sucesso depois da correção.
+- Confirmado no navegador (servidor local, `site/serve_no_cache.py`):
+  painel "Carteira 77 (beta)" carrega com os 77 bairros, fechamento e
+  tabela corretos; demais painéis (Visão Geral, Ranking, etc.) continuam
+  funcionando sem nenhuma regressão; sem erros no console.
+- `site/data.json`/`site/raw.json`/`site/itbi_clean_log.json`/
+  `output/preco_m2_por_bairro.csv` regenerados com `build_data.py` (base
+  congelada, `SKIP_ITBI_SYNC=1`) e commitados.
+
+Tudo commitado e pushed na branch `correcao-itbi-metodologia`. `main`
+continua intocado. Aguardando aprovação do usuário pra fazer merge.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
