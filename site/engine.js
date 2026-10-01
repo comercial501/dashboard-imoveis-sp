@@ -545,27 +545,25 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     trendPctMercado12m[b] = cmAnt > 0 ? round((countMercadoAtual[b] - cmAnt) / cmAnt * 100) : null;
   });
 
-  // Etapa 2, item 3 (2026-10-01): tendência neutra (0) quando amostra
-  // pequena numa das duas janelas (C.min_vendas_tendencia) — mesmo gate
-  // de engine.py, aplicado sobre volume_mercado_12m (score principal).
+  // Etapa 2, item 1 (revisão 2026-10-01, decisão de mercado): score usa
+  // SÓ revenda_12m (não mais volume_mercado_12m) como volume e
+  // tendência — ver nota equivalente em engine.py compute(). Tendência
+  // neutra (0) quando amostra pequena numa das duas janelas
+  // (C.min_vendas_tendencia).
   const MIN_VENDAS_TENDENCIA = C.min_vendas_tendencia;
   const MIN_VENDAS_TOP10 = C.min_vendas_top10;
-  const trendFracMercado12mCapped = {};
-  TARGETS.forEach((b) => {
-    const atual = countMercadoAtual[b], anterior = countMercadoAnterior[b];
-    if (atual >= MIN_VENDAS_TENDENCIA && anterior >= MIN_VENDAS_TENDENCIA && anterior > 0) {
-      const frac = (atual - anterior) / anterior;
-      trendFracMercado12mCapped[b] = Math.max(-C.trend_cap, Math.min(C.trend_cap, frac));
-    } else {
-      trendFracMercado12mCapped[b] = 0;
-    }
-  });
-  const trendPctRevenda12m = {}, amostraPequenaRanking = {};
+  const trendFracRevenda12mCapped = {}, trendPctRevenda12m = {}, amostraPequenaRanking = {};
   TARGETS.forEach((b) => {
     const atual = countRevendaAtual[b], anterior = countRevendaAnterior[b];
-    trendPctRevenda12m[b] = (atual >= MIN_VENDAS_TENDENCIA && anterior >= MIN_VENDAS_TENDENCIA && anterior > 0)
-      ? round((atual - anterior) / anterior * 100)
-      : null;
+    if (atual >= MIN_VENDAS_TENDENCIA && anterior >= MIN_VENDAS_TENDENCIA && anterior > 0) {
+      const frac = (atual - anterior) / anterior;
+      trendFracRevenda12mCapped[b] = Math.max(-C.trend_cap, Math.min(C.trend_cap, frac));
+      trendPctRevenda12m[b] = round(frac * 100);
+    } else {
+      trendFracRevenda12mCapped[b] = 0;
+      trendPctRevenda12m[b] = null;
+    }
+    // Regra de amostra mínima (item 3): < 100 REVENDAS em 12m (não mercado).
     amostraPequenaRanking[b] = atual < MIN_VENDAS_TOP10;
   });
   const fmtYm = ([y, m]) => `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}`;
@@ -835,12 +833,13 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   });
 
   // --- Painel 1: score — normalização SÓ entre os bairros do escopo ---
-  // Etapa 2, item 1.2c/3 (2026-10-01): volume = volume_mercado_12m
-  // (revenda+planta, não mais volume_primary_year); tendência =
-  // trendFracMercado12mCapped (neutra quando amostra pequena numa das
-  // duas janelas — ver cálculo acima). Mesmos pesos de sempre.
-  const volumeMapScope = {}; scope.forEach((b) => (volumeMapScope[b] = bairrosOut[b].volume_mercado_12m));
-  const trendZInputScope = {}; scope.forEach((b) => (trendZInputScope[b] = trendFracMercado12mCapped[b]));
+  // Etapa 2, item 1 (revisão 2026-10-01, decisão de mercado): volume e
+  // tendência = SÓ revenda_12m/trendFracRevenda12mCapped — não mais
+  // volume_mercado_12m. Nota: isso deixa `score` e `score_revenda`
+  // (abaixo) matematicamente idênticos (mesmo insumo) — consequência
+  // esperada da decisão, ver nota equivalente em engine.py compute().
+  const volumeMapScope = {}; scope.forEach((b) => (volumeMapScope[b] = bairrosOut[b].revenda_12m));
+  const trendZInputScope = {}; scope.forEach((b) => (trendZInputScope[b] = trendFracRevenda12mCapped[b]));
   const trendZScope = zscoreMap(trendZInputScope);
   const volZScope = zscoreMap(volumeMapScope);
   const combinedScope = {}; scope.forEach((b) => (combinedScope[b] = (volZScope[b] + trendZScope[b]) / 2));
@@ -849,7 +848,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   const ratiosSorted = scope.map((b) => bairrosOut[b].stock_demand_ratio).sort((a, b) => a - b);
   const lowTercile = tercile(ratiosSorted, 1 / 3);
 
-  // score_revenda: insumo = revenda_12m (não mais liquidez_revenda_primary_year).
+  // score_revenda: mesma fórmula, mesmo insumo que `score` agora (ver nota acima).
   const revendaMapScope = {}; scope.forEach((b) => (revendaMapScope[b] = bairrosOut[b].revenda_12m));
   const revendaZScope = zscoreMap(revendaMapScope);
   const combinedRevendaScope = {}; scope.forEach((b) => (combinedRevendaScope[b] = (revendaZScope[b] + trendZScope[b]) / 2));

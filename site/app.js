@@ -618,13 +618,13 @@ function statTile(label, value, sub) {
 // ---------------------------------------------------------------------------
 function renderVisaoGeral() {
   // Etapa 2, item 3 (2026-10-01): bairro com < MIN_VENDAS_TOP10 (100)
-  // vendas de mercado em 12m (amostra_pequena_ranking, calculado em
+  // vendas de REVENDA em 12m (amostra_pequena_ranking, calculado em
   // engine.py/engine.js) não entra no top 10 de "Onde anunciar agora" —
   // ver badge "Amostra pequena" na tabela completa do Ranking.
   const top10 = DATA.ranking.filter((name) => !DATA.bairros[name].amostra_pequena_ranking).slice(0, 10);
   rankRows(document.getElementById("visao-ranking"), top10, DATA, {
     scoreKey: "score",
-    metaFmt: (b) => `${fmtInt(b.volume_mercado_12m)} vendas de mercado (12m, ${periodo12mLabel()}) · tendência ${b.trend_pct_mercado_12m != null ? fmtPct(b.trend_pct_mercado_12m) : "—"} · ${fmtInt(b.volume_12m)} no giro total (todas as transferências)`,
+    metaFmt: (b) => `${fmtInt(b.revenda_12m)} vendas de revenda (12m, ${periodo12mLabel()}) · tendência ${b.trend_pct_revenda_12m != null ? fmtPct(b.trend_pct_revenda_12m) : "—"} · ${fmtInt(b.planta_12m)} lançamentos (12m) · ${fmtInt(b.volume_12m)} no giro total (todas as transferências)`,
     badges: (b) => {
       const out = [];
       if (b.flag_oportunidade) out.push(badge("Oportunidade", "gold"));
@@ -705,8 +705,9 @@ function renderRanking() {
       { key: "pos", label: "#", sortable: false },
       { key: "bairro", label: "Bairro" },
       { key: "score", label: "Score", fmt: (v) => fmtInt(v) },
-      { key: "volume_mercado_12m", label: `Vendas de mercado (12m, ${periodo12mLabel()})` },
-      { key: "trend_pct_mercado_12m", label: "Tendência (12m vs ano anterior)", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
+      { key: "revenda_12m", label: `Vendas de revenda (12m, ${periodo12mLabel()})` },
+      { key: "trend_pct_revenda_12m", label: "Tendência de revenda (12m vs ano anterior)", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
+      { key: "planta_12m", label: "Lançamentos (12m)" },
       { key: "volume_12m", label: "Todas as transferências (12m)" },
       { key: "stock_demand_ratio", label: "Estoque/Demanda", fmt: (v) => (v >= 999 ? "∞" : v.toFixed(2)) },
       { key: "price_gap_pct", label: "Gap Preço", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
@@ -717,7 +718,7 @@ function renderRanking() {
           if (r.flag_saturacao_alta) wrap.appendChild(badge("Saturação", "warning"));
           if (r.flag_alerta) wrap.appendChild(badge("Alerta preço", "critical"));
           // Etapa 2, item 3 (2026-10-01): bairro com < 100 vendas de
-          // mercado em 12m não entra no top 10 de "Onde anunciar agora"
+          // REVENDA em 12m não entra no top 10 de "Onde anunciar agora"
           // (ver renderVisaoGeral) — aqui, na tabela completa, mostra o
           // selo em vez de simplesmente sumir.
           if (r.amostra_pequena_ranking) wrap.appendChild(badge("Amostra pequena", "neutral"));
@@ -799,7 +800,8 @@ function renderPerfilContent(name) {
   tiles.appendChild(statTile("Score de Oportunidade", fmtInt(b.score)));
   tiles.appendChild(statTile("Score de Revenda", fmtInt(b.score_revenda)));
   tiles.appendChild(statTile("Prontidão para Campanha", fmtInt(b.prontidao_campanha)));
-  tiles.appendChild(statTile(`Vendas de mercado (12m, ${periodo12mLabel()})`, fmtInt(b.volume_mercado_12m)));
+  tiles.appendChild(statTile(`Vendas de revenda (12m, ${periodo12mLabel()})`, fmtInt(b.revenda_12m)));
+  tiles.appendChild(statTile("Lançamentos (12m)", fmtInt(b.planta_12m)));
   tiles.appendChild(statTile("Todas as transferências (12m)", fmtInt(b.volume_12m)));
   box.appendChild(tiles);
 
@@ -832,7 +834,7 @@ function renderPerfilContent(name) {
     { label: "Estoque no perfil vencedor", value: b.stock_matching_profile, colorVar: "--gold" },
   ], { maxOverride: Math.max(b.stock_total, 1) });
   stockBox.appendChild(el("div", { class: "small muted", style: "margin-top:8px" },
-    `Razão estoque no perfil / vendas por ano (méd. ${anosRefLabel()}): ${b.stock_demand_ratio >= 999 ? "∞ (sem demanda registrada)" : b.stock_demand_ratio.toFixed(2)}`));
+    `Razão estoque no perfil / vendas de revenda (12m, ${periodo12mLabel()}): ${b.stock_demand_ratio >= 999 ? "∞ (sem demanda registrada)" : b.stock_demand_ratio.toFixed(2)}`));
   box.appendChild(stockBox);
 
   const priceBox = el("section", { class: "card", style: "margin:0; padding:16px 18px;" });
@@ -894,7 +896,7 @@ function renderMapa() {
   const px = (lon) => pad + ((lon - lonMin) / (lonMax - lonMin || 1)) * (W - 2 * pad);
   const py = (lat) => H - pad - ((lat - latMin) / (latMax - latMin || 1)) * (H - 2 * pad); // norte pra cima
 
-  const maxVolume = Math.max(1, ...withCentroid.map((x) => x.b.volume_mercado_12m));
+  const maxVolume = Math.max(1, ...withCentroid.map((x) => x.b.revenda_12m));
   const scores = withCentroid.map((x) => x.b.score);
   const scoreMin = Math.min(...scores), scoreMax = Math.max(...scores);
   const colorFor = (score) => {
@@ -911,13 +913,13 @@ function renderMapa() {
 
   withCentroid.forEach(({ name, b }) => {
     const cx = px(b.centroid[1]), cy = py(b.centroid[0]);
-    const r = 5 + Math.sqrt(b.volume_mercado_12m / maxVolume) * 18;
+    const r = 5 + Math.sqrt(b.revenda_12m / maxVolume) * 18;
     const circle = svg("circle", { cx, cy, r, class: "map-bubble", fill: colorFor(b.score) });
     circle.addEventListener("pointermove", (e) => {
       const rect = s.getBoundingClientRect();
       tooltip.innerHTML = "";
       tooltip.appendChild(el("div", { style: "font-weight:650; margin-bottom:3px" }, name));
-      tooltip.appendChild(el("div", {}, `Score ${fmtInt(b.score)} · ${fmtInt(b.volume_mercado_12m)} vendas de mercado (12m, ${periodo12mLabel()}) · ${fmtInt(b.volume_12m)} no giro total`));
+      tooltip.appendChild(el("div", {}, `Score ${fmtInt(b.score)} · ${fmtInt(b.revenda_12m)} vendas de revenda (12m, ${periodo12mLabel()}) · ${fmtInt(b.planta_12m)} lançamentos (12m) · ${fmtInt(b.volume_12m)} no giro total`));
       tooltip.style.left = (cx / W) * rect.width + "px";
       tooltip.style.top = (cy / H) * rect.height + "px";
       tooltip.style.opacity = 1;
@@ -1107,7 +1109,7 @@ function renderEstoqueDemanda() {
     initialSortDir: 1,
     columns: [
       { key: "bairro", label: "Bairro" },
-      { key: "volume_primary_year", label: `Demanda (méd./ano ${anosRefLabel()})` },
+      { key: "revenda_12m", label: `Demanda (revenda 12m, ${periodo12mLabel()})` },
       { key: "stock_total", label: "Estoque total" },
       { key: "stock_matching_profile", label: "Estoque no perfil" },
       { key: "stock_demand_ratio", label: "Cobertura", fmt: (v) => (v >= 999 ? "∞" : v.toFixed(3)) },

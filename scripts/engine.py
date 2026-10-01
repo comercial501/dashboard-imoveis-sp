@@ -1211,38 +1211,41 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
         volume_mercado_12m_anterior_map,
     ) = _compute_volume_12m(itbi_records, periodo_externo=periodo_12m_externo)
 
+    # Etapa 2, item 1 (2026-10-01, decisão de mercado pós-revisão): o
+    # score do Ranking/"Onde anunciar agora" usa SÓ revenda_12m como
+    # volume e tendência — não mais volume_mercado_12m (revenda+planta).
+    # Motivo: pra Buyer Agent, a liquidez que importa é a REVENDA; o top
+    # 10 anterior (volume_mercado_12m) ficava dominado por bairros com um
+    # único lançamento grande (Lapa 3.089 de planta, Chácara Santo
+    # Antônio 3.104, Alto da Boa Vista 1.078 majoritariamente de 1
+    # empreendimento no CEP 04750) — não é liquidez de revenda de
+    # verdade. planta_12m continua calculado e exposto (campo
+    # "Lançamentos (12m)" nos painéis), só não entra mais no score.
+    #
     # Etapa 2, item 3 (2026-10-01): tendência só entra no score se o
-    # bairro tiver >= MIN_VENDAS_TENDENCIA vendas de mercado em CADA uma
+    # bairro tiver >= MIN_VENDAS_TENDENCIA vendas de REVENDA em CADA uma
     # das duas janelas (atual e anterior) comparadas; abaixo disso,
-    # tendência = neutra (0, nem positiva nem negativa) — evita um bairro
-    # pequeno subir no Ranking só por uma variação de poucas vendas virar
-    # um % enorme (achado do usuário: Jardim da Glória, 34 vendas,
-    # "tendência" de +78,9%). Gate aplicado sobre volume_mercado_12m
-    # (revenda+planta — o volume PRINCIPAL que alimenta o score, ver
-    # abaixo), não só revenda; trend_z resultante é compartilhado pelo
-    # score principal e por score_revenda, igual à arquitetura de sempre.
-    trend_frac_mercado_12m_capped = {}
-    for b in TARGETS:
-        atual = volume_mercado_12m_map[b]
-        anterior = volume_mercado_12m_anterior_map[b]
-        if atual >= MIN_VENDAS_TENDENCIA and anterior >= MIN_VENDAS_TENDENCIA and anterior > 0:
-            frac = (atual - anterior) / anterior
-            trend_frac_mercado_12m_capped[b] = max(-TREND_CAP, min(TREND_CAP, frac))
-        else:
-            trend_frac_mercado_12m_capped[b] = 0.0
-
-    # trend_pct_revenda_12m: mesmo gate, mas sobre revenda_12m
-    # especificamente — campo informativo (exibido por bairro), não
-    # alimenta o score (que usa o gate sobre volume_mercado_12m acima).
+    # tendência = neutra (0) — evita um bairro pequeno subir no Ranking
+    # só por uma variação de poucas vendas virar um % enorme (achado do
+    # usuário: Jardim da Glória, 34 vendas, "tendência" de +78,9%).
+    # trend_z resultante é compartilhado pelo score principal e por
+    # score_revenda (mesmo insumo agora, arquitetura mais simples).
+    trend_frac_revenda_12m_capped = {}
     trend_pct_revenda_12m_map = {}
     amostra_pequena_ranking_map = {}
     for b in TARGETS:
         atual = revenda_12m_map[b]
         anterior = revenda_12m_anterior_map[b]
         if atual >= MIN_VENDAS_TENDENCIA and anterior >= MIN_VENDAS_TENDENCIA and anterior > 0:
-            trend_pct_revenda_12m_map[b] = _round((atual - anterior) / anterior * 100, 1)
+            frac = (atual - anterior) / anterior
+            trend_frac_revenda_12m_capped[b] = max(-TREND_CAP, min(TREND_CAP, frac))
+            trend_pct_revenda_12m_map[b] = _round(frac * 100, 1)
         else:
+            trend_frac_revenda_12m_capped[b] = 0.0
             trend_pct_revenda_12m_map[b] = None
+        # Regra de amostra mínima (item 3): < 100 REVENDAS em 12m (não
+        # mercado) não entra no top 10 de "Onde anunciar agora" e mostra
+        # o selo "Amostra pequena" no Ranking.
         amostra_pequena_ranking_map[b] = atual < MIN_VENDAS_TOP10
 
     usn_by_bairro, centroids, stock_total, asking_median = _aggregate_usn(usn_records)
@@ -1346,23 +1349,32 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
             "amostra_pequena_ranking": amostra_pequena_ranking_map[b],
         }
 
-    # --- Painel 1: score (volume + tendência) — Etapa 2, item 1/3
-    # (2026-10-01): base nova. Volume = volume_mercado_12m (revenda+
-    # planta, não mais volume_primary_year — média de 3 anos de QUALQUER
-    # transação, incluindo as que não eram nem revenda nem planta);
-    # tendência = trend_frac_mercado_12m_capped (neutra/0 quando a
-    # amostra é pequena numa das duas janelas — item 3 da Etapa 2). Mesmos
-    # pesos de sempre (50% volume + 50% tendência, ver
+    # --- Painel 1: score (volume + tendência) — Etapa 2, item 1 (revisão
+    # 2026-10-01, decisão de mercado): volume e tendência do score agora
+    # são SÓ revenda_12m/trend_frac_revenda_12m_capped — não mais
+    # volume_mercado_12m (revenda+planta). planta_12m continua exposto
+    # como indicador separado ("Lançamentos 12m"), sem peso no score.
+    # Mesmos pesos de sempre (50% volume + 50% tendência, ver
     # _score_from_volume_and_trend).
-    volume_map = {b: bairros_out[b]["volume_mercado_12m"] for b in TARGETS}
-    trend_z_input = trend_frac_mercado_12m_capped
+    #
+    # Nota: com essa mudança, `score` e `score_revenda` (abaixo) usam
+    # exatamente o mesmo insumo (revenda_12m + trend_frac_revenda_12m_
+    # capped) e ficam matematicamente idênticos — consequência direta e
+    # esperada da decisão (antes, score usava volume_mercado_12m e
+    # score_revenda já usava revenda_12m, por isso divergiam). Mantidos
+    # como dois campos (painéis diferentes os leem por nome: Ranking lê
+    # `score`, Imóveis Prioritários/Mapa leem `score_revenda`), não
+    # fundidos — simplificar pra um campo só é decisão de produto, fora
+    # do escopo desta migração.
+    volume_map = {b: bairros_out[b]["revenda_12m"] for b in TARGETS}
+    trend_z_input = trend_frac_revenda_12m_capped
     trend_z = zscore_map(trend_z_input)
     score_map = _score_from_volume_and_trend(volume_map, trend_z)
 
     ratios_sorted = sorted(bairros_out[b]["stock_demand_ratio"] for b in TARGETS)
     low_tercile = _tercile(ratios_sorted, 1 / 3)
 
-    # --- Mudança 3a: score_revenda (mesma fórmula, insumo = revenda_12m) ---
+    # --- score_revenda (mesma fórmula, mesmo insumo que `score` agora — ver nota acima) ---
     revenda_map = {b: bairros_out[b]["revenda_12m"] for b in TARGETS}
     revenda_z = zscore_map(revenda_map)
     combined_revenda = {b: (revenda_z[b] + trend_z[b]) / 2 for b in TARGETS}
