@@ -1876,3 +1876,60 @@ bairro pode "herdar" perfil quando a amostra própria é pequena.
 Secret `NONSTOP_TOKEN` configurado no repositório (Settings → Secrets and
 variables → Actions). O cache dos `.xlsx` de ITBI entre execuções evita
 rebaixar ~100MB todo dia à toa.
+
+## Merge pós-correção do ITBI (2026-10-01, tag `pos-correcao-itbi`)
+
+A branch `correcao-itbi-metodologia` (item 2 + item 3 da auditoria —
+carteira de 77 bairros, cascata de tradução por nome de cadastro,
+revenda/planta separadas, Santo Amaro dividido por CEP) foi mergeada em
+`main`. Dois problemas reais só apareceram no primeiro build de produção
+(real, sem `SKIP_ITBI_SYNC`) e foram corrigidos na hora:
+
+1. **`carteira_77` dependia de 2 arquivos fora do git** (`data/` é
+   gitignorado por padrão): `data/iptu_geosampa/iptu_2026_reduzido.csv.gz`
+   (26MB) e `data/iptu_geosampa/raw/bairros_mercado_preenchido.csv`
+   (496KB, a tabela de tradução revisada à mão pelo usuário). Sem commitar
+   os dois, o painel "Carteira 77" ficaria permanentemente quebrado na
+   Action/cron (o cadastro do GeoSampa não pode ser baixado
+   automaticamente — CAPTCHA). Resolvido com uma exceção pontual no
+   `.gitignore` (ver comentário lá).
+2. **Bug real em `site/app.js`**: `cmpLower()` só existe em `engine.js`,
+   carregado de forma assíncrona/sob demanda — `renderPerfilContent()`
+   usava a função síncronamente no primeiro `renderAll()`, lançando
+   `ReferenceError` e deixando TODOS os painéis depois de "Perfil por
+   Bairro" vazios até o recompute de fundo rodar pela primeira vez (bug
+   pré-existente, não introduzido por esta auditoria — só apareceu porque
+   alguém finalmente olhou o console na primeira carga). Corrigido
+   duplicando a função em `app.js`.
+
+`ALLOW_LARGE_CHANGES=1` foi usado na execução manual de republicação
+(esperado: a correção de metodologia muda `volume_primary_year`) — na
+prática a checagem de 30% nem disparou, porque a base de comparação já
+vinha da própria branch mergeada (mesma metodologia nova dos dois lados).
+
+## Etapa 2 (2026-10-01, branch `etapa-2-integracao-paineis`) — status
+
+Última etapa antes de liberar a dashboard pra CRM e corretores. Todos os
+itens pedidos concluídos:
+
+- **Item 2**: painel "Preço por m²" (agora "Valor Total Pago —
+  Apartamento") trocou R$/m² pago por valor total pago (mediana/P25/
+  P75), só revenda, com o gap R$/m² pedido×pago suspenso pra apartamento.
+- **Item 3 (PRIORIDADE)**: `output/valor_pago_por_bairro.csv` — bairro
+  (carteira 77) × tipo × ano, com P25/mediana/P75 do valor total pago em
+  revenda e variação % ano contra ano. Entregue antes do prazo de
+  2026-10-07.
+- **Item 1**: motor inteiro migrado pra base nova — `TARGETS` (77),
+  resolução de bairro única (cascata de 5 métodos), revenda/planta
+  separadas, `volume_mercado_12m` como volume principal do score. Teste
+  de consistência (`validate_build.check_consistencia_carteira_77`) trava
+  o build se qualquer painel divergir de `carteira_77` — pegou 2 bugs
+  reais de escopo de período/votos antes de qualquer número ser
+  reportado (ver commit `bdeada3`). `_compute_preco_m2` (Alertas/Valor de
+  Oportunidade/Imóveis Prioritários) ganhou o mesmo tratamento do item 2
+  pra apartamento. Espelhado em `engine.js` — verificado no navegador:
+  `computeEngine(RAW, {})` sem filtro bate exato com `data.json` em 77×9
+  campos (1 única divergência de 0,1pp em `trend_pct_mercado_12m`,
+  arredondamento Python×JS pré-existente, não introduzido aqui).
+- **Item 4**: painel "Carteira 77" saiu do "(beta)" — agora é a mesma
+  base que todos os outros painéis.

@@ -92,6 +92,14 @@ JANELA_PRECO_M2_DIAS = 365
 # que mostram o dado como está, com o badge, sem decidir por quem lê.
 MIN_ANUNCIOS_ALERTA = 3
 
+# Etapa 2, item 3 (2026-10-01) — proteção provisória de amostra no
+# Ranking (a revisão de pesos do score fica pra depois): achado do
+# usuário no export de 01/10 — Jardim da Glória aparecia em 3º em "Onde
+# anunciar agora" com 34 vendas e tendência +78,9%, puramente por amostra
+# pequena (uma variação de poucas vendas vira um % de tendência enorme).
+MIN_VENDAS_TENDENCIA = 50  # por janela (atual E anterior) — abaixo disso, tendência = neutra (não entra no score)
+MIN_VENDAS_TOP10 = 100  # bairro com menos que isso em revenda_12m não entra no top 10 de "Onde anunciar agora"
+
 PESOS_PAINEL8 = {"revenda": 0.35, "preco": 0.30, "aderencia": 0.25, "captacao": 0.10}
 PESOS_PRONTIDAO = {"f1": 0.15, "f2": 0.20, "f3": 0.15, "f4": 0.15, "f5": 0.25, "f6": 0.10}
 
@@ -121,6 +129,19 @@ def _is_valid_sale(r):
     qualquer transação residencial válida, cheia ou fracionária — giro é
     giro."""
     return r["is_compra_venda"] and r["is_full_transfer"] and r["tipo_imovel"] is not None
+
+
+# Etapa 2 do item 3 da auditoria de ITBI (2026-10-01): mesma definição de
+# "revenda" já aprovada em cascata_completa.classificar_revenda_planta_
+# aprovada — proporção transmitida 100% E uso IPTU residencial (10 ou 20,
+# não o conjunto mais amplo {10,12,14,20,21,22,25} de clean_itbi.
+# TIPO_IMOVEL_POR_USO). Usada só pelo painel "Preço por m²" (valor total
+# pago em apartamento) — ver _compute_preco_m2_painel.
+_USO_REVENDA_APROVADA = {"10", "20"}
+
+
+def _is_revenda_aprovada(r):
+    return r["is_compra_venda"] and r["is_full_transfer"] and r.get("uso_code") in _USO_REVENDA_APROVADA
 
 
 def _aggregate_itbi(itbi_records, years):
@@ -289,15 +310,32 @@ def _mes_base_e_periodo(itbi_records):
     return periodo_12m, periodo_12m_anterior, meses_incompletos
 
 
-def _compute_volume_12m(itbi_records):
+def _compute_volume_12m(itbi_records, periodo_externo=None):
     """volume_12m (por bairro) + trend_pct_12m (por bairro) + periodo_12m
     (metadado único do dataset) + volume_recente_parcial (por bairro,
     indicador separado e informativo, NÃO usado em volume_12m/trend_pct_12m
     — contagem dos meses_incompletos, só pra não perder a visibilidade
     desses 2 meses mais recentes). Mesma definição de "venda válida" que
     volume_primary_year: qualquer transação residencial conta (giro é
-    giro) — só muda COMO o período é definido."""
-    periodo_12m, periodo_12m_anterior, meses_incompletos = _mes_base_e_periodo(itbi_records)
+    giro) — só muda COMO o período é definido.
+
+    `periodo_externo` (Etapa 2, item 1.1, 2026-10-01 — achado do teste de
+    consistência): opcional (periodo_12m, periodo_12m_anterior,
+    meses_incompletos) já calculado em OUTRO lugar, pra usar em vez de
+    derivar de `itbi_records` aqui. Necessário porque _mes_base_e_periodo
+    decide os limites do mês mais recente "completo" com base na
+    DISTRIBUIÇÃO de transações por mês do próprio conjunto de entrada
+    (detecção de mês "stub") — itbi_records aqui é só revenda+planta
+    (universo menor que o de cascata_completa.gerar_dados_carteira_77,
+    que roda a mesma função sobre TODOS os registros antes de
+    classificar) — sem passar o mesmo período, os dois lados podiam
+    escolher um mês de corte diferente e todo revenda_12m/planta_12m
+    divergia de carteira_77 (bug real, pego pelo teste de consistência no
+    primeiro build depois da migração)."""
+    if periodo_externo is not None:
+        periodo_12m, periodo_12m_anterior, meses_incompletos = periodo_externo
+    else:
+        periodo_12m, periodo_12m_anterior, meses_incompletos = _mes_base_e_periodo(itbi_records)
     periodo_set = set(periodo_12m)
     periodo_anterior_set = set(periodo_12m_anterior)
     incompletos_set = set(meses_incompletos)
@@ -312,6 +350,16 @@ def _compute_volume_12m(itbi_records):
     count_mercado_atual = {b: 0 for b in TARGETS}
     count_mercado_anterior = {b: 0 for b in TARGETS}
     count_retomadas_atual = {b: 0 for b in TARGETS}
+    # Item 1 da Etapa 2 (2026-10-01): revenda_12m/planta_12m — mesma
+    # janela, mesma função (_mes_base_e_periodo é a MESMA que
+    # cascata_completa.rodar() usa, via "from engine import
+    # _mes_base_e_periodo" — garante bater com carteira_77 por
+    # construção, não só por coincidência) — contagem direta pela tag
+    # is_revenda/is_planta (itbi_records já é só revenda+planta, ver
+    # cascata_completa.resolver_registros_engine).
+    count_revenda_atual = {b: 0 for b in TARGETS}
+    count_revenda_anterior = {b: 0 for b in TARGETS}
+    count_planta_atual = {b: 0 for b in TARGETS}
     for r in itbi_records:
         b = r["bairro"]
         if b not in count_atual or r["day"] is None:
@@ -325,10 +373,16 @@ def _compute_volume_12m(itbi_records):
                 count_mercado_atual[b] += 1
             elif r.get("is_retomada"):
                 count_retomadas_atual[b] += 1
+            if r.get("is_revenda"):
+                count_revenda_atual[b] += 1
+            elif r.get("is_planta"):
+                count_planta_atual[b] += 1
         elif ym in periodo_anterior_set:
             count_anterior[b] += 1
             if r["is_compra_venda"]:
                 count_mercado_anterior[b] += 1
+            if r.get("is_revenda"):
+                count_revenda_anterior[b] += 1
         elif ym in incompletos_set:
             count_recente_parcial[b] += 1
 
@@ -351,6 +405,8 @@ def _compute_volume_12m(itbi_records):
     return (
         count_atual, trend_pct_12m, periodo_meta, count_recente_parcial,
         count_mercado_atual, trend_pct_mercado_12m, count_retomadas_atual,
+        count_revenda_atual, count_revenda_anterior, count_planta_atual,
+        count_mercado_anterior,
     )
 
 
@@ -536,13 +592,21 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
     n_addr_sem_venda_real = 0
 
     for addr_key, all_recs in by_addr.items():
-        # Volume/liquidez conta TODA transação residencial válida, no bairro
-        # em que ela foi DE FATO registrada linha a linha (decisão do
-        # usuário: giro é giro) — isso não muda com o filtro de natureza
-        # abaixo, que só afeta a identidade do PRÉDIO (Captação Ativa).
+        # Volume/liquidez conta TODA transação da base nova (revenda OU
+        # planta — itbi_records já só tem essas duas, ver
+        # cascata_completa.resolver_registros_engine), no bairro em que
+        # ela foi resolvida pela cascata. "revenda" aqui usa a tag
+        # is_revenda (regra aprovada da Etapa 2, item 1) — NÃO mais
+        # detecção de lançamento por endereço (_is_launch), que o usuário
+        # rejeitou por classificar condomínio grande/antigo como
+        # lançamento e lançamento pequeno/lento como revenda. Isso não
+        # muda com o filtro de natureza abaixo, que só afeta a identidade
+        # do PRÉDIO (Captação Ativa).
         for r in all_recs:
             if r["sheet_year"] in liquidez[r["bairro"]]:
                 liquidez[r["bairro"]][r["sheet_year"]]["total"] += 1
+                if r.get("is_revenda"):
+                    liquidez[r["bairro"]][r["sheet_year"]]["revenda"] += 1
 
         # Só venda válida (compra e venda de mercado E 100% do imóvel — ver
         # _is_valid_sale) conta como "venda" pro histórico de PREÇO de um
@@ -575,8 +639,6 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
 
         if len(recs) == 1:
             r = recs[0]
-            if r["sheet_year"] in liquidez[bairro]:
-                liquidez[bairro][r["sheet_year"]]["revenda"] += 1
             captacao_unico.append({
                 "bairro": bairro, "addr_key": addr_key, "endereco": endereco,
                 "n_vendas": 1, "preco_min": r["valor"], "preco_max": r["valor"],
@@ -594,9 +656,6 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
             n_addr_launch += 1
             continue
 
-        for r in recs:
-            if r["sheet_year"] in liquidez[bairro]:
-                liquidez[bairro][r["sheet_year"]]["revenda"] += 1
         areas = [r["area"] for r in recs if r["area"] is not None]
         area_min, area_max = _coherent_area_range(areas)
         captacao_ativa.append({
@@ -636,8 +695,22 @@ def _compute_preco_m2(itbi_records, usn_records, hoje_serial):
     mediana_pedido_m2, gap_pct, n_transacoes, n_transacoes_12m,
     n_anuncios, amostra_pequena}, ... ] — uma entrada por combinação
     (tipo_imovel, faixa) que teve pelo menos uma venda paga OU um anúncio
-    pedido nesse bairro."""
-    pago = {}  # (bairro, tipo, faixa) -> [(valor_m2, day), ...]
+    pedido nesse bairro.
+
+    Etapa 2, item 1.2d (2026-10-01): pra apartamento, R$/m² pago×pedido é
+    substituído por VALOR TOTAL pago (mediana/P25/P75), só revenda
+    (`r["is_revenda"]` — itbi_records já só tem revenda+planta, ver
+    cascata_completa.resolver_registros_engine) — mesmo tratamento já
+    aplicado em `_compute_preco_m2_painel` (item 2). Gap pedido×pago
+    suspenso (None) pra apartamento — usado por `_segmento_representativo`
+    pro Gap Preço do Ranking/Alertas, que portanto também fica suspenso
+    pra bairros cujo segmento representativo seria um apartamento (a
+    maioria — ver docstring de `_segmento_representativo`). Casa não muda
+    (continua só R$/m², is_clean_sale, qualquer natureza de venda válida —
+    nunca inclui planta de verdade: uso 10 é sempre revenda por
+    construção, ver cascata_completa.USO_RESIDENCIAL_PLANTA)."""
+    pago = {}  # (bairro, tipo, faixa) -> [(valor_m2, day), ...] -- mantido pra casa e pro n_transacoes informativo
+    valor_total = {}  # (bairro, faixa) -> [valor, ...] revenda de apartamento
     for r in itbi_records:
         if not r["is_clean_sale"] or r["bairro"] not in TARGETS:
             continue
@@ -645,6 +718,8 @@ def _compute_preco_m2(itbi_records, usn_records, hoje_serial):
         if f is None:
             continue
         pago.setdefault((r["bairro"], r["tipo_imovel"], f), []).append((r["valor_m2"], r["day"]))
+        if r["tipo_imovel"] == "apartamento" and r.get("is_revenda"):
+            valor_total.setdefault((r["bairro"], f), []).append(r["valor"])
 
     pedido = {}  # (bairro, tipo, faixa) -> [valor_m2, ...]
     for r in usn_records:
@@ -663,27 +738,41 @@ def _compute_preco_m2(itbi_records, usn_records, hoje_serial):
         pago_pairs = pago.get(key, [])
         pago_vals = [v for v, _d in pago_pairs]
         n_12m = sum(1 for _v, d in pago_pairs if d is not None and 0 <= (hoje_serial - d) <= JANELA_PRECO_M2_DIAS)
-        mediana_pago = _round(median(pago_vals), 2) if pago_vals else None
+        is_apto = tipo == "apartamento"
+
+        mediana_pago = None if is_apto else (_round(median(pago_vals), 2) if pago_vals else None)
         # P25-P75 de R$/m² pago do segmento — substitui a antiga "Faixa de
         # preço pago (P25-P75)" do Perfil Vencedor (que misturava qualquer
         # tamanho dentro do bucket de metragem vencedora); agora é por
-        # tipo+faixa, igual ao resto da Etapa 3.
-        p25_pago = _round(percentile(25, pago_vals), 2) if pago_vals else None
-        p75_pago = _round(percentile(75, pago_vals), 2) if pago_vals else None
+        # tipo+faixa, igual ao resto da Etapa 3. Suspenso (None) pra
+        # apartamento junto com mediana_pago_m2.
+        p25_pago = None if is_apto else (_round(percentile(25, pago_vals), 2) if pago_vals else None)
+        p75_pago = None if is_apto else (_round(percentile(75, pago_vals), 2) if pago_vals else None)
 
-        pedido_vals = trim_outliers_iqr(pedido.get(key, []))
-        mediana_pedido = _round(median(pedido_vals), 2) if pedido_vals else None
-
+        mediana_pedido = None
         gap_pct = None
-        if mediana_pago and mediana_pedido:
-            gap_pct = _round((mediana_pedido - mediana_pago) / mediana_pago * 100, 1)
+        if not is_apto:
+            pedido_vals = trim_outliers_iqr(pedido.get(key, []))
+            mediana_pedido = _round(median(pedido_vals), 2) if pedido_vals else None
+            if mediana_pago and mediana_pedido:
+                gap_pct = _round((mediana_pedido - mediana_pago) / mediana_pago * 100, 1)
+
+        valor_total_vals = valor_total.get((bairro, f), []) if is_apto else []
+        valor_total_limpos = trim_outliers_iqr(valor_total_vals)
+        valor_total_mediana = _round(median(valor_total_limpos), 2) if valor_total_limpos else None
+        valor_total_p25 = _round(percentile(25, valor_total_limpos), 2) if valor_total_limpos else None
+        valor_total_p75 = _round(percentile(75, valor_total_limpos), 2) if valor_total_limpos else None
+        n_revenda = len(valor_total_vals)
 
         out[bairro].append({
             "tipo_imovel": tipo, "faixa": f,
             "mediana_pago_m2": mediana_pago, "mediana_pedido_m2": mediana_pedido, "gap_pct": gap_pct,
             "p25_pago_m2": p25_pago, "p75_pago_m2": p75_pago,
+            "valor_total_mediana": valor_total_mediana if is_apto else None,
+            "valor_total_p25": valor_total_p25 if is_apto else None,
+            "valor_total_p75": valor_total_p75 if is_apto else None,
             "n_transacoes": len(pago_vals), "n_transacoes_12m": n_12m, "n_anuncios": len(pedido.get(key, [])),
-            "amostra_pequena": n_12m < MIN_TRANSACOES_PRECO_M2_12M,
+            "amostra_pequena": (n_revenda if is_apto else n_12m) < MIN_TRANSACOES_PRECO_M2_12M,
         })
     return out
 
@@ -695,17 +784,35 @@ def _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial):
     escopado aos ÚLTIMOS 12 MESES, e só apartamento (o pedido explícito do
     usuário: "só apartamentos residenciais"). Um retrato do mercado AGORA,
     não uma média histórica de 3 anos. Retorna lista achatada (uma linha
-    por bairro+faixa), ordenada por bairro."""
-    pago = {}  # (bairro, faixa) -> [valor_m2, ...] só dos últimos 12 meses
+    por bairro+faixa), ordenada por bairro.
+
+    Etapa 2, item 2 (2026-10-01): R$/m² pago×pedido pra apartamento vinha
+    de `is_clean_sale` (natureza+100%+tipo+outlier), sem distinguir
+    revenda de planta — podia misturar lançamento fechado dentro da
+    janela de 12 meses com revenda de verdade. Pedido do usuário: pra
+    apartamento, trocar R$/m² pago por VALOR TOTAL pago (mediana/P25/P75)
+    só de REVENDA (`_is_revenda_aprovada` — mesma regra do item 3) e
+    suspender o gap pedido×pago (calibração fica pra depois). `casa` não
+    passa pelo filtro `tipo_imovel != "apartamento"` desta função (nunca
+    passou — já era só apartamento antes) e continua de fora, sem mudança,
+    em qualquer outro lugar do motor que mostre R$/m² de casa.
+    `mediana_pago_m2`/`mediana_pedido_m2`/`gap_pct` ficam sempre None
+    agora (suspensos); os campos novos `valor_total_*`/`n_vendas_revenda`
+    são aditivos."""
+    pago = {}  # (bairro, faixa) -> [valor_m2, ...] só dos últimos 12 meses (mantido só por compatibilidade de schema)
+    valor_total = {}  # (bairro, faixa) -> [valor, ...] revenda, últimos 12 meses
     for r in itbi_records:
-        if not r["is_clean_sale"] or r["bairro"] not in TARGETS or r["tipo_imovel"] != "apartamento":
+        if r["bairro"] not in TARGETS or r["tipo_imovel"] != "apartamento":
             continue
         if r["day"] is None or not (0 <= (hoje_serial - r["day"]) <= JANELA_PRECO_M2_DIAS):
             continue
         f = faixa_metragem(r["area"])
         if f is None:
             continue
-        pago.setdefault((r["bairro"], f), []).append(r["valor_m2"])
+        if r["is_clean_sale"]:
+            pago.setdefault((r["bairro"], f), []).append(r["valor_m2"])
+        if _is_revenda_aprovada(r):
+            valor_total.setdefault((r["bairro"], f), []).append(r["valor"])
 
     pedido = {}  # (bairro, faixa) -> [valor_m2, ...] (estoque atual, sem janela de tempo — não tem "data da venda")
     for r in usn_records:
@@ -723,22 +830,26 @@ def _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial):
         for _lo, _hi, f in FAIXAS_METRAGEM:
             key = (bairro, f)
             pago_vals = pago.get(key, [])
-            if not pago_vals and key not in pedido:
+            valor_total_vals = valor_total.get(key, [])
+            if not pago_vals and not valor_total_vals and key not in pedido:
                 continue
-            mediana_pago = _round(median(pago_vals), 2) if pago_vals else None
 
-            pedido_vals = trim_outliers_iqr(pedido.get(key, []))
-            mediana_pedido = _round(median(pedido_vals), 2) if pedido_vals else None
-
-            gap_pct = None
-            if mediana_pago and mediana_pedido:
-                gap_pct = _round((mediana_pedido - mediana_pago) / mediana_pago * 100, 1)
+            valor_total_limpos = trim_outliers_iqr(valor_total_vals)
+            valor_total_mediana = _round(median(valor_total_limpos), 2) if valor_total_limpos else None
+            valor_total_p25 = _round(percentile(25, valor_total_limpos), 2) if valor_total_limpos else None
+            valor_total_p75 = _round(percentile(75, valor_total_limpos), 2) if valor_total_limpos else None
 
             out.append({
                 "bairro": bairro, "faixa": f,
-                "mediana_pago_m2": mediana_pago, "mediana_pedido_m2": mediana_pedido, "gap_pct": gap_pct,
+                # Suspensos pra apartamento (item 2 da Etapa 2) — ver
+                # docstring. Campo mantido no schema (nunca removido),
+                # sempre None daqui em diante.
+                "mediana_pago_m2": None, "mediana_pedido_m2": None, "gap_pct": None,
+                "valor_total_mediana": valor_total_mediana,
+                "valor_total_p25": valor_total_p25, "valor_total_p75": valor_total_p75,
+                "n_vendas_revenda_12m": len(valor_total_vals),
                 "n_transacoes_12m": len(pago_vals), "n_anuncios": len(pedido.get(key, [])),
-                "amostra_pequena": len(pago_vals) < MIN_TRANSACOES_PRECO_M2_12M,
+                "amostra_pequena": len(valor_total_vals) < MIN_TRANSACOES_PRECO_M2_12M,
             })
     return out
 
@@ -763,8 +874,10 @@ def _segmento_representativo(segmentos):
 def _lookup_mediana_pago_m2(segmentos_bairro, tipo_imovel, area):
     """Mediana de R$/m² pago do segmento (tipo+faixa) de UM imóvel
     específico — usado no alinhamento de preço (Prontidão/Imóveis
-    Prioritários) e no Valor de Oportunidade. None quando o imóvel não tem
-    tipo/área classificável ou o segmento é amostra pequena demais pra
+    Prioritários) e no Valor de Oportunidade, só pra CASA (apartamento usa
+    _lookup_valor_total_mediana, ver Etapa 2 item 1.2d — R$/m² pago fica
+    None pra apartamento em _compute_preco_m2). None quando o imóvel não
+    tem tipo/área classificável ou o segmento é amostra pequena demais pra
     confiar (mesma regra dos Alertas)."""
     if tipo_imovel is None or not area:
         return None
@@ -776,6 +889,25 @@ def _lookup_mediana_pago_m2(segmentos_bairro, tipo_imovel, area):
             if s["amostra_pequena"] or not s["mediana_pago_m2"]:
                 return None
             return s["mediana_pago_m2"]
+    return None
+
+
+def _lookup_valor_total_mediana(segmentos_bairro, tipo_imovel, area):
+    """Mediana de VALOR TOTAL pago em revenda do segmento (faixa) — só
+    apartamento (Etapa 2, item 1.2d, 2026-10-01): substitui R$/m² como
+    referência de alinhamento de preço/Valor de Oportunidade pra
+    apartamento. None se amostra pequena ou sem segmento (mesma regra de
+    _lookup_mediana_pago_m2)."""
+    if tipo_imovel != "apartamento" or not area:
+        return None
+    f = faixa_metragem(area)
+    if f is None:
+        return None
+    for s in segmentos_bairro:
+        if s["tipo_imovel"] == tipo_imovel and s["faixa"] == f:
+            if s["amostra_pequena"] or not s.get("valor_total_mediana"):
+                return None
+            return s["valor_total_mediana"]
     return None
 
 
@@ -858,9 +990,17 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, addr_in_captacao_ati
         # anúncio contra a mediana paga do MESMO tipo de imóvel + faixa de
         # metragem, não o valor total contra a mediana do bairro inteiro
         # (comparava apto pequeno com casa grande, por ex.).
-        valor_m2 = (u["valor"] / u["area"]) if u["area"] else None
-        mediana_m2 = _lookup_mediana_pago_m2(b["preco_m2_segmentos"], u.get("tipo_imovel"), u["area"])
-        price = _price_alignment_score(valor_m2, mediana_m2)
+        # Etapa 2, item 1.2d (2026-10-01): apartamento agora compara VALOR
+        # TOTAL (pedido x mediana de revenda) em vez de R$/m² — casa não
+        # muda. _price_alignment_score é agnóstico de unidade (só faz
+        # ratio), então funciona igual pros dois casos.
+        if u.get("tipo_imovel") == "apartamento":
+            mediana_comparacao = _lookup_valor_total_mediana(b["preco_m2_segmentos"], u.get("tipo_imovel"), u["area"])
+            valor_comparacao = u["valor"]
+        else:
+            valor_comparacao = (u["valor"] / u["area"]) if u["area"] else None
+            mediana_comparacao = _lookup_mediana_pago_m2(b["preco_m2_segmentos"], u.get("tipo_imovel"), u["area"])
+        price = _price_alignment_score(valor_comparacao, mediana_comparacao)
 
         area_band = b["area_band"]
         area_conf = _confidence(b["area_band_reliability"])
@@ -929,12 +1069,19 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
     elegivel_by_bairro = {}
     for im in imoveis_prioritarios:
         b = bairros_out[im["bairro"]]
-        mediana_m2 = _lookup_mediana_pago_m2(b["preco_m2_segmentos"], im.get("tipo_imovel"), im.get("area"))
-        if mediana_m2 is None:
+        is_apto = im.get("tipo_imovel") == "apartamento"
+        # Etapa 2, item 1.2d (2026-10-01): apartamento compara VALOR TOTAL
+        # pedido x mediana de revenda (não mais R$/m²) — casa não muda.
+        if is_apto:
+            mediana_ref = _lookup_valor_total_mediana(b["preco_m2_segmentos"], im.get("tipo_imovel"), im.get("area"))
+            valor_ref = im["valor"]
+        else:
+            mediana_ref = _lookup_mediana_pago_m2(b["preco_m2_segmentos"], im.get("tipo_imovel"), im.get("area"))
+            valor_ref = (im["valor"] / im["area"]) if im.get("area") else None
+        if mediana_ref is None or valor_ref is None:
             continue
         elegivel_by_bairro[im["bairro"]] = elegivel_by_bairro.get(im["bairro"], 0) + 1
-        valor_m2 = im["valor"] / im["area"]
-        ratio = valor_m2 / mediana_m2
+        ratio = valor_ref / mediana_ref
         desconto = 1 - ratio
         if desconto < VALOR_OPORTUNIDADE_MIN_DESCONTO:
             continue
@@ -942,7 +1089,9 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
             "bairro": im["bairro"], "endereco": im["endereco"], "codigo": im["codigo"], "link": im["link"],
             "valor": im["valor"], "area": im["area"], "tipo_imovel": im.get("tipo_imovel"),
             "faixa": faixa_metragem(im["area"]),
-            "valor_m2": _round(valor_m2, 2), "mediana_pago_m2": mediana_m2,
+            "valor_m2": None if is_apto else _round(valor_ref, 2),
+            "mediana_pago_m2": None if is_apto else mediana_ref,
+            "valor_total_mediana": mediana_ref if is_apto else None,
             "desconto_pct": _round(desconto * 100, 1),
             "atencao": desconto >= VALOR_OPORTUNIDADE_ATENCAO_DESCONTO,
         })
@@ -1039,8 +1188,18 @@ def _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out):
 # ---------------------------------------------------------------------------
 # Orquestração principal
 # ---------------------------------------------------------------------------
-def compute(itbi_records, usn_records, years):
-    """years: lista de 3 anos ascendente, ex: [2024, 2025, 2026]."""
+def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_externo):
+    """years: lista de 3 anos ascendente, ex: [2024, 2025, 2026].
+    carteira_77_bairros: dict bairro -> {unidades_iptu, giro_12m_pct, ...}
+    de cascata_completa.gerar_dados_carteira_77()['bairros'] — fonte
+    única de unidades IPTU/giro (dado do IPTU, não do ITBI; calculado só
+    lá pra não reprocessar o cadastro do GeoSampa de novo aqui).
+    periodo_12m_externo: (periodo_12m, periodo_12m_anterior,
+    meses_incompletos) já calculado por cascata_completa.
+    resolver_registros_engine() sobre TODOS os registros antes de
+    classificar revenda/planta — ver _compute_volume_12m, item 1.1 da
+    Etapa 2 (precisa ser o MESMO período de carteira_77, senão
+    revenda_12m/planta_12m divergem — pego pelo teste de consistência)."""
     year_prev, year_full, year_curr = years
 
     yearly, pairs_all_years, month_counts, pooled_median = _aggregate_itbi(itbi_records, years)
@@ -1048,7 +1207,47 @@ def compute(itbi_records, usn_records, years):
     (
         volume_12m_map, trend_pct_12m_map, periodo_12m_meta, volume_recente_parcial_map,
         volume_mercado_12m_map, trend_pct_mercado_12m_map, volume_retomadas_12m_map,
-    ) = _compute_volume_12m(itbi_records)
+        revenda_12m_map, revenda_12m_anterior_map, planta_12m_map,
+        volume_mercado_12m_anterior_map,
+    ) = _compute_volume_12m(itbi_records, periodo_externo=periodo_12m_externo)
+
+    # Etapa 2, item 1 (2026-10-01, decisão de mercado pós-revisão): o
+    # score do Ranking/"Onde anunciar agora" usa SÓ revenda_12m como
+    # volume e tendência — não mais volume_mercado_12m (revenda+planta).
+    # Motivo: pra Buyer Agent, a liquidez que importa é a REVENDA; o top
+    # 10 anterior (volume_mercado_12m) ficava dominado por bairros com um
+    # único lançamento grande (Lapa 3.089 de planta, Chácara Santo
+    # Antônio 3.104, Alto da Boa Vista 1.078 majoritariamente de 1
+    # empreendimento no CEP 04750) — não é liquidez de revenda de
+    # verdade. planta_12m continua calculado e exposto (campo
+    # "Lançamentos (12m)" nos painéis), só não entra mais no score.
+    #
+    # Etapa 2, item 3 (2026-10-01): tendência só entra no score se o
+    # bairro tiver >= MIN_VENDAS_TENDENCIA vendas de REVENDA em CADA uma
+    # das duas janelas (atual e anterior) comparadas; abaixo disso,
+    # tendência = neutra (0) — evita um bairro pequeno subir no Ranking
+    # só por uma variação de poucas vendas virar um % enorme (achado do
+    # usuário: Jardim da Glória, 34 vendas, "tendência" de +78,9%).
+    # trend_z resultante é compartilhado pelo score principal e por
+    # score_revenda (mesmo insumo agora, arquitetura mais simples).
+    trend_frac_revenda_12m_capped = {}
+    trend_pct_revenda_12m_map = {}
+    amostra_pequena_ranking_map = {}
+    for b in TARGETS:
+        atual = revenda_12m_map[b]
+        anterior = revenda_12m_anterior_map[b]
+        if atual >= MIN_VENDAS_TENDENCIA and anterior >= MIN_VENDAS_TENDENCIA and anterior > 0:
+            frac = (atual - anterior) / anterior
+            trend_frac_revenda_12m_capped[b] = max(-TREND_CAP, min(TREND_CAP, frac))
+            trend_pct_revenda_12m_map[b] = _round(frac * 100, 1)
+        else:
+            trend_frac_revenda_12m_capped[b] = 0.0
+            trend_pct_revenda_12m_map[b] = None
+        # Regra de amostra mínima (item 3): < 100 REVENDAS em 12m (não
+        # mercado) não entra no top 10 de "Onde anunciar agora" e mostra
+        # o selo "Amostra pequena" no Ranking.
+        amostra_pequena_ranking_map[b] = atual < MIN_VENDAS_TOP10
+
     usn_by_bairro, centroids, stock_total, asking_median = _aggregate_usn(usn_records)
     profile = _compute_profile(pairs_all_years, usn_by_bairro, centroids)
     hoje_serial = today_excel_serial()
@@ -1075,7 +1274,11 @@ def compute(itbi_records, usn_records, years):
         # maior e mais estável.
         volume_primary = round(mean([yearly[b][y]["count"] for y in years]))
         stock_match = profile[b]["profile_sample_size"]
-        demand = volume_primary
+        # Etapa 2, item 1 (2026-10-01): "demanda" pro Estoque x Demanda
+        # agora é revenda_12m (base nova), não mais a média de 3 anos de
+        # QUALQUER transação (volume_primary) — mesma unidade (vendas por
+        # ano), já que revenda_12m também é uma janela de 12 meses.
+        demand = revenda_12m_map[b]
         ratio = (stock_match / demand) if demand > 0 else (999 if stock_match > 0 else 0)
 
         paid_median = pooled_median[b]["median_valor"]
@@ -1132,19 +1335,47 @@ def compute(itbi_records, usn_records, years):
             "liquidez_total_primary_year": round(mean([liquidez[b][y]["total"] for y in years])),
             "liquidez_revenda_primary_year": round(mean([liquidez[b][y]["revenda"] for y in years])),
             "liquidez_por_ano": {str(y): liquidez[b][y] for y in years},
+            # Etapa 2, item 1 (2026-10-01): base nova — carteira de 77,
+            # revenda/planta separadas (regra aprovada, não mais detecção
+            # de lançamento por endereço), unidades/giro do IPTU (fonte
+            # única: carteira_77_bairros, ver docstring de compute()).
+            # Bate EXATO com data["carteira_77"] — checado em
+            # validate_build.check_consistencia_carteira_77.
+            "revenda_12m": revenda_12m_map[b],
+            "planta_12m": planta_12m_map[b],
+            "unidades_iptu": carteira_77_bairros[b]["unidades_iptu"],
+            "giro_12m_pct": carteira_77_bairros[b]["giro_12m_pct"],
+            "trend_pct_revenda_12m": trend_pct_revenda_12m_map[b],
+            "amostra_pequena_ranking": amostra_pequena_ranking_map[b],
         }
 
-    # --- Painel 1: score (volume + tendência) ---
-    volume_map = {b: bairros_out[b]["volume_primary_year"] for b in TARGETS}
-    trend_z_input = {b: bairros_out[b]["trend_pct_for_score"] for b in TARGETS}
+    # --- Painel 1: score (volume + tendência) — Etapa 2, item 1 (revisão
+    # 2026-10-01, decisão de mercado): volume e tendência do score agora
+    # são SÓ revenda_12m/trend_frac_revenda_12m_capped — não mais
+    # volume_mercado_12m (revenda+planta). planta_12m continua exposto
+    # como indicador separado ("Lançamentos 12m"), sem peso no score.
+    # Mesmos pesos de sempre (50% volume + 50% tendência, ver
+    # _score_from_volume_and_trend).
+    #
+    # Nota: com essa mudança, `score` e `score_revenda` (abaixo) usam
+    # exatamente o mesmo insumo (revenda_12m + trend_frac_revenda_12m_
+    # capped) e ficam matematicamente idênticos — consequência direta e
+    # esperada da decisão (antes, score usava volume_mercado_12m e
+    # score_revenda já usava revenda_12m, por isso divergiam). Mantidos
+    # como dois campos (painéis diferentes os leem por nome: Ranking lê
+    # `score`, Imóveis Prioritários/Mapa leem `score_revenda`), não
+    # fundidos — simplificar pra um campo só é decisão de produto, fora
+    # do escopo desta migração.
+    volume_map = {b: bairros_out[b]["revenda_12m"] for b in TARGETS}
+    trend_z_input = trend_frac_revenda_12m_capped
     trend_z = zscore_map(trend_z_input)
     score_map = _score_from_volume_and_trend(volume_map, trend_z)
 
     ratios_sorted = sorted(bairros_out[b]["stock_demand_ratio"] for b in TARGETS)
     low_tercile = _tercile(ratios_sorted, 1 / 3)
 
-    # --- Mudança 3a: score_revenda (mesma fórmula, insumo = liquidez_revenda) ---
-    revenda_map = {b: bairros_out[b]["liquidez_revenda_primary_year"] for b in TARGETS}
+    # --- score_revenda (mesma fórmula, mesmo insumo que `score` agora — ver nota acima) ---
+    revenda_map = {b: bairros_out[b]["revenda_12m"] for b in TARGETS}
     revenda_z = zscore_map(revenda_map)
     combined_revenda = {b: (revenda_z[b] + trend_z[b]) / 2 for b in TARGETS}
     score_revenda_map = _minmax_rescale_0_100(combined_revenda)
@@ -1152,7 +1383,7 @@ def compute(itbi_records, usn_records, years):
     # --- Índice de Saturação de Oferta (estoque TOTAL, tercil superior) ---
     total_ratio_map = {}
     for b in TARGETS:
-        demand = bairros_out[b]["volume_primary_year"]
+        demand = bairros_out[b]["revenda_12m"]
         st = bairros_out[b]["stock_total"]
         total_ratio_map[b] = (st / demand) if demand > 0 else (999 if st > 0 else 0)
     total_ratios_sorted = sorted(total_ratio_map.values())
@@ -1161,14 +1392,14 @@ def compute(itbi_records, usn_records, years):
     for b in TARGETS:
         bairros_out[b]["score"] = _round(score_map[b])
         bairros_out[b]["flag_oportunidade"] = (
-            bairros_out[b]["stock_demand_ratio"] <= low_tercile and bairros_out[b]["volume_primary_year"] > 0
+            bairros_out[b]["stock_demand_ratio"] <= low_tercile and bairros_out[b]["revenda_12m"] > 0
         )
         bairros_out[b]["score_revenda"] = _round(score_revenda_map[b])
         bairros_out[b]["stock_total_demand_ratio"] = round(total_ratio_map[b], 3)
         bairros_out[b]["flag_saturacao_alta"] = total_ratio_map[b] >= high_tercile
         bairros_out[b]["flag_prioridade_maxima"] = (
             bairros_out[b]["stock_matching_profile"] <= CAPTACAO_ESTRATEGICA_MAX_STOCK_MATCH
-            and bairros_out[b]["volume_primary_year"] >= VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY
+            and bairros_out[b]["revenda_12m"] >= VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY
         )
 
     ranking = sorted(TARGETS, key=lambda b: -bairros_out[b]["score"])

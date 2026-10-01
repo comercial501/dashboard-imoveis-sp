@@ -81,7 +81,7 @@ def _get_usn_records():
     return records, {"fonte": "xlsx_manual", "arquivo": candidates[0].name, **stats}
 
 
-def build_raw_payload(itbi_records, usn_records, years):
+def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, carteira_77_bairros):
     """Registros individuais + tabelas de índice, pro motor de cálculo em
     JavaScript (site/engine.js) recomputar tudo no navegador quando o
     usuário usa os filtros de bairro/preço — mesma ideia do antigo
@@ -111,6 +111,18 @@ def build_raw_payload(itbi_records, usn_records, years):
             bairro_idx[r["bairro"]], r["sheet_year"], r["day"], r["valor"], r["area"], aidx,
             r["is_compra_venda"], r["is_full_transfer"], r["tipo_imovel"], r["is_clean_sale"],
             r.get("is_retomada", False),
+            # Etapa 2, item 2 (2026-10-01): uso_code (coluna X do ITBI, "10"/
+            # "20"/...) — campo NOVO, acrescentado no fim da tupla (não mexe
+            # nos índices existentes) pra engine.js replicar
+            # engine.py._is_revenda_aprovada (valor total pago em revenda,
+            # painel "Preço por m²").
+            r.get("uso_code"),
+            # Etapa 2, item 1.2b (2026-10-01): is_revenda/is_planta — já
+            # calculados por cascata_completa.resolver_registros_engine()
+            # (regra aprovada, não recalculada em JS — só o resultado final
+            # vem junto, igual ao bairro em si, que já chega resolvido pela
+            # cascata via bairro_idx[r["bairro"]] acima).
+            r.get("is_revenda", False), r.get("is_planta", False),
         ])
 
     usn_out = []
@@ -133,6 +145,12 @@ def build_raw_payload(itbi_records, usn_records, years):
         "addr_display": addr_display,
         "itbi": itbi_out,
         "usn": usn_out,
+        # Etapa 2, item 1.2b (2026-10-01): unidades IPTU por bairro — dado
+        # do IPTU (não do ITBI, não muda com filtro de preço/bairro),
+        # calculado só em cascata_completa.gerar_dados_carteira_77() pra
+        # não reprocessar o cadastro do GeoSampa aqui. engine.js usa isso
+        # pra recalcular giro_12m_pct = revenda_12m (filtrado) / unidades.
+        "unidades_iptu": {b: carteira_77_bairros[b]["unidades_iptu"] for b in TARGETS},
         "constants": {
             "reliability_threshold": engine.RELIABILITY_THRESHOLD,
             "neighbor_max_km": 3,
@@ -155,6 +173,8 @@ def build_raw_payload(itbi_records, usn_records, years):
             "pesos_prontidao": engine.PESOS_PRONTIDAO,
             "faixas_metragem": [[lo, (hi if hi != float("inf") else None), label] for lo, hi, label in clean_itbi.FAIXAS_METRAGEM],
             "min_transacoes_preco_m2_12m": engine.MIN_TRANSACOES_PRECO_M2_12M,
+            "min_vendas_tendencia": engine.MIN_VENDAS_TENDENCIA,
+            "min_vendas_top10": engine.MIN_VENDAS_TOP10,
             "min_anuncios_alerta": engine.MIN_ANUNCIOS_ALERTA,
             "janela_preco_m2_dias": engine.JANELA_PRECO_M2_DIAS,
             # Congelado no momento do build — o recompute no navegador (ao
@@ -162,6 +182,16 @@ def build_raw_payload(itbi_records, usn_records, years):
             # visitante, pra bater exatamente com data.json quando nenhum
             # filtro está ativo (mesma janela "últimos 12 meses" nos dois).
             "hoje_serial": today_excel_serial(),
+            # Etapa 2, item 1.2b (2026-10-01): fim da janela de 12 meses,
+            # já resolvido no servidor (ver engine._compute_volume_12m e
+            # cascata_completa.resolver_registros_engine) — engine.js usa
+            # isso como âncora pra regenerar periodo_12m/periodo_12m_
+            # anterior/meses_incompletos (mesma fórmula, ymAddMonths), em
+            # vez de derivar de novo a partir de itbi (que no navegador só
+            # tem revenda+planta — derivar ali dava uma janela diferente
+            # da de carteira_77/data.json, mesmo bug do lado Python,
+            # corrigido com periodo_12m_externo).
+            "fim_janela_12m": list(periodo_12m_externo[0][-1]),
         },
     }
 
@@ -206,6 +236,7 @@ def _write_preco_m2_csv(preco_m2_painel, path):
     path.parent.mkdir(parents=True, exist_ok=True)
     cols = [
         "bairro", "faixa_metragem", "mediana_pago_r_m2", "mediana_pedido_r_m2", "gap_pct",
+        "valor_total_mediana", "valor_total_p25", "valor_total_p75", "n_vendas_revenda_12m",
         "n_transacoes_12m", "n_anuncios", "amostra_pequena",
     ]
     with path.open("w", newline="", encoding="utf-8") as f:
@@ -214,6 +245,7 @@ def _write_preco_m2_csv(preco_m2_painel, path):
         for p in preco_m2_painel:
             w.writerow([
                 p["bairro"], p["faixa"], p["mediana_pago_m2"], p["mediana_pedido_m2"], p["gap_pct"],
+                p["valor_total_mediana"], p["valor_total_p25"], p["valor_total_p75"], p["n_vendas_revenda_12m"],
                 p["n_transacoes_12m"], p["n_anuncios"], "sim" if p["amostra_pequena"] else "nao",
             ])
 
@@ -264,24 +296,35 @@ def main():
     # as colunas lidas por posição deslocadas/renomeadas.
     validate_build.check_header_layout(year_to_path)
 
-    itbi_raw_records, itbi_stats = parse_itbi_years(year_to_path)
-    print(f"[build] ITBI parseado: {itbi_stats}")
+    # Item 1 da Etapa 2 (2026-10-01): resolução de bairro ÚNICA — a mesma
+    # cascata de 5 métodos (tradução por nome de cadastro + voto de
+    # endereço/quadra fiscal/CEP, com a divisão de Santo Amaro) usada por
+    # carteira_77, aplicada aqui como a fonte de bairro de TODO o motor.
+    # Substitui clean_itbi.resolve_bairros() (maioria por texto cru do
+    # próprio ITBI, 49 bairros) — ver scripts/cascata_completa.
+    # resolver_registros_engine() e validate_build.
+    # check_consistencia_carteira_77 (trava o build se algum painel
+    # divergir de carteira_77). Registros que não são revenda nem planta
+    # aprovada (fração ideal/herança/divórcio, natureza != compra e
+    # venda) não entram mais em nenhum painel — "a base é revenda/planta
+    # separadas", não "qualquer transação residencial" como antes.
+    import cascata_completa
+    itbi_resolvido, targets_novos, resolucao_stats, periodo_12m_externo = cascata_completa.resolver_registros_engine()
+    itbi_stats = {
+        "total_rows_seen": resolucao_stats["total_rows_seen"],
+        "total_rows_matched": resolucao_stats["revenda_todos_anos"] + resolucao_stats["planta_todos_anos"],
+    }
+    print(f"[build] ITBI resolvido (base nova, 77 bairros): {len(itbi_resolvido)} registros | {resolucao_stats}")
 
-    # Camada de dados limpa (Etapa 2 da auditoria de 2026-09-29, ver
-    # clean_itbi.py e README): bairro resolvido por maioria + deduplicação
-    # por SQL (volume/liquidez usam esse conjunto) e, por cima dele, os
-    # filtros de PREÇO (natureza, % transmitido, tipo de imóvel, outlier de
-    # R$/m² por bairro+tipo+faixa de metragem — usado por todo painel de
-    # preço). Log completo de quanto saiu em cada etapa vai pra
-    # data/itbi_clean_log.json, auditável fora do build.
-    itbi_resolved, resolve_stats = clean_itbi.resolve_bairros(itbi_raw_records)
-    itbi_deduped, dedup_stats = clean_itbi.dedup_by_sql(itbi_resolved)
+    # build_clean_layer AGORA (bairro já é um dos 77) — natureza, %
+    # transmitido, tipo de imóvel, outlier de R$/m² por bairro+tipo+faixa
+    # (agrupado corretamente pelos 77, não pelos 49 antigos). Log completo
+    # vai pra site/itbi_clean_log.json, auditável fora do build.
+    itbi_deduped = itbi_resolvido  # já deduplicado dentro de resolver_registros_engine()
     itbi_records, clean_stats = clean_itbi.build_clean_layer(itbi_deduped)
 
     clean_log = {
         "gerado_em": datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S %Y UTC"),
-        "resolucao_bairro": resolve_stats,
-        "deduplicacao_sql": dedup_stats,
         "camada_limpa_preco": clean_stats,
     }
     OUT_CLEAN_LOG.parent.mkdir(parents=True, exist_ok=True)
@@ -293,22 +336,20 @@ def main():
 
     search_interest = _get_search_interest()
 
-    result = engine.compute(itbi_records, usn_records, years)
-    print(f"[build] motor de cálculo concluído ({time.time() - t_start:.1f}s total)")
+    # Item 3 (2026-09-30) / Item 1 da Etapa 2 (2026-10-01): carteira de 77
+    # bairros (tradução por nome de cadastro + cascata de 5 métodos, ver
+    # scripts/cascata_completa.py) — calculada ANTES de engine.compute()
+    # porque agora alimenta o motor (unidades_iptu/giro_12m_pct por
+    # bairro, únicos nessa fonte — IPTU, não ITBI) e é a REFERÊNCIA pra
+    # validate_build.check_consistencia_carteira_77 travar o build se
+    # algum painel divergir. Erro aqui agora é fatal (não um try/except
+    # isolado como antes de virar a base principal do motor).
+    import cascata_completa
+    carteira_77 = cascata_completa.gerar_dados_carteira_77()
+    print(f"[build] carteira_77 calculada ({len(carteira_77['bairros'])} bairros)")
 
-    # Item 3 (2026-09-30): carteira de 77 bairros (tradução por nome de
-    # cadastro + cascata de 5 métodos, ver scripts/cascata_completa.py) —
-    # campo ADITIVO novo (`carteira_77`), não mexe em nada do motor acima
-    # (que continua nos 49 bairros originais, resolve_bairros/
-    # bairro_canon). Painel estático no site (não recalcula com os
-    # filtros de preço/bairro dos outros painéis — ver README).
-    try:
-        import cascata_completa
-        carteira_77 = cascata_completa.gerar_dados_carteira_77()
-        print(f"[build] carteira_77 calculada ({len(carteira_77['bairros'])} bairros)")
-    except Exception as e:
-        print(f"[build] AVISO: falha ao calcular carteira_77 ({e!r}) — data.json sai sem esse campo (painel novo fica indisponível, resto do site não é afetado).")
-        carteira_77 = None
+    result = engine.compute(itbi_records, usn_records, years, carteira_77["bairros"], periodo_12m_externo)
+    print(f"[build] motor de cálculo concluído ({time.time() - t_start:.1f}s total)")
 
     _write_preco_m2_csv(result["preco_m2_painel"], OUT_PRECO_M2_CSV)
     print(f"[build] {OUT_PRECO_M2_CSV} escrito ({len(result['preco_m2_painel'])} linhas)")
@@ -320,12 +361,19 @@ def main():
         "generated_at": datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S %Y UTC"),
         **result,
     }
-    if carteira_77 is not None:
-        data["carteira_77"] = carteira_77
+    data["carteira_77"] = carteira_77
     data["meta"]["total_itbi_rows_seen"] = itbi_stats["total_rows_seen"]
     data["meta"]["total_itbi_rows_matched"] = itbi_stats["total_rows_matched"]
-    data["meta"]["total_itbi_duplicates_removed"] = dedup_stats["duplicatas_removidas"]
-    data["meta"]["total_itbi_bairro_recuperados"] = resolve_stats["recuperados_por_maioria_do_endereco"]
+    # Item 1 da Etapa 2 (2026-10-01): "bairro recuperado por maioria de
+    # endereço" não existe mais (a resolução agora é a cascata de 5
+    # métodos, não mais uma recuperação por maioria entre linhas do mesmo
+    # endereço) — substituído pelos números que a base nova realmente
+    # produz: revenda/planta (todos os anos, antes da janela de 12m) e
+    # quantos ficaram de fora da carteira (fora_carteira ou incerto).
+    data["meta"]["total_itbi_duplicates_removed"] = resolucao_stats["duplicatas_removidas"]
+    data["meta"]["total_itbi_revenda_todos_anos"] = resolucao_stats["revenda_todos_anos"]
+    data["meta"]["total_itbi_planta_todos_anos"] = resolucao_stats["planta_todos_anos"]
+    data["meta"]["total_itbi_fora_carteira_ou_incerto"] = resolucao_stats["fora_carteira_ou_incerto"]
     data["meta"]["usn"] = usn_meta
 
     # Protocolo de segurança pedido pelo usuário em 2026-09-30 (dashboard vai
@@ -340,7 +388,7 @@ def main():
     OUT.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"[build] {OUT} escrito ({OUT.stat().st_size:,} bytes)")
 
-    raw = build_raw_payload(itbi_records, usn_records, years)
+    raw = build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, carteira_77["bairros"])
     raw["search_interest"] = search_interest or {}
     OUT_RAW.write_text(json.dumps(raw, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"[build] {OUT_RAW} escrito ({OUT_RAW.stat().st_size:,} bytes)")

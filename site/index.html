@@ -34,7 +34,7 @@
 
     <div class="sidebar-foot">
       <div id="fontes-foot">ITBI (Prefeitura) · nonStop</div>
-      <div class="handle-mini">49 bairros da carteira</div>
+      <div class="handle-mini">77 bairros da carteira</div>
     </div>
   </aside>
 
@@ -58,7 +58,7 @@
           <div class="filtros-head">
             <div>
               <h2>Filtros</h2>
-              <div class="card-sub" style="margin-bottom:0">Selecione um ou mais bairros e/ou uma faixa de preço — todas as outras visões da dashboard recalculam automaticamente (médias, medianas, scores e rankings refeitos só com os dados que passam pelo filtro, não apenas a lista final escondida). Sem nada selecionado, a dashboard mostra todos os 49 bairros, sem corte de preço.</div>
+              <div class="card-sub" style="margin-bottom:0">Selecione um ou mais bairros e/ou uma faixa de preço — todas as outras visões da dashboard recalculam automaticamente (médias, medianas, scores e rankings refeitos só com os dados que passam pelo filtro, não apenas a lista final escondida). Sem nada selecionado, a dashboard mostra todos os 77 bairros, sem corte de preço.</div>
             </div>
           </div>
           <div class="filtros-grid">
@@ -85,7 +85,7 @@
         </section>
         <section class="card">
           <h2>Onde anunciar agora</h2>
-          <div class="card-sub">Os 10 bairros no topo do Ranking de Oportunidade (liquidez de vendas + tendência de crescimento). <span class="badge warning">Nota calculada com a metodologia anterior — revisão pendente</span></div>
+          <div class="card-sub">Os 10 bairros no topo do Ranking de Oportunidade (liquidez de revenda + tendência de revenda), excluindo bairros com menos de 100 vendas de revenda em 12 meses (amostra pequena — ver badge no Ranking completo). Lançamentos (planta) aparecem como indicador à parte, sem peso no score.</div>
           <div id="visao-ranking"></div>
         </section>
         <section class="card">
@@ -95,7 +95,7 @@
         </section>
         <section class="card">
           <h2>Alertas</h2>
-          <div class="card-sub">Segmentos (bairro + tipo de imóvel + faixa de metragem) com gap de R$/m² pedido × pago acima de 20 pontos percentuais, em qualquer direção — nunca valor total nem tamanhos diferentes. Segmentos com menos de 10 vendas pagas nos últimos 12 meses não entram aqui (amostra pequena demais pra confiar), nem segmentos com menos de 3 anúncios ativos do lado pedido.</div>
+          <div class="card-sub">Segmentos (bairro + tipo de imóvel + faixa de metragem) com gap de R$/m² pedido × pago acima de 20 pontos percentuais, em qualquer direção — nunca valor total nem tamanhos diferentes. Segmentos com menos de 10 vendas pagas nos últimos 12 meses não entram aqui (amostra pequena demais pra confiar), nem segmentos com menos de 3 anúncios ativos do lado pedido. Apartamento não aparece aqui (gap R$/m² suspenso — ver painel "Valor Total Pago"); só casa.</div>
           <div id="visao-alertas"></div>
         </section>
       </div>
@@ -104,8 +104,7 @@
       <div class="panel" data-panel="ranking">
         <section class="card">
           <h2>Ranking de Oportunidade</h2>
-          <div class="card-sub">Score 0–100: 50% liquidez de vendas residenciais (média anual 2024–2026, por ano-calendário do arquivo da Prefeitura) + 50% tendência de crescimento (ano cheio anterior × ano cheio, e 1º semestre ano corrente × ano anterior), normalizado entre os 49 bairros. As colunas "Vendas de mercado" e "Tendência" mostram um número mais atual e mais preciso — só "1.Compra e venda" (item 2), janela rolante dos últimos 12 meses completos pela data real da transação, terminando 2 meses antes do mês mais recente com dado (período exato no cabeçalho da coluna, atualiza a cada execução) — mas ainda não alimentam o Score. "Todas as transferências (12m)" é informação secundária: giro bruto do bairro, qualquer natureza (inclui retomada, leilão, doação etc.), sem servir pra preço nem pra essa coluna de Vendas de mercado. A coluna "Gap Preço" e o badge "Alerta preço" não entram no score: mostram o gap de R$/m² pedido × pago do segmento (tipo de imóvel + faixa de metragem) mais representativo do bairro — "—" quando nenhum segmento tem amostra confiável (10+ vendas pagas nos últimos 12 meses e 3+ anúncios ativos).</div>
-          <div style="margin:6px 0 10px"><span class="badge warning">Nota calculada com a metodologia anterior — revisão pendente</span></div>
+          <div class="card-sub">Score 0–100: 50% volume de REVENDA (janela rolante dos últimos 12 meses completos pela data real da transação) + 50% tendência de revenda (mesma janela × 12 meses antes), normalizado entre os 77 bairros da carteira. Lançamentos (planta) aparecem na coluna "Lançamentos (12m)" só como indicador, sem peso no score — decisão de 2026-10-01: pra Buyer Agent, a liquidez que importa é a revenda. Tendência vira neutra (não entra no score) quando o bairro tem menos de 50 vendas de revenda numa das duas janelas comparadas — evita que uma variação de poucas vendas vire uma "tendência" de dezenas de %. Bairro com menos de 100 vendas de revenda em 12m tem o selo "Amostra pequena" e não entra no top 10 de "Onde anunciar agora". A coluna "Gap Preço" e o badge "Alerta preço" não entram no score: mostram o gap de R$/m² pedido × pago do segmento (só casa — apartamento usa valor total, sem gap) mais representativo do bairro — "—" quando nenhum segmento tem amostra confiável.</div>
           <div id="ranking-table"></div>
         </section>
       </div>
@@ -123,7 +122,7 @@
       <div class="panel" data-panel="estoque-demanda">
         <section class="card">
           <h2>Estoque × Demanda</h2>
-          <div class="card-sub">Quantos anúncios ativos hoje na nonStop se encaixam no perfil vencedor do bairro, comparado ao volume médio anual de vendas (2024–2026). <span class="badge gold" style="margin:0 2px">Oportunidade</span> = pouco estoque compatível para uma demanda relevante. <span class="badge critical" style="margin:0 2px">Alerta preço</span> = no segmento (tipo de imóvel + faixa de metragem) mais representativo do bairro, o R$/m² pedido está bem descolado do R$/m² de fato pago — nunca valor total.</div>
+          <div class="card-sub">Quantos anúncios ativos hoje na nonStop se encaixam no perfil vencedor do bairro, comparado às vendas de revenda dos últimos 12 meses (demanda = liquidez real de revenda, não lançamento). <span class="badge gold" style="margin:0 2px">Oportunidade</span> = pouco estoque compatível para uma demanda relevante. <span class="badge critical" style="margin:0 2px">Alerta preço</span> = no segmento (tipo de imóvel + faixa de metragem) mais representativo do bairro, o R$/m² pedido está bem descolado do R$/m² de fato pago — nunca valor total.</div>
           <div id="estoque-demanda-table"></div>
         </section>
       </div>
@@ -188,20 +187,20 @@
         </section>
       </div>
 
-      <!-- Painel 11 — Preço por m² (Etapa 4 da auditoria de 2026-09-29) -->
+      <!-- Painel 11 — Preço por m² / Valor Total (Etapa 4 de 2026-09-29; Etapa 2 item 2 de 2026-10-01) -->
       <div class="panel" data-panel="preco-m2">
         <section class="card">
-          <h2>Preço por m² — Pago × Pedido</h2>
-          <div class="card-sub">Mediana de R$/m² pago (ITBI limpo) × pedido (anúncios nonStop hoje), por bairro e faixa de metragem — só apartamentos residenciais, só vendas pagas dos ÚLTIMOS 12 MESES (retrato do mercado agora, não uma média de 3 anos). Badge "Amostra pequena" = menos de 10 vendas pagas nesse segmento nos últimos 12 meses — não é uma referência confiável ainda. Também disponível em CSV: <code>output/preco_m2_por_bairro.csv</code>.</div>
+          <h2>Valor Total Pago — Apartamento</h2>
+          <div class="card-sub">Mediana/P25/P75 do VALOR TOTAL pago (não R$/m²) em REVENDA de apartamento, por bairro e faixa de metragem, nos ÚLTIMOS 12 MESES (retrato do mercado agora). O gap R$/m² pedido×pago foi suspenso pra apartamento (calibração fica pra depois); "Anúncios hoje" mostra só o estoque atual pedido, sem comparação. Badge "Amostra pequena" = menos de 10 revendas nesse segmento nos últimos 12 meses — não é uma referência confiável ainda. Também disponível em CSV: <code>output/preco_m2_por_bairro.csv</code> e <code>output/valor_pago_por_bairro.csv</code> (série histórica por ano, casa e apartamento).</div>
           <div id="preco-m2-table"></div>
         </section>
       </div>
 
-      <!-- Painel 12 — Carteira 77 (Item 3 da auditoria de 2026-09-30, beta) -->
+      <!-- Painel 12 — Carteira 77 (Item 3 de 2026-09-30; sai do beta na Etapa 2 item 1.2e, 2026-10-01) -->
       <div class="panel" data-panel="carteira-77">
         <section class="card">
-          <h2>Carteira 77 (beta)</h2>
-          <div class="card-sub">Bairro resolvido por tradução de nome de cadastro do IPTU + cascata de voto por endereço/quadra fiscal/CEP (ver README, "Item 3") — carteira estendida de 49 para 77 bairros. Revenda/planta classificados pela proporção transmitida (ITBI) + uso do imóvel + financiamento MCMV/SFH, janela rolante de 12 meses. Giro = revenda ÷ unidades residenciais do IPTU (apartamento + residência). <strong>Painel estático</strong>: não recalcula com os filtros de preço/bairro acima (ainda não integrado ao <code>engine.js</code>/<code>raw.json</code>).</div>
+          <h2>Carteira 77</h2>
+          <div class="card-sub">Bairro resolvido por tradução de nome de cadastro do IPTU + cascata de voto por endereço/quadra fiscal/CEP (ver README, "Item 3") — carteira de 77 bairros, a mesma base que TODOS os outros painéis usam agora (Ranking, Visão Geral, Perfil, Mapa, Estoque × Demanda, Alertas, Valor de Oportunidade, Imóveis Prioritários — checado a cada build, ver "teste de consistência" no README). Revenda/planta classificados pela proporção transmitida (ITBI) + uso do imóvel + financiamento MCMV/SFH, janela rolante de 12 meses. Giro = revenda ÷ unidades residenciais do IPTU (apartamento + residência). A tabela abaixo é um retrato fixo (não recalcula com os filtros de preço/bairro acima) — os outros painéis recalculam normalmente.</div>
           <div id="carteira-77-fechamento" style="margin-bottom:16px"></div>
           <div id="carteira-77-table"></div>
         </section>

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Validação do campo aditivo `carteira_77` em site/data.json (item 3,
-2026-09-30) — não é um framework de testes (o projeto não tem um; ver
-README "engine.js é... validado campo a campo"), é um script de
-conferência, no mesmo espírito do resto da auditoria: roda depois de
-`python3 scripts/build_data.py` e falha alto (AssertionError) se o
-formato ou os números não baterem com o esperado.
+Validação do campo `carteira_77` em site/data.json e da consistência com
+`bairros` (item 3 de 2026-09-30 + item 1 da Etapa 2 de 2026-10-01 — desde
+a migração do motor pra base nova, `bairros` também tem 77 entradas e
+bate exato com `carteira_77`) — não é um framework de testes (o projeto
+não tem um; ver README "engine.js é... validado campo a campo"), é um
+script de conferência, no mesmo espírito do resto da auditoria: roda
+depois de `python3 scripts/build_data.py` e falha alto (AssertionError)
+se o formato ou os números não baterem com o esperado.
 """
 import json
 import sys
@@ -18,7 +20,9 @@ DATA_JSON = ROOT / "site" / "data.json"
 def main():
     data = json.loads(DATA_JSON.read_text(encoding="utf-8"))
 
-    assert "bairros" in data and len(data["bairros"]) == 49, "campo antigo `bairros` (49) não pode ter sido afetado"
+    assert "bairros" in data and len(data["bairros"]) == 77, (
+        f"esperava 77 bairros em `bairros` (item 1 da Etapa 2 migrou o motor pra base nova), achei {len(data.get('bairros', {}))}"
+    )
 
     assert "carteira_77" in data, "data.json sem o campo carteira_77 — build_data.py rodou sem a etapa nova?"
     c77 = data["carteira_77"]
@@ -33,6 +37,12 @@ def main():
         for campo in ("revenda_12m", "planta_12m", "unidades_iptu", "giro_12m_pct"):
             assert campo in v, f"bairro '{b}' sem o campo '{campo}'"
         assert v["revenda_12m"] >= 0 and v["planta_12m"] >= 0 and v["unidades_iptu"] >= 0, f"bairro '{b}' com contagem negativa"
+        # Item 1.1 da Etapa 2: mesma checagem de validate_build.
+        # check_consistencia_carteira_77, rodável fora do build também.
+        motor = data["bairros"].get(b)
+        assert motor is not None, f"bairro '{b}' existe em carteira_77 mas não em bairros_out"
+        for campo in ("revenda_12m", "planta_12m", "unidades_iptu", "giro_12m_pct"):
+            assert motor[campo] == v[campo], f"{b}.{campo}: bairros_out={motor[campo]!r} != carteira_77={v[campo]!r}"
         if v["giro_12m_pct"] is not None:
             assert v["giro_12m_pct"] >= 0, f"bairro '{b}' com giro negativo"
             assert v["unidades_iptu"] > 0, f"bairro '{b}' tem giro mas 0 unidades IPTU — inconsistente"

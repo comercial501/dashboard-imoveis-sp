@@ -103,9 +103,22 @@ header.app-header .updated { color: var(--text-muted); font-size: 12px; }
 .pdf-btn:hover { background: var(--gold); color: #1a1a1a; }
 .captacao-pdf-link { font-size: 11.5px; text-decoration: underline; margin-left: 10px; color: var(--gold-soft); }
 
+/* Item 7 (2026-10-01): "Baixar esta página" — mesmo visual do botão
+   global, só que pequeno e solto no topo de cada painel (não no
+   cabeçalho fixo). Some na impressão (ver @media print) — só o botão
+   global "Baixar PDF" permanece como estava. */
+.page-pdf-btn {
+  appearance: none; cursor: pointer; font-family: "Montserrat", sans-serif;
+  font-size: 11.5px; font-weight: 600; color: var(--gold-soft);
+  background: transparent; border: 1px solid var(--border); border-radius: 7px;
+  padding: 5px 12px; white-space: nowrap; margin-bottom: 14px; display: inline-block;
+}
+.page-pdf-btn:hover { border-color: var(--gold); color: var(--gold); }
+
 .panel { display: none; }
 .panel.active { display: block; }
 .panel-print-title { display: none; }
+.panel-print-meta { display: none; }
 
 section.card {
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
@@ -357,11 +370,20 @@ svg.map-svg { width: 100%; height: auto; display: block; }
     --gold-bg: #f6efd9;
     --status-good-bg: #e6f6ea; --status-warning-bg: #fdf3d9; --status-critical-bg: #fbe6e4; --status-neutral-bg: #eee;
   }
-  .sidebar, .pdf-btn, .captacao-pdf-link, .captacao-toggle, #filtros-card { display: none !important; }
+  .sidebar, .pdf-btn, .captacao-pdf-link, .captacao-toggle, #filtros-card, .page-pdf-btn { display: none !important; }
   .app-shell { display: block; }
   .main, .app { max-width: none; margin: 0; padding: 0 6px; }
   section.card { border: 1px solid var(--border); break-inside: avoid; }
   .addr-row, .imovel-row, .bar-row { break-inside: avoid; }
+  /* Item 6 (2026-10-01): .table-scroll tem max-height:560px/overflow-y:auto
+     pra tela (ver regra fora de media query) — sem resetar aqui, o
+     navegador CORTA a tabela nesse tamanho em vez de paginar o resto,
+     então uma tabela de 77 linhas (Carteira 77) ou o Ranking completo
+     saíam com só as primeiras linhas no PDF. Tabela inteira sempre no
+     PDF/impressão, mesmo que role na tela. */
+  .table-scroll { max-height: none !important; overflow-y: visible !important; overflow-x: visible !important; }
+  table { break-inside: auto; }
+  tr { break-inside: avoid; }
   .captacao-group { border: 1px solid var(--border); break-inside: avoid-page; }
   .captacao-group summary { list-style: none; }
 
@@ -376,5 +398,15 @@ svg.map-svg { width: 100%; height: auto; display: block; }
   body.printing-all .panel-print-title {
     display: block; font-size: 22px; margin: 0 0 14px; padding-bottom: 8px;
     border-bottom: 2px solid var(--gold);
+  }
+
+  /* Item 7 (2026-10-01): "Baixar esta página" imprime só o painel ativo
+     (sem body.printing-all) — mesmo título de sempre, mais o
+     cabeçalho de período/filtros/data de geração (populado por
+     printPage() em app.js, só nesse caso — o botão "Baixar PDF" global
+     continua exatamente como estava, sem esse cabeçalho extra). */
+  .panel.active .panel-print-title { display: block; font-size: 22px; margin: 0 0 6px; padding-bottom: 8px; border-bottom: 2px solid var(--gold); }
+  .panel.active .panel-print-meta:not(:empty) {
+    display: block; font-size: 11px; color: var(--text-muted); margin: 0 0 16px;
   }
 }
