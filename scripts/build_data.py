@@ -296,6 +296,20 @@ def main():
     result = engine.compute(itbi_records, usn_records, years)
     print(f"[build] motor de cálculo concluído ({time.time() - t_start:.1f}s total)")
 
+    # Item 3 (2026-09-30): carteira de 77 bairros (tradução por nome de
+    # cadastro + cascata de 5 métodos, ver scripts/cascata_completa.py) —
+    # campo ADITIVO novo (`carteira_77`), não mexe em nada do motor acima
+    # (que continua nos 49 bairros originais, resolve_bairros/
+    # bairro_canon). Painel estático no site (não recalcula com os
+    # filtros de preço/bairro dos outros painéis — ver README).
+    try:
+        import cascata_completa
+        carteira_77 = cascata_completa.gerar_dados_carteira_77()
+        print(f"[build] carteira_77 calculada ({len(carteira_77['bairros'])} bairros)")
+    except Exception as e:
+        print(f"[build] AVISO: falha ao calcular carteira_77 ({e!r}) — data.json sai sem esse campo (painel novo fica indisponível, resto do site não é afetado).")
+        carteira_77 = None
+
     _write_preco_m2_csv(result["preco_m2_painel"], OUT_PRECO_M2_CSV)
     print(f"[build] {OUT_PRECO_M2_CSV} escrito ({len(result['preco_m2_painel'])} linhas)")
 
@@ -306,6 +320,8 @@ def main():
         "generated_at": datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S %Y UTC"),
         **result,
     }
+    if carteira_77 is not None:
+        data["carteira_77"] = carteira_77
     data["meta"]["total_itbi_rows_seen"] = itbi_stats["total_rows_seen"]
     data["meta"]["total_itbi_rows_matched"] = itbi_stats["total_rows_matched"]
     data["meta"]["total_itbi_duplicates_removed"] = dedup_stats["duplicatas_removidas"]

@@ -501,6 +501,7 @@ def rodar(usar_split_santo_amaro, label):
 
     return {
         "targets": targets,
+        "periodo_12m": {"inicio": f"{periodo_12m[0][0]:04d}-{periodo_12m[0][1]:02d}", "fim": f"{periodo_12m[-1][0]:04d}-{periodo_12m[-1][1]:02d}"},
         "antes": contagem_antes, "revenda": contagem_revenda, "planta": contagem_planta, "unidades": contagem_unidades,
         "fechamento": {
             "antes": (len(antes_combinado), sum(contagem_antes.values()), fora_antes, incerto_antes),
@@ -509,6 +510,46 @@ def rodar(usar_split_santo_amaro, label):
             "unidades": (len(unidades), sum(contagem_unidades.values()), fora_u, incerto_u),
         },
         "quedas_revenda": quedas,
+    }
+
+
+def gerar_dados_carteira_77():
+    """Empacota a saída de rodar() no formato que build_data.py grava em
+    site/data.json (chave nova `carteira_77`, aditiva — não mexe em
+    nenhuma chave existente). Painel estático (não recalcula com os
+    filtros de preço/bairro do resto do site — ver README, seção Item 3:
+    implementação no engine.py/engine.js)."""
+    resultado = rodar(usar_split_santo_amaro=True, label="producao")
+    targets = resultado["targets"]
+
+    def _fech(nome):
+        total, soma, fora, incerto = resultado["fechamento"][nome]
+        return {
+            "total": total, "carteira": soma,
+            "carteira_pct": round(100 * soma / total, 1) if total else None,
+            "fora_pct": round(100 * fora / total, 1) if total else None,
+            "incerto_pct": round(100 * incerto / total, 1) if total else None,
+        }
+
+    bairros = {}
+    for b in targets:
+        rv = resultado["revenda"].get(b, 0)
+        pl = resultado["planta"].get(b, 0)
+        un = resultado["unidades"].get(b, 0)
+        bairros[b] = {
+            "revenda_12m": rv, "planta_12m": pl, "unidades_iptu": un,
+            "giro_12m_pct": round(100 * rv / un, 2) if un else None,
+        }
+
+    return {
+        "metodologia_versao": "2026-09-30-item3-v3",
+        "periodo_12m": resultado["periodo_12m"],
+        "bairros": bairros,
+        "fechamento": {
+            "revenda": _fech("revenda"),
+            "planta": _fech("planta"),
+            "unidades": _fech("unidades"),
+        },
     }
 
 

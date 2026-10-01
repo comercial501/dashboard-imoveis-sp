@@ -265,6 +265,7 @@ function renderAll() {
   renderValorOportunidade();
   renderEstoqueDemanda();
   renderPrecoM2();
+  renderCarteira77();
 }
 
 async function main() {
@@ -299,6 +300,7 @@ const PANELS = [
   { id: "por-bairro", label: "Por Bairro/Região" },
   { id: "valor-oportunidade", label: "Valor de Oportunidade" },
   { id: "preco-m2", label: "Preço por m²" },
+  { id: "carteira-77", label: "Carteira 77 (beta)" },
 ];
 
 function setupTabs() {
@@ -1112,6 +1114,48 @@ function renderPrecoM2() {
         key: "amostra_pequena", label: "Amostra", sortable: false,
         render: (r) => (r.amostra_pequena ? badge("Amostra pequena", "neutral") : badge("Confiável", "gold")),
       },
+    ],
+    rows,
+  });
+}
+
+function renderCarteira77() {
+  const fechContainer = document.getElementById("carteira-77-fechamento");
+  const tableContainer = document.getElementById("carteira-77-table");
+  if (!fechContainer || !tableContainer) return; // painel pode não existir em builds antigos de data.json
+  fechContainer.innerHTML = "";
+  tableContainer.innerHTML = "";
+
+  const c77 = DATA.carteira_77;
+  if (!c77) {
+    tableContainer.appendChild(el("div", { class: "placeholder-block" }, "data.json ainda não tem o campo carteira_77 — rode scripts/build_data.py de novo."));
+    return;
+  }
+
+  const f = c77.fechamento;
+  const linha = (nome, stats) =>
+    el("div", { class: "fechamento-linha" }, [
+      el("strong", {}, nome + ": "),
+      `total ${fmtInt(stats.total)} · carteira ${fmtPct(stats.carteira_pct)} · fora ${fmtPct(stats.fora_pct)} · incerto ${fmtPct(stats.incerto_pct)}`,
+    ]);
+  fechContainer.appendChild(
+    el("div", { class: "card-sub" }, [
+      el("div", {}, `Período (12 meses): ${c77.periodo_12m.inicio} a ${c77.periodo_12m.fim}`),
+      linha("Revenda", f.revenda),
+      linha("Planta", f.planta),
+      linha("Unidades IPTU", f.unidades),
+    ])
+  );
+
+  const rows = Object.entries(c77.bairros).map(([bairro, v]) => ({ bairro, ...v }));
+  sortableTable(tableContainer, {
+    initialSortKey: "revenda_12m",
+    columns: [
+      { key: "bairro", label: "Bairro" },
+      { key: "revenda_12m", label: "Revenda (12m)", fmt: (v) => fmtInt(v) },
+      { key: "planta_12m", label: "Planta (12m)", fmt: (v) => fmtInt(v) },
+      { key: "unidades_iptu", label: "Unidades IPTU", fmt: (v) => fmtInt(v) },
+      { key: "giro_12m_pct", label: "Giro", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
     ],
     rows,
   });
