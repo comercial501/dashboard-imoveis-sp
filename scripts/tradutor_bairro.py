@@ -18,6 +18,7 @@ A carteira cresce de 49 pra 74 bairros (49 atuais + 25 NOVO_BAIRRO).
 """
 import csv
 import gzip
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -27,6 +28,22 @@ TRADUTOR_CSV = ROOT / "data" / "iptu_geosampa" / "raw" / "bairros_mercado_preenc
 STATUS_CARTEIRA = {"AUTO_CARTEIRA", "NOVO_BAIRRO"}
 STATUS_FORA = {"SUGERIDO_FORA", "PADRAO_FORA"}
 STATUS_IGNORAR = {"AUTO_IGNORAR"}
+
+# Achado de 2026-09-30 (correção de regressão): um nome que simplesmente
+# não apareceu na tabela (ex: "ITAQUERA", "SANTANA" — bairros reais, só
+# longe demais de qualquer um dos 49/74 pra terem entrado numa região da
+# rodada anterior) é "fora_carteira", NÃO "incerto" — incerto é só quando
+# não há NENHUM nome reconhecível (vazio, ou lixo tipo "TORRE 1"/"BLOCO
+# B"/número solto). Mesmo padrão de lixo usado em iptu_geosampa.py.
+_GARBAGE_RE = re.compile(
+    r"^\s*(\d+|(TORRE|BLOCO|BL|AP|APTO|APART|VAGA|VG|GARAGEM|SALA|LOJA|LT|UNID|UNIDADE|CASA|COND|CONDOMINIO|ED|RES)\b.*)?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _parece_bairro(bairro_raw):
+    s = (bairro_raw or "").strip()
+    return bool(s) and not _GARBAGE_RE.match(s)
 
 NUM_PLACEHOLDER = "99999"
 
@@ -119,13 +136,21 @@ class Cascata:
     dados, por pedido do usuário: "usar a mesma cascata para as vendas e
     para as unidades" significa mesma LÓGICA, não os mesmos votos)."""
 
-    def __init__(self, tradutor, targets, votos_quadra_resolvidos):
+    def __init__(self, tradutor, targets, votos_quadra_resolvidos, quadras_qualquer_bairro=None):
         """votos_quadra_resolvidos: saída de construir_votos_quadra_traduzido()
-        — {setor_quadra: (destino_74_ja_traduzido, confianca_pct, n)}."""
+        — {setor_quadra: (destino_74_ja_traduzido, confianca_pct, n)}.
+        quadras_qualquer_bairro: set opcional de setor+quadra que têm ALGUM
+        bairro majoritário reconhecível no IPTU, mesmo que não seja um dos
+        74 (de iptu_geosampa.construir_votos_quadra(), que não filtra pelos
+        74) — usado só pra decidir fora_carteira vs incerto quando nada
+        resolve pros 74: sem isso, uma quadra inteira de bairro real mas
+        fora da carteira (ex: Itaquera) virava "incerto" em vez de
+        "fora_carteira" (achado/regressão de 2026-09-30, corrigido aqui)."""
         self.tradutor = tradutor
         self.targets = set(targets)
         self.addr_votes = {}
         self.cep_votes = {}
+        self.quadras_qualquer_bairro = quadras_qualquer_bairro or set()
         import sys as _sys
 
         _sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -184,6 +209,11 @@ class Cascata:
             return v, "cep"
         if info and info[1] == "media":
             return info[0], "quadra_media"
-        if status is None:
-            return None, "incerto"  # nome nem apareceu na tabela -- tratado como incerto (conservador)
-        return None, "incerto"  # AUTO_IGNORAR e nenhum outro método resolveu
+        # Nenhum método resolveu pra um dos 74 — decide fora_carteira (tem
+        # nome de bairro real, só não é um dos 74) vs incerto (não tem
+        # nome nenhum, ou é lixo tipo torre/bloco/número solto).
+        if status == "AUTO_IGNORAR":
+            return None, "incerto"
+        if _parece_bairro(bairro_raw) or sq in self.quadras_qualquer_bairro:
+            return None, "fora_carteira"
+        return None, "incerto"

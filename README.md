@@ -1165,6 +1165,93 @@ Revalidação Python × JavaScript: não aplicável — nada ligado no
 `engine.py`/`engine.js` ainda. Regra de prioridade (já simulada acima)
 segue sem aprovação final.
 
+## Item 3: 3 ajustes antes da regra de prioridade final (2026-09-30)
+
+**1) Bug real: "incerto" tinha regredido de 1,7% pra ~40%.** Causa: meu
+`Cascata.resolver()` tratava QUALQUER nome fora da tabela (ex: "ITAQUERA",
+"SANTANA" — bairros reais, só nunca apareceram perto o bastante dos 49
+antigos pra entrar na tabela da rodada anterior) como "incerto", quando
+deveria ser "fora_carteira" (tem nome de bairro de verdade, só não é um
+dos 74). Corrigido em duas frentes: `_parece_bairro()` (mesmo filtro de
+lixo — TORRE/BLOCO/número solto — não conta como bairro de verdade) e um
+sinal adicional `quadras_qualquer_bairro` (a quadra tem ALGUM bairro
+majoritário reconhecível no IPTU, mesmo que não seja um dos 74 — sem
+reconstruir ESSE sinal específico, uma quadra inteira de um bairro real
+mas fora da carteira também virava "incerto"). Resultado:
+
+| | Antes da correção | Depois da correção |
+|---|---:|---:|
+| Revenda — fora da carteira / incerto | 11,6% / 40,1% | **46,4% / 5,4%** |
+| Planta — fora da carteira / incerto | 21,5% / 36,9% | **55,3% / 3,1%** |
+
+Não chegou exatamente nos ~2% do baseline anterior (que usava uma régua
+um pouco diferente), mas a lógica agora bate com a definição pedida —
+"incerto" só quando literalmente nenhum nome aparece em lugar nenhum
+(campo, endereço, CEP, quadra).
+
+**2) Santo Amaro — tabela completa + CEPs + comparação**
+
+a) Tabela completa dos 74 (ANTES/DEPOIS revenda/DEPOIS planta) — no
+histórico de execução desta rodada; resumo dos 5 de referência +
+principais novos:
+
+| Bairro | ANTES (49) | DEPOIS revenda | DEPOIS planta |
+|---|---:|---:|---:|
+| Moema | 445 | 671 | 522 |
+| Vila Mariana | 1.024 | 2.739 | 789 |
+| Tatuapé | 1.340 | 3.729 | 803 |
+| Pinheiros | 670 | 1.313 | 1.461 |
+| Itaim Bibi | 448 | 650 | 38 |
+| **Santo Amaro** *(novo)* | — | **6.469** | **9.081** |
+| Saúde *(novo)* | — | 3.125 | 1.039 |
+
+b) Santo Amaro, 15.550 vendas (revenda+planta), top 10 CEPs:
+
+| CEP | Vendas | Principal logradouro |
+|---|---:|---|
+| 04776-003 | 767 | Avenida do Rio Bonito |
+| 04727-002 | 736 | Rua Bragança Paulista |
+| 04729-080 | 700 | Rua Luiz Seraphico Junior |
+| 04653-200 | 517 | Rua Eng. Dagoberto Salles Filho |
+| 04730-000 | 480 | Rua Dr. Rubens Gomes Bueno |
+| 04750-000 | 469 | Rua Dr. Antônio Bento |
+| 04766-000 | 460 | Rua Olívia Guedes Penteado |
+| 04728-001 | 449 | Rua Laguna |
+| 05729-090 | 336 | Rua Alexandre Benois |
+| 05842-070 | 300 | Rua Gregório Allegri |
+
+c) Comparação com a simulação anterior (49 bairros, método por região):
+
+| Bairro | Antigo revenda/planta | Novo revenda/planta | Mudança |
+|---|---:|---:|---|
+| Alto da Boa Vista | 389 / 344 | 88 / 13 | **forte queda** — a maior parte do que "pertencia" a ele por região agora vai pra Santo Amaro |
+| Chácara Santo Antônio | 271 / 78 | 401 / 462 | **subiu** — recuperou volume que antes ia pra outro lugar (provavelmente Alto da Boa Vista ou Santo Amaro, dependendo da quadra) |
+| Jardim Santo Amaro | 17 / 0 | 12 / 0 | estável (pequena queda) |
+| Brooklin | 1.337 / 1.437 | 1.360 / 1.844 | estável/leve alta (mais planta) |
+| Campo Belo | 1.165 / 139 | 1.116 / 141 | estável |
+
+Achado: a mudança não é uniforme — Alto da Boa Vista de fato "perdia"
+volume pra região contaminada, mas Chácara Santo Antônio GANHOU volume
+(estava sendo subcontado antes, provavelmente absorvido incorretamente
+por outro bairro vizinho na região antiga). Não decidi nada sobre a
+tabela de tradução — fica pra você decidir depois de ver os CEPs acima.
+
+**3) Carteira 74→77 + nonStop**
+
+a) Aclimação, Vila Leopoldina e Alto de Pinheiros incluídos como bairros
+da carteira (ainda sem integração na cascata de vendas/unidades — só
+reconhecidos no recheck do nonStop abaixo; a tradução completa pelo IPTU
+fica pra quando você aprovar essa extensão formalmente).
+b) Jardim Caravelas mantido na lista (0 vendas, 0 unidades) — ocultar dos
+painéis é mudança de UI, ainda não aplicável (nada ligado no
+`engine.py`/`site/app.js` ainda).
+c) nonStop × 77: **2.165 de 2.267 anúncios (95,5%) batem agora** (subiu de
+91,7% com os 74). 102 não batem — top: Vila Anglo Brasileira (8), Vila
+Congonhas (8), Chácara Klabin (8), Água Branca (7), Bela Aliança (7).
+
+Nada ligado no `engine.py`. Regra de prioridade aprovada na ordem, mas
+aguardando o fechamento destes 2 itens antes de implementar.
+
 ## Metodologia dos painéis
 
 Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
