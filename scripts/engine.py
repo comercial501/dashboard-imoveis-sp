@@ -449,7 +449,7 @@ def _compute_profile(pairs_all_years, usn_by_bairro, centroids):
             "area_band_reliability": "insufficient", "area_band_neighbors": [],
             "profile_quartos": None, "profile_vagas": None, "profile_sample_size": 0,
             "profile_reliability": "insufficient", "profile_neighbors": [],
-            "profile_pool_sample_size": 0,
+            "profile_pool_sample_size": 0, "profile_sample_size_faixa_preco": 0,
         }
 
         # Gate 1 — faixa de área/preço
@@ -496,6 +496,24 @@ def _compute_profile(pairs_all_years, usn_by_bairro, centroids):
         entry["profile_sample_size"] = len(in_band)
         entry["profile_quartos"] = mode_of([r["quartos"] for r in in_band])
         entry["profile_vagas"] = mode_of([r["vagas"] for r in in_band])
+
+        # Etapa 2, revisão 2026-10-01 (migração do Prontidão para Campanha):
+        # contagem SEPARADA de estoque no perfil vencedor por FAIXA DE
+        # PREÇO (price_band, em valor total — mesma unidade do anúncio,
+        # sem conversão nenhuma) em vez de por metragem. Motivo do
+        # usuário: área construída do ITBI != área útil do anúncio (sem
+        # fator de calibração ainda — ver backlog), enquanto preço pedido
+        # (nonStop) e preço pago (ITBI) são a MESMA unidade (R$), direto
+        # comparáveis. Campo NOVO, aditivo — profile_sample_size (área,
+        # acima) continua intacto, usado por Estoque×Demanda/flag_
+        # prioridade_maxima/Captação Estratégica (fora do escopo desta
+        # migração, que é só o painel Prontidão).
+        if entry["price_band"]:
+            plo, phi = entry["price_band"]
+            in_price_band = [r for r in own_stock if r["valor"] is not None and plo <= r["valor"] <= phi]
+        else:
+            in_price_band = []
+        entry["profile_sample_size_faixa_preco"] = len(in_price_band)
 
         # Gate 2 — dormitórios/vagas (moda), independente do Gate 1
         if entry["profile_sample_size"] >= RELIABILITY_THRESHOLD:
@@ -1328,6 +1346,13 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
             "profile_neighbors": profile[b]["profile_neighbors"],
             "profile_pool_sample_size": profile[b]["profile_pool_sample_size"],
             "stock_total": stock_total[b], "stock_matching_profile": stock_match,
+            # Etapa 2, revisão 2026-10-01: estoque no perfil vencedor por
+            # FAIXA DE PREÇO (valor total, não metragem) — usado só pelo
+            # f2 do Prontidão (ver compute(), mais abaixo). stock_
+            # matching_profile (área, acima) continua intacto pros outros
+            # consumidores (Estoque×Demanda, flag_prioridade_maxima,
+            # Captação Estratégica).
+            "estoque_perfil_faixa_preco": profile[b]["profile_sample_size_faixa_preco"],
             "asking_median_valor": asking, "paid_median_valor_primary_year": paid_median,
             "centroid": list(centroids[b]) if centroids[b] else None,
             "stock_demand_ratio": round(ratio, 3), "price_gap_pct": price_gap_pct,
@@ -1408,7 +1433,10 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
     imoveis_prioritarios = _compute_imoveis_prioritarios(usn_records, bairros_out, addr_in_captacao_ativa)
 
     # --- Painel 2: Prontidão para Campanha ---
-    f2_map = normalize_0_100({b: bairros_out[b]["stock_matching_profile"] for b in TARGETS})
+    # Etapa 2, revisão 2026-10-01: f2 agora usa estoque_perfil_faixa_preco
+    # (faixa de preço, valor total) em vez de stock_matching_profile
+    # (metragem) — ver nota em _compute_profile/bairros_out acima.
+    f2_map = normalize_0_100({b: bairros_out[b]["estoque_perfil_faixa_preco"] for b in TARGETS})
     f4_counts = {b: 0 for b in TARGETS}
     for c in captacao_ativa:
         f4_counts[c["bairro"]] += 1
@@ -1458,7 +1486,16 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
         )
         bairros_out[b]["prontidao_campanha"] = _round(prontidao)
 
-    prontidao_ranking = sorted(TARGETS, key=lambda b: -bairros_out[b]["prontidao_campanha"])
+    # Etapa 2, revisão 2026-10-01: mesma regra de amostra mínima do
+    # Ranking (item 3 da Etapa 2) — bairro com amostra_pequena_ranking
+    # (< 100 revendas em 12m) nunca ocupa posição de topo, mesmo que o
+    # score numérico de prontidão seja alto (score calculado sobre pouca
+    # amostra não é confiável). Ordena primeiro por "não é amostra
+    # pequena" (False < True), depois por prontidão decrescente.
+    prontidao_ranking = sorted(
+        TARGETS,
+        key=lambda b: (bairros_out[b]["amostra_pequena_ranking"], -bairros_out[b]["prontidao_campanha"]),
+    )
 
     captacao_estrategica = _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out)
 

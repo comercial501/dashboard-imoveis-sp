@@ -93,15 +93,30 @@ function reliabilityTag(rel) {
 // Interesse de busca no Google (Keyword Planner) — sinal PROSPECTIVO de
 // demanda (gente pesquisando agora), complementar à liquidez do ITBI
 // (retrospectiva, só vendas já fechadas). Classificação Alto/Médio/Baixo é
-// por tercil contra os 49 bairros inteiros — só informativo, não entra em
-// nenhum score ainda (ver scripts/build_data.py e README).
+// por tercil contra os 77 bairros inteiros — só informativo, não entra em
+// nenhum score ainda (ver scripts/build_data.py e README). Selo vira
+// "sem dado recente" quando a fonte está desatualizada (>=30 dias) ou
+// quebrada (ver meta.fresco, build_data._get_search_interest).
 function searchInterestBadge(b) {
   const si = b.search_interest;
   if (!si) return null;
+  const meta = DATA.search_interest_meta;
+  const dataFetch = meta ? new Date(meta.fetched_at).toLocaleDateString("pt-BR") : null;
+  const fonte = meta ? meta.fonte : "Google Ads Keyword Planner";
+  // Revisão 2026-10-01 (migração do Prontidão): fonte desatualizada
+  // (>= 30 dias, ver build_data.SEARCH_INTEREST_MAX_AGE_DIAS) OU quebrada
+  // (tentativa de hoje falhou, caiu pro cache antigo) — mostra "sem dado
+  // recente" em vez de um selo alto/médio/baixo que pode já não valer
+  // mais, em vez de confiar num número que pode ter meses.
+  if (meta && !meta.fresco) {
+    const el_ = badge("Busca: sem dado recente", "neutral");
+    el_.title = `Fonte: ${fonte} · último dado de ${dataFetch} (${meta.idade_dias} dias atrás)`;
+    return el_;
+  }
   const cfg = { alto: ["Busca: Alto", "gold"], medio: ["Busca: Médio", "neutral"], baixo: ["Busca: Baixo", "neutral"] }[si.nivel];
   if (!cfg) return null;
   const el_ = badge(cfg[0], cfg[1]);
-  el_.title = `~${fmtInt(si.avg_monthly_searches)} buscas/mês (média de ${si.meses_com_dado} meses)`;
+  el_.title = `~${fmtInt(si.avg_monthly_searches)} buscas/mês (média de ${si.meses_com_dado} meses) · Fonte: ${fonte}${dataFetch ? ` · dado de ${dataFetch}` : ""}`;
   return el_;
 }
 
@@ -249,6 +264,10 @@ function mergeStaticMeta(computed) {
   // sumia do DATA poucos segundos depois do carregamento inicial, mesmo
   // sem nenhum filtro ativo).
   computed.carteira_77 = SERVER_DATA.carteira_77;
+  // Revisão 2026-10-01 (migração do Prontidão): search_interest_meta é
+  // global (um fetch só pra todos os bairros, ver build_data.py.
+  // _get_search_interest) — mesmo motivo/padrão de carteira_77 acima.
+  computed.search_interest_meta = SERVER_DATA.search_interest_meta;
   return computed;
 }
 
@@ -747,9 +766,14 @@ function renderProntidao() {
     const row = el("div", { class: "rank-row" + (i < 3 ? " top3" : ""), style: "cursor:pointer" });
     row.appendChild(el("div", { class: "rank-num" }, String(i + 1)));
     const body = el("div", { class: "rank-body" });
-    const nameLine = el("div", { class: "rank-name" }, [name, b.flag_prioridade_maxima ? badge("Prioridade Máxima", "gold") : null, searchInterestBadge(b)]);
+    const nameLine = el("div", { class: "rank-name" }, [
+      name,
+      b.flag_prioridade_maxima ? badge("Prioridade Máxima", "gold") : null,
+      b.amostra_pequena_ranking ? badge("Amostra pequena", "neutral") : null,
+      searchInterestBadge(b),
+    ]);
     body.appendChild(nameLine);
-    body.appendChild(el("div", { class: "rank-meta" }, `Ranking de Oportunidade: score ${fmtInt(b.score)} · estoque no perfil ${fmtInt(b.stock_matching_profile)} · toque para ver os 10 melhores imóveis`));
+    body.appendChild(el("div", { class: "rank-meta" }, `Ranking de Oportunidade: score ${fmtInt(b.score)} · estoque no perfil vencedor (faixa de preço) ${fmtInt(b.estoque_perfil_faixa_preco)} · toque para ver os 10 melhores imóveis`));
     row.appendChild(body);
     const track = el("div", { class: "rank-bar-track" });
     track.appendChild(el("div", { class: "rank-bar-fill", style: `width:${Math.min(100, b.prontidao_campanha)}%` }));

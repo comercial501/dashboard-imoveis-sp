@@ -196,20 +196,31 @@ def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, car
     }
 
 
+SEARCH_INTEREST_MAX_AGE_DIAS = 30  # revisão 2026-10-01 (Prontidão): acima disso, "sem dado recente" em vez do selo alto/médio/baixo
+
+
 def _get_search_interest():
     """Interesse de busca no Google por bairro (opcional — ver
     keyword_client.py). Sinal PROSPECTIVO de demanda (gente pesquisando
     hoje), complementar à liquidez do ITBI (retrospectiva). Classificação
-    Alto/Médio/Baixo é sempre por tercil contra os 47 bairros inteiros —
+    Alto/Médio/Baixo é sempre por tercil contra os 77 bairros inteiros —
     de propósito não recalcula por filtro de bairro/preço na tela (com um
     filtro reduzindo pra poucos bairros, tercil perderia sentido), então
     "Alto" sempre quer dizer "alto pra São Paulo inteira", uma referência
-    estável."""
+    estável.
+
+    Retorna (data, meta). Revisão 2026-10-01 (migração do Prontidão):
+    `meta` expõe fonte/data do último fetch bem-sucedido e `fresco`
+    (< SEARCH_INTEREST_MAX_AGE_DIAS dias E a tentativa de hoje não
+    falhou) — usado pelo front pra trocar o selo alto/médio/baixo por
+    "sem dado recente" quando a fonte está desatualizada OU quebrada
+    (ver keyword_client.get_search_interest_cached)."""
+    import datetime
     import keyword_client
 
-    data = keyword_client.get_search_interest_cached(TARGETS)
+    data, cache_meta = keyword_client.get_search_interest_cached(TARGETS)
     if not data:
-        return None
+        return None, None
 
     values = sorted(v["avg_monthly_searches"] for v in data.values())
     n = len(values)
@@ -219,7 +230,16 @@ def _get_search_interest():
     for b, v in data.items():
         s = v["avg_monthly_searches"]
         v["nivel"] = "alto" if s > high_cut else ("baixo" if s <= low_cut else "medio")
-    return data
+
+    fetched_at = datetime.datetime.fromisoformat(cache_meta["fetched_at"])
+    idade_dias = (datetime.datetime.now(datetime.timezone.utc) - fetched_at).days
+    meta = {
+        "fonte": "Google Ads Keyword Planner",
+        "fetched_at": cache_meta["fetched_at"],
+        "idade_dias": idade_dias,
+        "fresco": idade_dias < SEARCH_INTEREST_MAX_AGE_DIAS and not cache_meta["fetch_falhou"],
+    }
+    return data, meta
 
 
 def _attach_search_interest(bairros_out, search_interest):
@@ -334,7 +354,7 @@ def main():
     usn_records, usn_meta = _get_usn_records()
     print(f"[build] estoque: {len(usn_records)} anúncios válidos")
 
-    search_interest = _get_search_interest()
+    search_interest, search_interest_meta = _get_search_interest()
 
     # Item 3 (2026-09-30) / Item 1 da Etapa 2 (2026-10-01): carteira de 77
     # bairros (tradução por nome de cadastro + cascata de 5 métodos, ver
@@ -362,6 +382,9 @@ def main():
         **result,
     }
     data["carteira_77"] = carteira_77
+    # Revisão 2026-10-01 (migração do Prontidão): global (um fetch só pra
+    # todos os bairros) — ver _get_search_interest/keyword_client.
+    data["search_interest_meta"] = search_interest_meta
     data["meta"]["total_itbi_rows_seen"] = itbi_stats["total_rows_seen"]
     data["meta"]["total_itbi_rows_matched"] = itbi_stats["total_rows_matched"]
     # Item 1 da Etapa 2 (2026-10-01): "bairro recuperado por maioria de
@@ -390,6 +413,7 @@ def main():
 
     raw = build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, carteira_77["bairros"])
     raw["search_interest"] = search_interest or {}
+    raw["search_interest_meta"] = search_interest_meta
     OUT_RAW.write_text(json.dumps(raw, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"[build] {OUT_RAW} escrito ({OUT_RAW.stat().st_size:,} bytes)")
 

@@ -1933,3 +1933,46 @@ itens pedidos concluídos:
   arredondamento Python×JS pré-existente, não introduzido aqui).
 - **Item 4**: painel "Carteira 77" saiu do "(beta)" — agora é a mesma
   base que todos os outros painéis.
+
+## Migração do Prontidão para Campanha (2026-10-01, urgente)
+
+Última peça fora da base nova. Pesos mantidos (revisão de pesos fica
+pra depois):
+
+- f1 (15%, score do Ranking) e f5 (25%, Imóveis Prioritários) já usavam
+  `revenda_12m` desde a revisão anterior — sem mudança.
+- f2 (20%, estoque no perfil vencedor): trocado de metragem (`area_band`)
+  pra **faixa de preço** (`price_band`, valor total — mesma unidade do
+  anúncio, sem conversão) — motivo: área construída do ITBI ≠ área útil
+  do anúncio nonStop, sem fator de calibração ainda (ver backlog). Campo
+  novo `estoque_perfil_faixa_preco`, aditivo — `stock_matching_profile`
+  (metragem) continua intacto pros outros consumidores (Estoque×Demanda,
+  `flag_prioridade_maxima`, Captação Estratégica — fora do escopo desta
+  migração).
+- f3 (15%, gap de preço): já ficava suspenso (`None`→neutro) pra
+  apartamento desde a migração do painel de apartamento — confirmado,
+  sem mudança necessária.
+- Bairros: carteira 77, mesma resolução do `carteira_77` — já valia
+  desde o item 1 (TARGETS global).
+- Amostra mínima: `prontidao_ranking` agora ordena primeiro por "não é
+  amostra pequena" (revenda_12m < 100 em 12m), depois por nota — bairro
+  pequeno nunca ocupa posição de topo, mesmo com nota alta.
+- Tag de busca (Google Ads Keyword Planner): `search_interest_meta`
+  (novo, global) expõe fonte/data do último fetch bem-sucedido e
+  `fresco` (< 30 dias E tentativa de hoje não falhou). Badge vira "Busca:
+  sem dado recente" quando a fonte está desatualizada OU quebrada, em
+  vez de mostrar um selo Alto/Médio/Baixo que pode já não valer mais.
+  Achado do diagnóstico: o cache local (`data/keyword_state.json`) tinha
+  só 47 dos 77 bairros (roster de antes da migração pra carteira 77) —
+  autocorrige sozinho no próximo refetch natural (cache válido por até
+  25 dias); nenhuma integração nova criada.
+- Teste de consistência: `validate_build.check_prontidao_consistencia`
+  (5ª checagem) — `prontidao_campanha` presente nos 77 bairros,
+  `prontidao_ranking` com 77 entradas, nenhum bairro de amostra pequena
+  no top 10. `revenda_12m`/`giro_12m_pct` já conferidos contra
+  `carteira_77` pela checagem existente (Prontidão lê o mesmo
+  `bairros_out[b]`, nunca recalcula por conta própria).
+- `output/shortlist_google_ads.csv`: os 77 bairros ordenados pela nota
+  de prontidão, com revenda/tendência/giro/estoque/tag de busca — gerado
+  por `scripts/exportar_shortlist_google_ads.py` (lê `site/data.json`
+  direto, não reparseia ITBI).

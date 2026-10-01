@@ -599,6 +599,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       area_band_reliability: "insufficient", area_band_neighbors: [],
       profile_quartos: null, profile_vagas: null, profile_sample_size: 0,
       profile_reliability: "insufficient", profile_neighbors: [], profile_pool_sample_size: 0,
+      profile_sample_size_faixa_preco: 0,
     };
 
     if (ownPairs.length >= C.reliability_threshold) {
@@ -645,6 +646,18 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     entry.profile_quartos = modeOf(inBand.map((r) => r.quartos));
     entry.profile_vagas = modeOf(inBand.map((r) => r.vagas));
     entry._matching_listings = inBand; // uso interno (Estoque x Demanda), não vai pro output final
+
+    // Etapa 2, revisão 2026-10-01 (migração do Prontidão): estoque no
+    // perfil vencedor por FAIXA DE PREÇO (valor total), não metragem —
+    // ver nota equivalente em scripts/engine.py._compute_profile. Usado
+    // só pelo f2 do Prontidão, abaixo; profile_sample_size (área) segue
+    // intacto pros outros consumidores.
+    let inPriceBand = [];
+    if (entry.price_band) {
+      const [plo, phi] = entry.price_band;
+      inPriceBand = ownStock.filter((r) => r.valor != null && r.valor >= plo && r.valor <= phi);
+    }
+    entry.profile_sample_size_faixa_preco = inPriceBand.length;
 
     if (entry.profile_sample_size >= C.reliability_threshold) {
       entry.profile_reliability = "individual";
@@ -821,6 +834,9 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       profile_reliability: profile[b].profile_reliability, profile_neighbors: profile[b].profile_neighbors,
       profile_pool_sample_size: profile[b].profile_pool_sample_size,
       stock_total: stockTotal[b], stock_matching_profile: stockMatch,
+      // Etapa 2, revisão 2026-10-01 (migração do Prontidão): estoque no
+      // perfil vencedor por FAIXA DE PREÇO — ver scripts/engine.py.compute.
+      estoque_perfil_faixa_preco: profile[b].profile_sample_size_faixa_preco,
       asking_median_valor: asking, paid_median_valor_primary_year: paidMedian,
       centroid: centroids[b],
       stock_demand_ratio: Math.round(ratio * 1000) / 1000, price_gap_pct: priceGapPct,
@@ -958,7 +974,10 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   imoveisPrioritarios.sort((a, b) => b.final_score - a.final_score || cmpLower(a.endereco || "", b.endereco || "") || String(a.codigo || "").localeCompare(String(b.codigo || "")));
 
   // --- Painel 2: Prontidão ---
-  const stockMatchScope = {}; scope.forEach((b) => (stockMatchScope[b] = bairrosOut[b].stock_matching_profile));
+  // Etapa 2, revisão 2026-10-01: f2 agora usa estoque_perfil_faixa_preco
+  // (faixa de preço) em vez de stock_matching_profile (metragem) — ver
+  // nota equivalente em scripts/engine.py.compute.
+  const stockMatchScope = {}; scope.forEach((b) => (stockMatchScope[b] = bairrosOut[b].estoque_perfil_faixa_preco));
   const f2MapScope = normalize0to100(stockMatchScope);
   const f4Counts = {}; scope.forEach((b) => (f4Counts[b] = 0));
   for (const c of captacaoAtiva) if (f4Counts[c.bairro] != null) f4Counts[c.bairro]++;

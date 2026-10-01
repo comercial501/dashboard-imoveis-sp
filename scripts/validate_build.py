@@ -159,12 +159,12 @@ def check_linhas_lidas(year_to_path, itbi_stats):
             f"{sheets_checked} abas, {header_rows} são cabeçalho (esperado {esperado} "
             f"linhas de dado), mas o parser leu {lido}. Diferença: {lido - esperado:+d}."
         )
-    print(f"[validate_build] OK 1/3 — linhas lidas batem: {lido} == {total_rows} totais - {header_rows} cabeçalho, em {sheets_checked} abas.")
+    print(f"[validate_build] OK 1/5 — linhas lidas batem: {lido} == {total_rows} totais - {header_rows} cabeçalho, em {sheets_checked} abas.")
 
 
 def check_variacao_bairros(new_bairros, old_data_path):
     if not old_data_path.exists():
-        print("[validate_build] OK 2/3 — sem versão publicada anterior pra comparar (primeira execução).")
+        print("[validate_build] OK 2/5 — sem versão publicada anterior pra comparar (primeira execução).")
         return
     try:
         old_data = json.loads(old_data_path.read_text(encoding="utf-8"))
@@ -201,7 +201,7 @@ def check_variacao_bairros(new_bairros, old_data_path):
             f"Se a mudança é esperada (correção deliberada de metodologia), rode de novo com "
             f"ALLOW_LARGE_CHANGES=1 no ambiente."
         )
-    print(f"[validate_build] OK 2/3 — nenhum bairro variou mais que {VARIACAO_MAX*100:.0f}% em volume_primary_year.")
+    print(f"[validate_build] OK 2/5 — nenhum bairro variou mais que {VARIACAO_MAX*100:.0f}% em volume_primary_year.")
 
 
 def check_formato_paineis(data):
@@ -222,7 +222,7 @@ def check_formato_paineis(data):
     if not isinstance(data.get("ranking"), list) or len(data["ranking"]) != len(TARGETS):
         raise ValidationError(f"'ranking' deveria ter {len(TARGETS)} bairros, tem {len(data.get('ranking'))}.")
 
-    print(f"[validate_build] OK 3/3 — formato de data.json íntegro: {len(bairros)} bairros, todas as chaves esperadas presentes.")
+    print(f"[validate_build] OK 3/5 — formato de data.json íntegro: {len(bairros)} bairros, todas as chaves esperadas presentes.")
 
 
 def check_consistencia_carteira_77(data):
@@ -260,16 +260,52 @@ def check_consistencia_carteira_77(data):
             f"consistência carteira_77 FALHOU — {len(divergencias)} divergência(s) entre bairros_out e "
             f"carteira_77 (deveriam ser idênticos):\n{linhas}{a_mais}"
         )
-    print(f"[validate_build] OK 4/4 — {len(TARGETS)} bairros batem exato com carteira_77 em {len(campos)} campos.")
+    print(f"[validate_build] OK 4/5 — {len(TARGETS)} bairros batem exato com carteira_77 em {len(campos)} campos.")
+
+
+def check_prontidao_consistencia(data):
+    """Migração do Prontidão para Campanha (revisão 2026-10-01), item 3
+    pedido pelo usuário: "incluir o painel no teste de consistência:
+    revenda, tendência e giro de cada bairro devem bater exato com
+    carteira_77 e com o Ranking". revenda_12m/giro_12m_pct já são
+    conferidos contra carteira_77 em check_consistencia_carteira_77
+    (campos compartilhados — Prontidão lê o MESMO bairros_out[b], não
+    recalcula nada por conta própria, então não tem como divergir só
+    pra ele). trend_pct_revenda_12m não existe em carteira_77 (é um
+    conceito só do motor/Ranking) — pela mesma razão (campo único,
+    compartilhado), Prontidão e Ranking nunca podem divergir nele.
+
+    O que esta checagem confere especificamente (não coberto em outro
+    lugar): prontidao_campanha existe pros 77 bairros, prontidao_ranking
+    tem os 77 bairros, e — gate de merge pedido pelo usuário — NENHUM
+    bairro com amostra_pequena_ranking=True (< 100 revendas em 12m)
+    ocupa uma das 10 primeiras posições do ranking de prontidão."""
+    bairros = data["bairros"]
+    faltando = [b for b in TARGETS if "prontidao_campanha" not in bairros.get(b, {})]
+    if faltando:
+        raise ValidationError(f"prontidao_campanha ausente em {len(faltando)} bairro(s): {faltando[:10]}")
+
+    ranking = data.get("prontidao_ranking")
+    if not isinstance(ranking, list) or len(ranking) != len(TARGETS):
+        raise ValidationError(f"'prontidao_ranking' deveria ter {len(TARGETS)} bairros, tem {len(ranking) if ranking else 0}.")
+
+    top10_amostra_pequena = [b for b in ranking[:10] if bairros.get(b, {}).get("amostra_pequena_ranking")]
+    if top10_amostra_pequena:
+        raise ValidationError(
+            f"bairro(s) com amostra pequena (< 100 revendas em 12m) no top 10 do Prontidão: {top10_amostra_pequena} "
+            "— não deveriam ocupar posição de topo (gate de merge pedido pelo usuário)."
+        )
+    print(f"[validate_build] OK 5/5 — Prontidão: {len(TARGETS)} bairros com nota, top 10 sem amostra pequena.")
 
 
 def validate_before_publish(year_to_path, itbi_stats, data, out_path):
     """Chamado por build_data.py logo antes de escrever site/data.json.
     Levanta SystemExit (para o processo com código != 0) se qualquer
     checagem falhar — build_data.py não deve capturar essa exceção."""
-    print("[validate_build] rodando as 4 checagens antes de publicar...")
+    print("[validate_build] rodando as 5 checagens antes de publicar...")
     check_linhas_lidas(year_to_path, itbi_stats)
     check_variacao_bairros(data["bairros"], out_path)
     check_formato_paineis(data)
     check_consistencia_carteira_77(data)
+    check_prontidao_consistencia(data)
     print("[validate_build] todas as checagens passaram — liberado pra publicar.")

@@ -185,12 +185,22 @@ def _save_state(state):
 def get_search_interest_cached(bairros, log=print):
     """Usa o cache se tiver menos de CACHE_MAX_AGE_DAYS dias; senão busca de
     novo na API e atualiza o cache. Retorna None se não há credenciais
-    configuradas (feature opcional)."""
+    configuradas (feature opcional).
+
+    Revisão 2026-10-01 (migração do Prontidão): retorna (data, meta) em
+    vez de só `data` — meta = {"fetched_at": <ISO-8601>, "fetch_falhou":
+    bool}. `fetched_at` é SEMPRE a data do último fetch que teve sucesso
+    (pode ser bem mais antiga que hoje se a API estiver quebrada há
+    tempos — ver o `return state["data"], {...}` no except abaixo, que
+    propositalmente NÃO atualiza fetched_at nesse caso); `fetch_falhou`
+    marca explicitamente que a tentativa de hoje falhou e os dados detrás
+    são um fallback, pra build_data.py decidir mostrar "sem dado
+    recente" em vez de confiar cegamente só na idade em dias."""
     import datetime
 
     if not credentials_available():
         log("[keywords] GOOGLE_ADS_* não configurado — pulando sinal de interesse de busca (opcional).")
-        return None
+        return None, None
 
     state = _load_state()
     if state:
@@ -198,16 +208,19 @@ def get_search_interest_cached(bairros, log=print):
         age_days = (datetime.datetime.now(datetime.timezone.utc) - fetched_at).days
         if age_days < CACHE_MAX_AGE_DAYS:
             log(f"[keywords] usando cache ({age_days} dias, dados atualizam mensalmente na fonte).")
-            return state["data"]
+            return state["data"], {"fetched_at": state["fetched_at"], "fetch_falhou": False}
 
     try:
         data = fetch_search_interest(bairros, log=log)
     except Exception as e:
         log(f"[keywords] aviso: falhou buscar interesse de busca ({e}) — seguindo sem esse sinal.")
-        return state["data"] if state else None
+        if state:
+            return state["data"], {"fetched_at": state["fetched_at"], "fetch_falhou": True}
+        return None, None
 
-    _save_state({"fetched_at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "data": data})
-    return data
+    fetched_at_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    _save_state({"fetched_at": fetched_at_iso, "data": data})
+    return data, {"fetched_at": fetched_at_iso, "fetch_falhou": False}
 
 
 if __name__ == "__main__":
@@ -216,7 +229,8 @@ if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from normalize import TARGETS
 
-    result = get_search_interest_cached(TARGETS)
+    result, meta = get_search_interest_cached(TARGETS)
     if result:
+        print(f"[meta] {meta}")
         for b, v in sorted(result.items(), key=lambda x: -x[1]["avg_monthly_searches"])[:15]:
             print(f"  {b}: {v['avg_monthly_searches']} buscas/mês")
