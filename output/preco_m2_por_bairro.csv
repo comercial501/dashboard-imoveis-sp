@@ -1,160 +1,158 @@
 bairro,faixa_metragem,mediana_pago_r_m2,mediana_pedido_r_m2,gap_pct,n_transacoes_12m,n_anuncios,amostra_pequena
 Vila Madalena,até 50m²,8031.64,17505.23,118.0,4,4,sim
-Vila Madalena,50–80m²,6958.33,17839.29,156.4,6,13,sim
-Vila Madalena,80–120m²,6989.25,12848.69,83.8,27,10,nao
-Vila Madalena,acima de 120m²,7519.38,18816.82,150.2,65,10,nao
-Lapa,até 50m²,6663.51,,,6,0,sim
-Lapa,50–80m²,5263.16,,,65,0,nao
-Lapa,80–120m²,5194.91,15800.0,204.1,81,1,nao
-Lapa,acima de 120m²,5768.75,15037.59,160.7,138,3,nao
-Pinheiros,até 50m²,7375.12,21471.86,191.1,36,20,nao
-Pinheiros,50–80m²,7151.9,18661.62,160.9,55,26,nao
-Pinheiros,80–120m²,6793.69,13216.98,94.5,136,23,nao
-Pinheiros,acima de 120m²,7199.42,16871.17,134.3,200,29,nao
+Vila Madalena,50–80m²,7142.86,17839.29,149.7,5,13,sim
+Vila Madalena,80–120m²,7547.51,12848.69,70.2,22,10,nao
+Vila Madalena,acima de 120m²,7519.38,18816.82,150.2,57,10,nao
+Lapa,até 50m²,7027.03,,,5,0,sim
+Lapa,50–80m²,5263.16,,,63,0,nao
+Lapa,80–120m²,5117.65,15800.0,208.7,73,1,nao
+Lapa,acima de 120m²,5726.03,15037.59,162.6,125,3,nao
+Pinheiros,até 50m²,7208.59,21471.86,197.9,31,20,nao
+Pinheiros,50–80m²,7084.7,19178.08,170.7,49,25,nao
+Pinheiros,80–120m²,6768.05,13216.98,95.3,122,23,nao
+Pinheiros,acima de 120m²,7199.42,16871.17,134.3,176,29,nao
 Itaim Bibi,até 50m²,9492.17,23944.74,152.3,5,8,sim
 Itaim Bibi,50–80m²,7822.16,20500.0,162.1,21,8,nao
-Itaim Bibi,80–120m²,7990.88,15153.08,89.6,86,24,nao
-Itaim Bibi,acima de 120m²,9347.12,19663.31,110.4,206,31,nao
-Vila Olímpia,até 50m²,,20194.05,,0,6,sim
+Itaim Bibi,80–120m²,7981.76,15153.08,89.8,83,24,nao
+Itaim Bibi,acima de 120m²,9326.58,19663.31,110.8,182,31,nao
+Vila Olímpia,até 50m²,,19971.43,,0,5,sim
 Vila Olímpia,50–80m²,7571.43,16530.05,118.3,21,22,nao
-Vila Olímpia,80–120m²,6961.21,12924.76,85.7,97,16,nao
-Vila Olímpia,acima de 120m²,6557.38,21730.77,231.4,91,17,nao
-Brooklin,até 50m²,6489.36,16851.85,159.7,15,28,nao
-Brooklin,50–80m²,7207.8,17164.18,138.1,34,21,nao
-Brooklin,80–120m²,6521.03,15500.0,137.7,146,19,nao
-Brooklin,acima de 120m²,5816.09,16190.48,178.4,204,46,nao
-Chácara Santo Antônio,80–120m²,5222.66,,,4,0,sim
+Vila Olímpia,80–120m²,6880.73,12924.76,87.8,93,16,nao
+Vila Olímpia,acima de 120m²,6543.21,21730.77,232.1,85,17,nao
+Brooklin,até 50m²,6744.68,16851.85,149.9,14,28,nao
+Brooklin,50–80m²,7272.73,17164.18,136.0,29,21,nao
+Brooklin,80–120m²,6573.91,15500.0,135.8,135,19,nao
+Brooklin,acima de 120m²,5886.08,16190.48,175.1,177,46,nao
+Chácara Santo Antônio,80–120m²,4642.86,,,3,0,sim
 Chácara Santo Antônio,acima de 120m²,7712.55,,,14,0,nao
 Alto da Boa Vista,até 50m²,,12797.55,,0,6,sim
 Alto da Boa Vista,50–80m²,,13000.0,,0,3,sim
-Alto da Boa Vista,80–120m²,6557.7,,,22,0,nao
-Alto da Boa Vista,acima de 120m²,5400.0,13840.0,156.3,39,3,nao
-Vila Cordeiro,50–80m²,,15000.0,,0,1,sim
-Vila Cordeiro,acima de 120m²,5414.36,15465.12,185.6,3,1,sim
+Alto da Boa Vista,80–120m²,6557.7,,,20,0,nao
+Alto da Boa Vista,acima de 120m²,5501.36,13840.0,151.6,38,3,nao
+Vila Cordeiro,50–80m²,6319.44,15000.0,137.4,1,1,sim
+Vila Cordeiro,acima de 120m²,5842.54,15465.12,164.7,2,1,sim
 Jardim Santo Amaro,80–120m²,3565.22,11569.77,224.5,5,1,sim
 Jardim Santo Amaro,acima de 120m²,4906.54,,,1,0,sim
 Campo Belo,até 50m²,7446.81,16743.57,124.8,1,4,sim
-Campo Belo,50–80m²,5792.33,16075.0,177.5,24,10,nao
-Campo Belo,80–120m²,6005.62,10833.33,80.4,118,15,nao
-Campo Belo,acima de 120m²,6192.01,14667.58,136.9,200,74,nao
+Campo Belo,50–80m²,5707.72,16075.0,181.6,20,10,nao
+Campo Belo,80–120m²,6082.47,10833.33,78.1,107,15,nao
+Campo Belo,acima de 120m²,6309.52,14222.8,125.4,177,73,nao
 Indianópolis,até 50m²,10250.0,19727.24,92.5,7,4,sim
-Indianópolis,50–80m²,6899.57,21201.3,207.3,50,5,nao
-Indianópolis,80–120m²,6517.86,14795.59,127.0,127,12,nao
-Indianópolis,acima de 120m²,6857.98,18235.29,165.9,218,23,nao
+Indianópolis,50–80m²,6623.38,21201.3,220.1,45,4,nao
+Indianópolis,80–120m²,6626.51,14795.59,123.3,111,12,nao
+Indianópolis,acima de 120m²,6630.32,18235.29,175.0,190,23,nao
 Moema,até 50m²,7083.33,22619.05,219.3,5,5,sim
-Moema,50–80m²,7517.12,14501.35,92.9,62,26,nao
-Moema,80–120m²,6802.33,15052.63,121.3,89,21,nao
-Moema,acima de 120m²,7157.49,17452.43,143.8,188,62,nao
+Moema,50–80m²,7500.0,14501.35,93.4,51,26,nao
+Moema,80–120m²,6802.33,15052.63,121.3,81,21,nao
+Moema,acima de 120m²,7075.36,17452.43,146.7,165,62,nao
 Vila Uberabinha,50–80m²,,14930.83,,0,4,sim
 Vila Uberabinha,80–120m²,5154.64,,,1,0,sim
-Vila Uberabinha,acima de 120m²,7458.19,19747.33,164.8,14,6,nao
+Vila Uberabinha,acima de 120m²,7500.0,19747.33,163.3,11,6,nao
 Vila Nova Conceição,até 50m²,,26089.02,,0,18,sim
-Vila Nova Conceição,50–80m²,7596.87,26964.11,254.9,24,10,nao
+Vila Nova Conceição,50–80m²,7501.43,26964.11,259.5,23,10,nao
 Vila Nova Conceição,80–120m²,8999.47,16146.0,79.4,16,11,nao
-Vila Nova Conceição,acima de 120m²,12600.86,26758.13,112.4,65,20,nao
-Jardim Europa,acima de 120m²,16790.28,19661.02,17.1,12,3,nao
+Vila Nova Conceição,acima de 120m²,12724.42,26758.13,110.3,55,20,nao
+Jardim Europa,acima de 120m²,15313.65,19661.02,28.4,9,3,sim
 Jardins,50–80m²,8804.28,,,4,0,sim
-Jardins,80–120m²,6846.15,,,5,0,sim
-Jardins,acima de 120m²,8875.34,,,30,0,nao
-Jardim Paulista,até 50m²,8333.33,24935.27,199.2,7,27,sim
-Jardim Paulista,50–80m²,6933.33,16346.15,135.8,53,12,nao
-Jardim Paulista,80–120m²,7819.3,15000.0,91.8,108,22,nao
-Jardim Paulista,acima de 120m²,8295.76,13834.95,66.8,344,55,nao
-Ibirapuera,até 50m²,4042.55,,,1,0,sim
-Ibirapuera,50–80m²,5231.76,,,24,0,nao
-Ibirapuera,80–120m²,5117.65,,,29,0,nao
-Ibirapuera,acima de 120m²,6116.51,42457.51,594.1,94,4,nao
-Jardim das Bandeiras,80–120m²,7036.54,,,4,0,sim
-Jardim das Bandeiras,acima de 120m²,6489.18,10053.25,54.9,2,1,sim
-Sumaré,até 50m²,6326.53,,,2,0,sim
+Jardins,80–120m²,7837.1,,,7,0,sim
+Jardins,acima de 120m²,8690.48,,,31,0,nao
+Jardim Paulista,até 50m²,7886.18,24935.27,216.2,6,27,sim
+Jardim Paulista,50–80m²,6933.33,16346.15,135.8,47,12,nao
+Jardim Paulista,80–120m²,7800.34,15000.0,92.3,83,22,nao
+Jardim Paulista,acima de 120m²,8343.27,13834.95,65.8,310,55,nao
+Ibirapuera,50–80m²,5379.75,,,25,0,nao
+Ibirapuera,80–120m²,5117.65,,,23,0,nao
+Ibirapuera,acima de 120m²,6163.94,42457.51,588.8,88,4,nao
+Jardim das Bandeiras,80–120m²,6818.18,,,3,0,sim
+Jardim das Bandeiras,acima de 120m²,6762.3,10053.25,48.7,3,1,sim
+Sumaré,até 50m²,6122.45,,,3,0,sim
 Sumaré,50–80m²,5917.24,20694.44,249.7,4,1,sim
-Sumaré,80–120m²,5619.4,19848.78,253.2,14,8,nao
-Sumaré,acima de 120m²,6115.7,14604.42,138.8,27,11,nao
+Sumaré,80–120m²,5612.24,19848.78,253.7,13,8,nao
+Sumaré,acima de 120m²,6025.93,14604.42,142.4,26,11,nao
 Pacaembu,50–80m²,5972.22,,,2,0,sim
 Pacaembu,80–120m²,5212.77,,,3,0,sim
-Pacaembu,acima de 120m²,2704.55,8061.19,198.1,4,2,sim
+Pacaembu,acima de 120m²,4151.29,8061.19,94.2,1,2,sim
 Higienópolis,até 50m²,7666.67,22704.56,196.1,3,4,sim
-Higienópolis,50–80m²,6846.15,18490.57,170.1,11,1,nao
-Higienópolis,80–120m²,6406.24,16462.57,157.0,44,4,nao
-Higienópolis,acima de 120m²,7452.81,12586.21,68.9,208,40,nao
-Perdizes,até 50m²,8255.81,16785.71,103.3,15,30,nao
-Perdizes,50–80m²,6476.86,15448.79,138.5,108,18,nao
-Perdizes,80–120m²,6020.41,11001.89,82.7,165,24,nao
-Perdizes,acima de 120m²,5843.88,12851.41,119.9,431,76,nao
-Pompéia,até 50m²,6299.99,16000.0,154.0,6,3,sim
-Pompéia,50–80m²,6666.67,11855.16,77.8,11,6,nao
-Pompéia,80–120m²,5725.78,10679.61,86.5,68,5,nao
-Pompéia,acima de 120m²,5734.36,12945.21,125.7,74,1,nao
-Santa Cecília,até 50m²,5810.81,16800.0,189.1,95,1,nao
-Santa Cecília,50–80m²,5200.0,,,149,0,nao
-Santa Cecília,80–120m²,5058.14,17000.0,236.1,127,1,nao
-Santa Cecília,acima de 120m²,5691.69,9797.56,72.1,182,14,nao
-Consolação,até 50m²,6944.19,18928.57,172.6,174,2,nao
-Consolação,50–80m²,5595.0,16481.48,194.6,174,4,nao
-Consolação,80–120m²,6395.35,9051.46,41.5,114,5,nao
-Consolação,acima de 120m²,6569.34,9620.0,46.4,133,7,nao
-Bela Vista,até 50m²,5873.0,17686.05,201.1,180,2,nao
-Bela Vista,50–80m²,5281.69,17605.63,233.3,299,4,nao
-Bela Vista,80–120m²,5000.0,8407.92,68.2,277,10,nao
-Bela Vista,acima de 120m²,5862.07,8482.26,44.7,163,14,nao
+Higienópolis,50–80m²,6846.15,18490.57,170.1,9,1,sim
+Higienópolis,80–120m²,6406.24,16462.57,157.0,42,4,nao
+Higienópolis,acima de 120m²,7456.1,12586.21,68.8,192,40,nao
+Perdizes,até 50m²,8780.49,16904.76,92.5,13,29,nao
+Perdizes,50–80m²,6491.23,15448.79,138.0,99,18,nao
+Perdizes,80–120m²,5969.9,11001.89,84.3,142,24,nao
+Perdizes,acima de 120m²,5819.77,12851.41,120.8,390,76,nao
+Pompéia,até 50m²,6625.0,16000.0,141.5,4,3,sim
+Pompéia,50–80m²,6486.49,11855.16,82.8,8,6,sim
+Pompéia,80–120m²,5787.81,10679.61,84.5,66,5,nao
+Pompéia,acima de 120m²,5716.51,12945.21,126.5,67,1,nao
+Santa Cecília,até 50m²,5794.3,16800.0,189.9,86,1,nao
+Santa Cecília,50–80m²,5200.0,,,133,0,nao
+Santa Cecília,80–120m²,5168.54,17000.0,228.9,111,1,nao
+Santa Cecília,acima de 120m²,5691.69,9797.56,72.1,158,14,nao
+Consolação,até 50m²,6846.93,18928.57,176.5,158,2,nao
+Consolação,50–80m²,5593.22,16481.48,194.7,159,4,nao
+Consolação,80–120m²,6389.64,9051.46,41.7,100,5,nao
+Consolação,acima de 120m²,6659.69,9620.0,44.5,124,7,nao
+Bela Vista,até 50m²,5833.81,17686.05,203.2,148,2,nao
+Bela Vista,50–80m²,5268.57,17605.63,234.2,264,4,nao
+Bela Vista,80–120m²,5000.0,8407.92,68.2,250,10,nao
+Bela Vista,acima de 120m²,5841.81,8482.26,45.2,145,14,nao
 Paraíso,até 50m²,6632.65,20633.93,211.1,1,8,sim
-Paraíso,50–80m²,6329.11,14415.38,127.8,29,5,nao
-Paraíso,80–120m²,6542.22,12519.12,91.4,54,12,nao
-Paraíso,acima de 120m²,6694.56,15613.91,133.2,163,26,nao
+Paraíso,50–80m²,6240.86,14415.38,131.0,24,5,nao
+Paraíso,80–120m²,6956.52,12519.12,80.0,49,12,nao
+Paraíso,acima de 120m²,6756.76,15613.91,131.1,149,26,nao
 Planalto Paulista,até 50m²,7200.0,,,1,0,sim
 Planalto Paulista,50–80m²,4533.33,,,3,0,sim
-Planalto Paulista,80–120m²,4130.43,11942.77,189.1,11,2,nao
-Planalto Paulista,acima de 120m²,3840.58,10000.0,160.4,15,1,nao
+Planalto Paulista,80–120m²,4148.74,11942.77,187.9,13,2,nao
+Planalto Paulista,acima de 120m²,3913.05,10000.0,155.6,16,1,nao
 Mirandópolis,até 50m²,6222.22,,,3,0,sim
-Mirandópolis,50–80m²,5199.6,14563.97,180.1,28,2,nao
-Mirandópolis,80–120m²,4945.05,12192.98,146.6,41,1,nao
-Mirandópolis,acima de 120m²,4779.41,7569.44,58.4,36,3,nao
+Mirandópolis,50–80m²,5217.39,14563.97,179.1,27,2,nao
+Mirandópolis,80–120m²,4922.52,12192.98,147.7,38,1,nao
+Mirandópolis,acima de 120m²,4779.41,7569.44,58.4,32,3,nao
 Chácara Inglesa,50–80m²,,13018.89,,0,4,sim
-Chácara Inglesa,80–120m²,4700.85,14067.8,199.3,29,7,nao
-Chácara Inglesa,acima de 120m²,4908.4,8955.13,82.4,58,1,nao
+Chácara Inglesa,80–120m²,4668.6,14067.8,201.3,26,7,nao
+Chácara Inglesa,acima de 120m²,4887.22,8955.13,83.2,51,1,nao
 Bosque da Saúde,50–80m²,,12112.68,,0,3,sim
-Bosque da Saúde,80–120m²,4804.88,12465.85,159.4,25,4,nao
-Bosque da Saúde,acima de 120m²,5000.0,13602.48,172.0,31,3,nao
-Vila Mariana,até 50m²,7703.07,17500.0,127.2,38,45,nao
-Vila Mariana,50–80m²,5714.29,15315.41,168.0,87,18,nao
-Vila Mariana,80–120m²,5812.5,12296.12,111.5,203,36,nao
-Vila Mariana,acima de 120m²,6041.06,14371.38,137.9,320,38,nao
+Bosque da Saúde,80–120m²,4796.06,12465.85,159.9,24,4,nao
+Bosque da Saúde,acima de 120m²,5277.78,13602.48,157.7,29,3,nao
+Vila Mariana,até 50m²,7703.07,17535.71,127.6,32,44,nao
+Vila Mariana,50–80m²,5714.29,15315.41,168.0,77,18,nao
+Vila Mariana,80–120m²,5897.44,12296.12,108.5,179,36,nao
+Vila Mariana,acima de 120m²,6067.96,14371.38,136.8,283,38,nao
 Jardim Vila Mariana,50–80m²,,17727.27,,0,5,sim
-Jardim Vila Mariana,80–120m²,5398.8,,,4,0,sim
+Jardim Vila Mariana,80–120m²,4788.14,,,2,0,sim
 Jardim Vila Mariana,acima de 120m²,5894.31,8689.12,47.4,15,5,nao
-Vila Gumercindo,até 50m²,6878.55,,,13,0,nao
+Vila Gumercindo,até 50m²,6810.57,,,12,0,nao
 Vila Gumercindo,50–80m²,4473.68,10400.0,132.5,1,3,sim
-Vila Gumercindo,80–120m²,4240.23,11337.21,167.4,46,7,nao
-Vila Gumercindo,acima de 120m²,4560.0,10407.24,128.2,43,7,nao
+Vila Gumercindo,80–120m²,4249.25,11337.21,166.8,42,7,nao
+Vila Gumercindo,acima de 120m²,4480.0,10407.24,132.3,41,7,nao
 Vila Firmiano Pinto,80–120m²,3890.98,10934.07,181.0,8,1,sim
 Vila Firmiano Pinto,acima de 120m²,5414.01,13502.82,149.4,5,1,sim
 Jardim da Glória,50–80m²,4155.84,,,3,0,sim
 Jardim da Glória,80–120m²,4601.77,15943.4,246.5,1,3,sim
-Jardim da Glória,acima de 120m²,5756.57,13086.49,127.3,20,6,nao
-Cambuci,até 50m²,4791.67,,,17,0,nao
-Cambuci,50–80m²,4583.33,,,87,0,nao
-Cambuci,80–120m²,4114.58,11204.08,172.3,117,3,nao
-Cambuci,acima de 120m²,3754.7,5925.92,57.8,70,1,nao
-Vila da Saúde,até 50m²,7936.17,,,1,0,sim
-Vila da Saúde,50–80m²,5000.0,12597.83,152.0,6,2,sim
-Vila da Saúde,80–120m²,4692.98,6590.91,40.4,33,1,nao
-Vila da Saúde,acima de 120m²,4307.6,6953.12,61.4,2,1,sim
+Jardim da Glória,acima de 120m²,5759.9,13086.49,127.2,21,6,nao
+Cambuci,até 50m²,4680.56,,,12,0,nao
+Cambuci,50–80m²,4579.8,,,72,0,nao
+Cambuci,80–120m²,4092.38,11204.08,173.8,104,3,nao
+Cambuci,acima de 120m²,3783.85,5925.92,56.6,60,1,nao
+Vila da Saúde,50–80m²,5000.0,12597.83,152.0,5,2,sim
+Vila da Saúde,80–120m²,4629.63,6590.91,42.4,25,1,nao
+Vila da Saúde,acima de 120m²,5347.22,6953.12,30.0,1,1,sim
 Ipiranga,até 50m²,5525.47,,,8,0,sim
-Ipiranga,50–80m²,4276.32,11594.2,171.1,81,10,nao
-Ipiranga,80–120m²,4285.71,11700.2,173.0,225,8,nao
-Ipiranga,acima de 120m²,4915.51,11498.35,133.9,182,24,nao
+Ipiranga,50–80m²,4277.91,11922.1,178.7,72,9,nao
+Ipiranga,80–120m²,4226.8,11700.2,176.8,203,8,nao
+Ipiranga,acima de 120m²,4917.65,11347.06,130.7,165,23,nao
 Mooca,até 50m²,5945.84,,,6,0,sim
-Mooca,50–80m²,4967.53,15000.0,202.0,80,1,nao
-Mooca,80–120m²,3985.57,10599.53,165.9,108,6,nao
-Mooca,acima de 120m²,4115.23,14206.35,245.2,215,7,nao
-Tatuapé,até 50m²,5397.69,10800.0,100.1,29,6,nao
-Tatuapé,50–80m²,4714.29,11170.59,137.0,93,8,nao
-Tatuapé,80–120m²,4277.78,10113.64,136.4,289,5,nao
-Tatuapé,acima de 120m²,4331.8,7547.61,74.2,385,2,nao
-Jardim América,até 50m²,7988.58,32380.95,305.3,12,1,nao
-Jardim América,50–80m²,8783.78,32645.88,271.7,39,2,nao
-Jardim América,80–120m²,7311.83,12871.29,76.0,59,4,nao
-Jardim América,acima de 120m²,7526.83,20000.0,165.7,154,6,nao
+Mooca,50–80m²,4892.17,15000.0,206.6,65,1,nao
+Mooca,80–120m²,3917.31,10599.53,170.6,96,6,nao
+Mooca,acima de 120m²,4107.72,14206.35,245.8,194,7,nao
+Tatuapé,até 50m²,5204.08,10800.0,107.5,23,6,nao
+Tatuapé,50–80m²,4618.67,11170.59,141.9,81,8,nao
+Tatuapé,80–120m²,4258.41,10113.64,137.5,260,5,nao
+Tatuapé,acima de 120m²,4309.39,7547.61,75.1,345,2,nao
+Jardim América,até 50m²,7340.06,32380.95,341.2,7,1,sim
+Jardim América,50–80m²,8428.99,32645.88,287.3,36,2,nao
+Jardim América,80–120m²,7494.85,12871.29,71.7,51,4,nao
+Jardim América,acima de 120m²,7526.83,20000.0,165.7,140,6,nao
 Jardim Paulistano,50–80m²,,23333.33,,0,1,sim
 Jardim Paulistano,80–120m²,12792.83,,,2,0,sim
-Jardim Paulistano,acima de 120m²,10181.82,18539.33,82.1,15,4,nao
+Jardim Paulistano,acima de 120m²,11295.29,18539.33,64.1,14,4,nao
