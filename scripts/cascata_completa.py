@@ -262,7 +262,19 @@ def _sq_itbi(r):
     return sql[:6] if sql else None
 
 
+def _rkey(r):
+    """Chave estável pra casar o MESMO record entre universos diferentes
+    (ex: "revenda regra antiga" x "revenda regra aprovada") — mesma
+    combinação usada por clean_itbi.dedup_by_sql, então é única dentro de
+    cada lista (pós-dedup)."""
+    return (r.get("sql"), r.get("day"), round(r["valor"], 2), r.get("complemento") or "")
+
+
 def resolver_universo_itbi(cascata, records):
+    """Retorna (contagem_por_bairro, fora, incerto, metodos, resolucao)
+    — `resolucao` é {rkey: (destino, metodo)} pra permitir comparar o
+    destino de um MESMO record entre duas rodadas (ver
+    decompor_quedas_revenda)."""
     cascata.alimentar_votos(
         records,
         get_bairro_raw=lambda r: r["bairro_raw"],
@@ -274,16 +286,18 @@ def resolver_universo_itbi(cascata, records):
     metodos = {}
     fora = 0
     incerto = 0
+    resolucao = {}
     for r in records:
         destino, metodo = cascata.resolver(r["bairro_raw"], r["addr_key"], r["cep"], _sq_itbi(r))
         metodos[metodo] = metodos.get(metodo, 0) + 1
+        resolucao[_rkey(r)] = (destino, metodo)
         if metodo == "fora_carteira":
             fora += 1
         elif metodo == "incerto":
             incerto += 1
         elif destino:
             contagem[destino] = contagem.get(destino, 0) + 1
-    return contagem, fora, incerto, metodos
+    return contagem, fora, incerto, metodos, resolucao
 
 
 def resolver_universo_iptu(cascata, registros):
@@ -305,6 +319,61 @@ def resolver_universo_iptu(cascata, registros):
         elif destino:
             contagem[destino] = contagem.get(destino, 0) + 1
     return contagem, fora, incerto
+
+
+def decompor_quedas_revenda(revenda_antiga, revenda_nova, resolucao_antiga, resolucao_nova, buckets_novos, limiar=0.25):
+    """Pra cada bairro com queda de revenda (antiga -> nova) acima de
+    `limiar`, decompõe quanto vem de (a) o record ter SAÍDO do balde
+    revenda (foi pra planta/parcial/demais na regra nova) vs (b) o record
+    ter CONTINUADO revenda mas mudado de bairro resolvido (efeito da
+    cascata, não da regra de classificação). `buckets_novos` é o dict de
+    classificar_revenda_planta_aprovada() (pra saber pra qual balde foi
+    quem saiu de revenda)."""
+    keys_revenda_nova = {_rkey(r) for r in revenda_nova}
+    keys_planta_nova = {_rkey(r) for r in buckets_novos["planta"]}
+    keys_parcial_nova = {_rkey(r) for r in buckets_novos["parcial"]}
+    keys_demais_nova = {_rkey(r) for r in buckets_novos["demais"]}
+
+    por_bairro_antigo = {}
+    for r in revenda_antiga:
+        destino, metodo = resolucao_antiga.get(_rkey(r), (None, None))
+        if destino:
+            por_bairro_antigo.setdefault(destino, []).append(r)
+
+    out = []
+    for bairro, recs_antigos in por_bairro_antigo.items():
+        old_total = len(recs_antigos)
+        rkeys_antigos = {_rkey(r) for r in recs_antigos}
+        unchanged = reassigned = 0
+        foi_planta = foi_parcial = foi_demais = fora_do_universo = 0
+        for rk in rkeys_antigos:
+            if rk in keys_revenda_nova:
+                destino_novo, _ = resolucao_nova.get(rk, (None, None))
+                if destino_novo == bairro:
+                    unchanged += 1
+                else:
+                    reassigned += 1
+            elif rk in keys_planta_nova:
+                foi_planta += 1
+            elif rk in keys_parcial_nova:
+                foi_parcial += 1
+            elif rk in keys_demais_nova:
+                foi_demais += 1
+            else:
+                fora_do_universo += 1
+        new_total = sum(1 for rk in rkeys_antigos if resolucao_nova.get(rk, (None, None))[0] == bairro) + sum(
+            1 for r in revenda_nova if resolucao_nova.get(_rkey(r), (None, None))[0] == bairro and _rkey(r) not in rkeys_antigos
+        )
+        queda_pct = (old_total - new_total) / old_total if old_total else 0
+        if queda_pct >= limiar:
+            out.append({
+                "bairro": bairro, "old_total": old_total, "new_total": new_total, "queda_pct": queda_pct,
+                "unchanged": unchanged, "reassigned_outro_bairro": reassigned,
+                "saiu_planta": foi_planta, "saiu_parcial": foi_parcial, "saiu_demais": foi_demais,
+                "saiu_fora_do_universo": fora_do_universo,
+            })
+    out.sort(key=lambda d: -d["queda_pct"])
+    return out
 
 
 def rodar(usar_split_santo_amaro, label):
@@ -359,13 +428,20 @@ def rodar(usar_split_santo_amaro, label):
         )
 
     cascata_antes = fabrica_cascata()
-    contagem_antes, fora_antes, incerto_antes, _ = resolver_universo_itbi(cascata_antes, antes_combinado)
+    contagem_antes, fora_antes, incerto_antes, _, _ = resolver_universo_itbi(cascata_antes, antes_combinado)
+
+    # revenda da regra ANTIGA resolvida SOZINHA (não combinada com
+    # planta_antiga) — só pra decompor a queda de revenda por bairro
+    # (ver abaixo); a coluna "antes" da tabela principal continua usando
+    # o combinado acima.
+    cascata_revenda_antiga = fabrica_cascata()
+    _, _, _, _, resolucao_revenda_antiga = resolver_universo_itbi(cascata_revenda_antiga, revenda_antiga)
 
     cascata_revenda = fabrica_cascata()
-    contagem_revenda, fora_r, incerto_r, _ = resolver_universo_itbi(cascata_revenda, revenda)
+    contagem_revenda, fora_r, incerto_r, _, resolucao_revenda = resolver_universo_itbi(cascata_revenda, revenda)
 
     cascata_planta = fabrica_cascata()
-    contagem_planta, fora_p, incerto_p, _ = resolver_universo_itbi(cascata_planta, planta)
+    contagem_planta, fora_p, incerto_p, _, _ = resolver_universo_itbi(cascata_planta, planta)
 
     print("[iptu] carregando unidades residenciais (apto + residência)...")
     unidades = carregar_unidades_iptu()
@@ -398,6 +474,24 @@ def rodar(usar_split_santo_amaro, label):
         giro_s = f"{giro:.2f}%" if giro is not None else "—"
         print(f"{b}|{antes}|{rv}|{pl}|{un}|{giro_s}")
 
+    print("\n=== GIRO ACIMA DE 10% (revenda/unidades) ===")
+    acima10 = [(b, giro) for b, _, _, _, un, giro in linhas if un and giro is not None and giro > 10.0]
+    if not acima10:
+        print("  nenhum bairro acima de 10%")
+    else:
+        for b, giro in sorted(acima10, key=lambda x: -x[1]):
+            print(f"  {b}: {giro:.2f}%")
+
+    print("\n=== QUEDAS DE REVENDA >=25% (regra antiga -> aprovada), decomposição ===")
+    quedas = decompor_quedas_revenda(revenda_antiga, revenda, resolucao_revenda_antiga, resolucao_revenda, buckets)
+    for d in quedas:
+        print(
+            f"  {d['bairro']}: {d['old_total']} -> {d['new_total']} (queda {d['queda_pct']*100:.1f}%) | "
+            f"continuou revenda mesmo bairro={d['unchanged']} | revenda mas mudou de bairro={d['reassigned_outro_bairro']} | "
+            f"saiu pra planta={d['saiu_planta']} parcial={d['saiu_parcial']} demais={d['saiu_demais']} "
+            f"fora_universo={d['saiu_fora_do_universo']}"
+        )
+
     return {
         "targets": targets,
         "antes": contagem_antes, "revenda": contagem_revenda, "planta": contagem_planta, "unidades": contagem_unidades,
@@ -407,6 +501,7 @@ def rodar(usar_split_santo_amaro, label):
             "planta": (len(planta), sum(contagem_planta.values()), fora_p, incerto_p),
             "unidades": (len(unidades), sum(contagem_unidades.values()), fora_u, incerto_u),
         },
+        "quedas_revenda": quedas,
     }
 
 
