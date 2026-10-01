@@ -2,8 +2,25 @@
 .env
 
 # cache local do pipeline (baixado de novo pelo itbi_source.py / Action —
-# não precisa ir pro git; os .xlsx de ITBI sozinhos passam de 100MB)
-data/
+# não precisa ir pro git; os .xlsx de ITBI sozinhos passam de 100MB).
+# "data/*" (não "data/", ver abaixo) pra não bloquear o git de descer no
+# diretório e aplicar as exceções logo depois — um diretório IGNORADO
+# (não só seu conteúdo) nunca tem exceção de arquivo respeitada.
+data/*
+
+# Exceções: 2 arquivos pequenos de data/iptu_geosampa/ que o build_data.py
+# PRECISA em runtime (cascata_completa.gerar_dados_carteira_77) e que não
+# têm como ser rebaixados automaticamente (o cadastro do IPTU no GeoSampa
+# bloqueia download automatizado com CAPTCHA — só dá pra baixar manualmente
+# pelo navegador, ver README "Item 3"). Sem commitar os dois, o painel
+# "Carteira 77" fica permanentemente quebrado na Action/cron (achado de
+# 2026-10-01, no primeiro build real pós-merge).
+!data/iptu_geosampa/
+data/iptu_geosampa/*
+!data/iptu_geosampa/iptu_2026_reduzido.csv.gz
+!data/iptu_geosampa/raw/
+data/iptu_geosampa/raw/*
+!data/iptu_geosampa/raw/bairros_mercado_preenchido.csv
 
 # fontes manuais antigas (fluxo Perl descontinuado — ver README). Ficam no
 # disco local como referência, mas são grandes demais (100MB+) pra git.

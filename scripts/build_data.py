@@ -227,14 +227,14 @@ def main():
 
     print(f"[build] anos: {years}")
     if os.environ.get("SKIP_ITBI_SYNC", "").strip() == "1":
-        # Base congelada pra auditoria (pedido do usuário em 2026-09-30):
-        # nenhum relatório antes×depois desta correção pode comparar contra
-        # planilhas diferentes no meio do caminho. Usa só o que já está em
-        # data/itbi_raw/ (a aba AGO-2026 chegou durante o item 4 e vira a
-        # base congelada a partir daqui) — nunca setado pelo cron; só ligado
-        # manualmente nesta branch até o merge, quando a sincronização
-        # automática diária volta a valer.
-        print("[build] SKIP_ITBI_SYNC=1 — base congelada da auditoria, sem checar planilha nova na Prefeitura")
+        # Escape hatch manual pra congelar a base (usado durante toda a
+        # auditoria de correção de metodologia do ITBI, 2026-09-30, pra
+        # nenhum relatório antes×depois comparar contra planilhas
+        # diferentes no meio do caminho — auditoria mergeada em main em
+        # 2026-10-01, tag pos-correcao-itbi) — nunca setado pelo cron;
+        # só pra uso manual quando alguém precisar repetir o mesmo tipo
+        # de comparação controlada no futuro.
+        print("[build] SKIP_ITBI_SYNC=1 — base congelada manualmente, sem checar planilha nova na Prefeitura")
         changed_years = set()
     else:
         # A Prefeitura já bloqueou a Action com 403 mesmo depois do retry/backoff
