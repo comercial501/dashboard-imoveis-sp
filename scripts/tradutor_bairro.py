@@ -280,8 +280,22 @@ class Cascata:
         # Nenhum método resolveu pra um dos 74 — decide fora_carteira (tem
         # nome de bairro real, só não é um dos 74) vs incerto (não tem
         # nome nenhum, ou é lixo tipo torre/bloco/número solto).
-        if status == "AUTO_IGNORAR":
-            return None, "incerto"
+        #
+        # Bug corrigido em 2026-09-30 (item 3, investigação do incerto de
+        # revenda a pedido do usuário): quando status era AUTO_IGNORAR
+        # (nome reconhecido como lixo — "TORRE 2", "BLOCO B" etc.), a
+        # função retornava "incerto" DIRETO, sem nunca checar
+        # quadras_qualquer_bairro — ou seja, mesmo quando a quadra fiscal
+        # daquele imóvel tinha um bairro majoritário bem identificável no
+        # IPTU (prédio genuinamente localizável, só com o campo Bairro
+        # preenchido com o nome da torre em vez do bairro), a linha virava
+        # "incerto" em vez de "fora_carteira". Amostra confirmou: ~80% dos
+        # ~6.200 revenda "incerto" eram exatamente esse padrão (bairro_raw
+        # tipo "TORRE 1"/"BLOCO F", quadra74=None mas
+        # tem_qualquer_bairro=True). _parece_bairro(bairro_raw) já cobre
+        # "status é lixo/garbage" (mesmo regex), então o check abaixo
+        # sozinho já trata os dois casos (nome desconhecido E nome
+        # reconhecido como lixo) de forma consistente.
         if _parece_bairro(bairro_raw) or sq in self.quadras_qualquer_bairro:
             return None, "fora_carteira"
         return None, "incerto"
