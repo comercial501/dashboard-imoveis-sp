@@ -1244,10 +1244,17 @@ def _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out):
         groups.append({
             "bairro": b,
             "flag_prioridade_maxima": bo["flag_prioridade_maxima"],
+            # Passo 2 (2026-10-01): perfil migrado pra faixa de preço v2
+            # (valor pago em revenda, por tipo) — v1 (area_band/
+            # price_band/profile_quartos/profile_vagas/
+            # profile_reliability) não é mais lido aqui. v2 não tem
+            # conceito de dormitórios/vagas típicos (é só faixa de
+            # preço) — essa informação sai do cabeçalho do grupo (ver
+            # relatório, item 1a).
             "perfil": {
-                "area_band": bo["area_band"], "price_band": bo["price_band"],
-                "profile_quartos": bo["profile_quartos"], "profile_vagas": bo["profile_vagas"],
-                "profile_reliability": bo["profile_reliability"],
+                "faixa_preco": bo["perfil_vencedor_faixa_preco_v2"],
+                "estoque_perfil_faixa_preco": bo["estoque_perfil_faixa_preco"],
+                "estoque_fora_do_perfil": bo["estoque_fora_do_perfil"],
             },
             "enderecos": [
                 {"endereco": e["endereco"], "n_vendas": e["n_vendas"], "preco_min": e["preco_min"],
@@ -1358,13 +1365,17 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
         # outros dois; a média preserva a leitura "por ano" com amostra
         # maior e mais estável.
         volume_primary = round(mean([yearly[b][y]["count"] for y in years]))
+        # stock_match (v1, metragem) MANTIDO só pro campo obsoleto
+        # stock_matching_profile (ver nota abaixo) — não entra mais na
+        # razão Estoque×Demanda nem em flag_prioridade_maxima.
         stock_match = profile[b]["profile_sample_size"]
-        # Etapa 2, item 1 (2026-10-01): "demanda" pro Estoque x Demanda
-        # agora é revenda_12m (base nova), não mais a média de 3 anos de
-        # QUALQUER transação (volume_primary) — mesma unidade (vendas por
-        # ano), já que revenda_12m também é uma janela de 12 meses.
+        # Passo 2 (2026-10-01): numerador do Estoque×Demanda migrado pra
+        # v2 (faixa de preço, por tipo) — mesmo motivo do Prontidão: o
+        # bucket de metragem (v1) herda a distorção área construída x
+        # área útil. demand continua revenda_12m (Etapa 2, item 1).
+        stock_match_v2 = perfil_preco_v2[b]["profile_sample_size_faixa_preco_v2"]
         demand = revenda_12m_map[b]
-        ratio = (stock_match / demand) if demand > 0 else (999 if stock_match > 0 else 0)
+        ratio = (stock_match_v2 / demand) if demand > 0 else (999 if stock_match_v2 > 0 else 0)
 
         paid_median = pooled_median[b]["median_valor"]
         asking = asking_median[b]
@@ -1403,6 +1414,21 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
             "trend_pct_mercado_12m": trend_pct_mercado_12m_map[b],
             "volume_retomadas_12m": volume_retomadas_12m_map[b],
             "preco_m2_segmentos": preco_m2[b],
+            # OBSOLETO (passo 2, 2026-10-01): area_band/price_band/
+            # profile_quartos/profile_vagas/profile_sample_size/
+            # area_band_reliability/area_band_neighbors/profile_
+            # reliability/profile_neighbors/profile_pool_sample_size/
+            # stock_matching_profile são o sistema de perfil vencedor POR
+            # METRAGEM (v1) — herdam a distorção área construída (ITBI) x
+            # área útil (anúncio). Nenhum painel deveria mais LER esses
+            # campos pra decidir nada (ver scripts/validate_build.
+            # check_perfil_v1_obsoleto) — mantidos só porque "Perfil por
+            # Bairro" (painel 3) ainda os EXIBE como estão (não migrado
+            # nesta rodada, é o painel que descreve o v1 por definição) e
+            # _compute_imoveis_prioritarios (Painel 8, "aderência") ainda
+            # os USA (fora do escopo do passo 2 — reportado, não
+            # corrigido, ver relatório). Remoção só em versão futura, com
+            # aprovação do usuário.
             "area_band": profile[b]["area_band"], "price_band": profile[b]["price_band"],
             "price_band_median": profile[b]["price_band_median"],
             "profile_quartos": profile[b]["profile_quartos"], "profile_vagas": profile[b]["profile_vagas"],
@@ -1414,18 +1440,14 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
             "profile_pool_sample_size": profile[b]["profile_pool_sample_size"],
             "stock_total": stock_total[b], "stock_matching_profile": stock_match,
             # Revisão 2026-10-01 (v2): estoque no perfil vencedor por
-            # FAIXA DE PREÇO agora vem do valor pago em revenda (12m, por
-            # tipo de imóvel), não mais do bucket de metragem — ver
-            # _compute_perfil_vencedor_faixa_preco_v2 (achado: a faixa v1
-            # herdava a mesma distorção área construída x área útil do
-            # backlog de calibração — Campo Belo/Santa Cecília/Mooca
-            # ficavam com faixa de um apê pequeno/antigo, bem abaixo do
-            # que qualquer anúncio ativo pede hoje). Usado pelo f2 do
-            # Prontidão e pelo shortlist_google_ads.csv. stock_matching_
-            # profile (área, acima) e price_band/area_band (abaixo)
-            # continuam intactos pros painéis que ainda não migraram
-            # (Estoque×Demanda, flag_prioridade_maxima, Captação
-            # Estratégica).
+            # FAIXA DE PREÇO vem do valor pago em revenda (12m, por tipo
+            # de imóvel), não mais do bucket de metragem — ver
+            # _compute_perfil_vencedor_faixa_preco_v2. Passo 2: agora
+            # também alimenta a razão Estoque×Demanda (stock_demand_ratio,
+            # acima) e flag_prioridade_maxima (abaixo), além do f2 do
+            # Prontidão e do shortlist_google_ads.csv — os 3 painéis que
+            # ainda liam stock_matching_profile/area_band (v1) migraram
+            # nesta rodada.
             "estoque_perfil_faixa_preco": perfil_preco_v2[b]["profile_sample_size_faixa_preco_v2"],
             "perfil_vencedor_faixa_preco_v2": perfil_preco_v2[b]["bandas"],
             "estoque_fora_do_perfil": perfil_preco_v2[b]["estoque_fora_do_perfil"],
@@ -1498,8 +1520,10 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
         bairros_out[b]["score_revenda"] = _round(score_revenda_map[b])
         bairros_out[b]["stock_total_demand_ratio"] = round(total_ratio_map[b], 3)
         bairros_out[b]["flag_saturacao_alta"] = total_ratio_map[b] >= high_tercile
+        # Passo 2 (2026-10-01): migrado de stock_matching_profile (v1,
+        # metragem) pra estoque_perfil_faixa_preco (v2, faixa de preço).
         bairros_out[b]["flag_prioridade_maxima"] = (
-            bairros_out[b]["stock_matching_profile"] <= CAPTACAO_ESTRATEGICA_MAX_STOCK_MATCH
+            bairros_out[b]["estoque_perfil_faixa_preco"] <= CAPTACAO_ESTRATEGICA_MAX_STOCK_MATCH
             and bairros_out[b]["revenda_12m"] >= VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY
         )
 

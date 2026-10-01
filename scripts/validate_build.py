@@ -32,6 +32,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from normalize import TARGETS
 from xlsx_reader import Workbook
 
+ROOT = Path(__file__).resolve().parent.parent
+
 SHEET_RE = re.compile(r"^(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)-(\d{4})$")
 VARIACAO_MAX = 0.30
 
@@ -159,12 +161,12 @@ def check_linhas_lidas(year_to_path, itbi_stats):
             f"{sheets_checked} abas, {header_rows} são cabeçalho (esperado {esperado} "
             f"linhas de dado), mas o parser leu {lido}. Diferença: {lido - esperado:+d}."
         )
-    print(f"[validate_build] OK 1/5 — linhas lidas batem: {lido} == {total_rows} totais - {header_rows} cabeçalho, em {sheets_checked} abas.")
+    print(f"[validate_build] OK 1/6 — linhas lidas batem: {lido} == {total_rows} totais - {header_rows} cabeçalho, em {sheets_checked} abas.")
 
 
 def check_variacao_bairros(new_bairros, old_data_path):
     if not old_data_path.exists():
-        print("[validate_build] OK 2/5 — sem versão publicada anterior pra comparar (primeira execução).")
+        print("[validate_build] OK 2/6 — sem versão publicada anterior pra comparar (primeira execução).")
         return
     try:
         old_data = json.loads(old_data_path.read_text(encoding="utf-8"))
@@ -201,7 +203,7 @@ def check_variacao_bairros(new_bairros, old_data_path):
             f"Se a mudança é esperada (correção deliberada de metodologia), rode de novo com "
             f"ALLOW_LARGE_CHANGES=1 no ambiente."
         )
-    print(f"[validate_build] OK 2/5 — nenhum bairro variou mais que {VARIACAO_MAX*100:.0f}% em volume_primary_year.")
+    print(f"[validate_build] OK 2/6 — nenhum bairro variou mais que {VARIACAO_MAX*100:.0f}% em volume_primary_year.")
 
 
 def check_formato_paineis(data):
@@ -222,7 +224,7 @@ def check_formato_paineis(data):
     if not isinstance(data.get("ranking"), list) or len(data["ranking"]) != len(TARGETS):
         raise ValidationError(f"'ranking' deveria ter {len(TARGETS)} bairros, tem {len(data.get('ranking'))}.")
 
-    print(f"[validate_build] OK 3/5 — formato de data.json íntegro: {len(bairros)} bairros, todas as chaves esperadas presentes.")
+    print(f"[validate_build] OK 3/6 — formato de data.json íntegro: {len(bairros)} bairros, todas as chaves esperadas presentes.")
 
 
 def check_consistencia_carteira_77(data):
@@ -260,7 +262,7 @@ def check_consistencia_carteira_77(data):
             f"consistência carteira_77 FALHOU — {len(divergencias)} divergência(s) entre bairros_out e "
             f"carteira_77 (deveriam ser idênticos):\n{linhas}{a_mais}"
         )
-    print(f"[validate_build] OK 4/5 — {len(TARGETS)} bairros batem exato com carteira_77 em {len(campos)} campos.")
+    print(f"[validate_build] OK 4/6 — {len(TARGETS)} bairros batem exato com carteira_77 em {len(campos)} campos.")
 
 
 def check_prontidao_consistencia(data):
@@ -295,17 +297,83 @@ def check_prontidao_consistencia(data):
             f"bairro(s) com amostra pequena (< 100 revendas em 12m) no top 10 do Prontidão: {top10_amostra_pequena} "
             "— não deveriam ocupar posição de topo (gate de merge pedido pelo usuário)."
         )
-    print(f"[validate_build] OK 5/5 — Prontidão: {len(TARGETS)} bairros com nota, top 10 sem amostra pequena.")
+    print(f"[validate_build] OK 5/6 — Prontidão: {len(TARGETS)} bairros com nota, top 10 sem amostra pequena.")
+
+
+def check_perfil_v1_obsoleto(data):
+    """Passo 2 da migração do perfil vencedor (2026-10-01), item 2 pedido
+    pelo usuário: "nenhum painel pode ler a faixa antiga (v1)" — trava o
+    build se Captação Ativa Estratégica, Estoque×Demanda ou flag_
+    prioridade_maxima voltarem a depender do sistema de perfil por
+    METRAGEM (area_band/price_band/profile_quartos/profile_vagas/
+    profile_reliability/stock_matching_profile).
+
+    NÃO é uma proibição geral desses campos no código — eles continuam
+    existindo em data.json (obsoletos, não removidos) e ainda alimentam
+    dois consumidores fora do escopo desta migração, que o usuário pediu
+    pra só REPORTAR (item 3), não corrigir: o painel "Perfil por Bairro"
+    (que exibe o v1 por definição) e a "aderência" do Painel 8 (Imóveis
+    Prioritários). Esta checagem é específica aos 3 painéis migrados:
+
+      1. data.json: `captacao_estrategica[*].perfil` não pode ter chaves
+         v1 (area_band/price_band/profile_quartos/profile_vagas/
+         profile_reliability) — só faixa_preco/estoque_perfil_faixa_
+         preco/estoque_fora_do_perfil (v2).
+      2. data.json: flag_prioridade_maxima de cada bairro precisa bater
+         com a recomputação usando estoque_perfil_faixa_preco (v2) — se
+         alguém reverter a fórmula pra stock_matching_profile (v1), os
+         dois só coincidem por acaso (bairro a bairro costumam divergir:
+         ver relatório), então essa checagem pega a regressão na prática,
+         não só por leitura de código.
+      3. site/app.js (único arquivo de painéis/UI): a string literal
+         "stock_matching_profile" não pode mais aparecer (hoje só é lida
+         pela Estoque×Demanda, que migrou) — scan de texto, ignora linhas
+         de comentário (`//`)."""
+    import engine
+
+    divergencias = []
+
+    for g in data.get("captacao_estrategica", []):
+        chaves_v1_presentes = {"area_band", "price_band", "profile_quartos", "profile_vagas", "profile_reliability"} & g.get("perfil", {}).keys()
+        if chaves_v1_presentes:
+            divergencias.append(f"captacao_estrategica[{g.get('bairro')}].perfil ainda tem chave(s) v1: {sorted(chaves_v1_presentes)}")
+
+    bairros = data["bairros"]
+    for b in TARGETS:
+        v = bairros.get(b, {})
+        esperado = (
+            v.get("estoque_perfil_faixa_preco", 0) <= engine.CAPTACAO_ESTRATEGICA_MAX_STOCK_MATCH
+            and v.get("revenda_12m", 0) >= engine.VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY
+        )
+        if v.get("flag_prioridade_maxima") != esperado:
+            divergencias.append(f"{b}.flag_prioridade_maxima={v.get('flag_prioridade_maxima')!r}, esperado {esperado!r} (recomputado via estoque_perfil_faixa_preco v2) — parece estar usando stock_matching_profile (v1) de novo.")
+
+    app_js = (ROOT / "site" / "app.js").read_text(encoding="utf-8")
+    linhas_proibidas = [
+        (i + 1, linha) for i, linha in enumerate(app_js.splitlines())
+        if "stock_matching_profile" in linha and not linha.strip().startswith("//")
+    ]
+    if linhas_proibidas:
+        divergencias.append(
+            "site/app.js ainda lê 'stock_matching_profile' (v1) fora de comentário: "
+            + "; ".join(f"linha {n}: {l.strip()}" for n, l in linhas_proibidas[:10])
+        )
+
+    if divergencias:
+        linhas = "\n".join(f"  - {d}" for d in divergencias[:30])
+        raise ValidationError(f"perfil vencedor v1 ainda em uso onde deveria ser v2:\n{linhas}")
+    print("[validate_build] OK 6/6 — Captação Estratégica/Estoque×Demanda/flag_prioridade_maxima só usam a faixa de preço v2.")
 
 
 def validate_before_publish(year_to_path, itbi_stats, data, out_path):
     """Chamado por build_data.py logo antes de escrever site/data.json.
     Levanta SystemExit (para o processo com código != 0) se qualquer
     checagem falhar — build_data.py não deve capturar essa exceção."""
-    print("[validate_build] rodando as 5 checagens antes de publicar...")
+    print("[validate_build] rodando as 6 checagens antes de publicar...")
     check_linhas_lidas(year_to_path, itbi_stats)
     check_variacao_bairros(data["bairros"], out_path)
     check_formato_paineis(data)
     check_consistencia_carteira_77(data)
     check_prontidao_consistencia(data)
+    check_perfil_v1_obsoleto(data)
     print("[validate_build] todas as checagens passaram — liberado pra publicar.")

@@ -857,10 +857,16 @@ function renderPerfilContent(name) {
   box.appendChild(perfilBox);
 
   const stockBox = el("section", { class: "card", style: "margin:0 0 14px; padding:16px 18px;" });
-  stockBox.appendChild(el("h2", { style: "font-size:14.5px" }, "Estoque × Demanda"));
+  const stockHeader = el("div", { style: "display:flex; align-items:center; gap:8px" }, [
+    el("h2", { style: "font-size:14.5px; margin:0" }, "Estoque × Demanda"),
+  ]);
+  // Passo 2 (2026-10-01): "Estoque no perfil vencedor" migrado pra faixa
+  // de preço v2 (era metragem, v1 — ver scripts/engine.py.compute).
+  if (b.estoque_fora_do_perfil) stockHeader.appendChild(badge("Estoque fora do perfil", "warning"));
+  stockBox.appendChild(stockHeader);
   barRows(stockBox, [
     { label: "Estoque total anunciado", value: b.stock_total, colorVar: "--series-blue" },
-    { label: "Estoque no perfil vencedor", value: b.stock_matching_profile, colorVar: "--gold" },
+    { label: "Estoque no perfil vencedor (faixa de preço)", value: b.estoque_perfil_faixa_preco, colorVar: "--gold" },
   ], { maxOverride: Math.max(b.stock_total, 1) });
   stockBox.appendChild(el("div", { class: "small muted", style: "margin-top:8px" },
     `Razão estoque no perfil / vendas de revenda (12m, ${periodo12mLabel()}): ${b.stock_demand_ratio >= 999 ? "∞ (sem demanda registrada)" : b.stock_demand_ratio.toFixed(2)}`));
@@ -992,14 +998,29 @@ function renderCaptacao() {
       printCaptacaoGroup(details);
     });
     const summary = el("summary", {}, [
-      el("span", {}, [g.bairro, g.flag_prioridade_maxima ? badge("Prioridade Máxima", "gold") : null, searchInterestBadge(DATA.bairros[g.bairro]), pdfLink]),
+      el("span", {}, [
+        g.bairro,
+        g.flag_prioridade_maxima ? badge("Prioridade Máxima", "gold") : null,
+        // Passo 2 (2026-10-01): selo "Estoque fora do perfil" também aqui
+        // (ver engine.py._compute_captacao_estrategica).
+        g.perfil.estoque_fora_do_perfil ? badge("Estoque fora do perfil", "warning") : null,
+        searchInterestBadge(DATA.bairros[g.bairro]), pdfLink,
+      ]),
       el("span", { class: "n" }, `${g.enderecos.length} endereço${g.enderecos.length === 1 ? "" : "s"}`),
     ]);
     details.appendChild(summary);
 
-    if (g.perfil.area_band) {
+    // Passo 2 (2026-10-01): perfil migrado pra faixa de preço v2 (valor
+    // pago em revenda, 12m, por tipo de imóvel) — era metragem/
+    // dormitórios/vagas (v1). v2 não tem conceito de dormitórios/vagas
+    // típicos (é só faixa de preço).
+    const faixa = g.perfil.faixa_preco || {};
+    const partes = [];
+    if (faixa.apartamento) partes.push(`Apartamento ${fmtMoneyCompact(faixa.apartamento[0])}–${fmtMoneyCompact(faixa.apartamento[1])}`);
+    if (faixa.casa) partes.push(`Casa ${fmtMoneyCompact(faixa.casa[0])}–${fmtMoneyCompact(faixa.casa[1])}`);
+    if (partes.length) {
       details.appendChild(el("div", { class: "profile-line" },
-        `Perfil vencedor: ${fmtM2(g.perfil.area_band[0])}–${fmtM2(g.perfil.area_band[1])} · ${g.perfil.profile_quartos ?? "—"} dorm · ${g.perfil.profile_vagas ?? "—"} vaga(s)`));
+        `Perfil vencedor (faixa de preço paga em revenda, 12m): ${partes.join(" · ")}`));
     }
 
     const appendAddrRow = (container, e) => {
@@ -1140,13 +1161,17 @@ function renderEstoqueDemanda() {
       { key: "bairro", label: "Bairro" },
       { key: "revenda_12m", label: `Demanda (revenda 12m, ${periodo12mLabel()})` },
       { key: "stock_total", label: "Estoque total" },
-      { key: "stock_matching_profile", label: "Estoque no perfil" },
+      // Passo 2 (2026-10-01): migrado pra faixa de preço v2 (era metragem, v1).
+      { key: "estoque_perfil_faixa_preco", label: "Estoque no perfil (faixa de preço)" },
       { key: "stock_demand_ratio", label: "Cobertura", fmt: (v) => (v >= 999 ? "∞" : v.toFixed(3)) },
       {
         key: "sinal", label: "Sinal", sortable: false, render: (r) => {
-          if (r.flag_oportunidade) return badge("Oportunidade", "gold");
-          if (r.flag_alerta) return badge("Alerta preço", "critical");
-          return badge("Neutro", "neutral");
+          const wrap = el("div", {});
+          if (r.flag_oportunidade) wrap.appendChild(badge("Oportunidade", "gold"));
+          if (r.flag_alerta) wrap.appendChild(badge("Alerta preço", "critical"));
+          if (r.estoque_fora_do_perfil) wrap.appendChild(badge("Estoque fora do perfil", "warning"));
+          if (!wrap.children.length) wrap.appendChild(badge("Neutro", "neutral"));
+          return wrap;
         },
       },
       {
@@ -1177,7 +1202,7 @@ function toggleEstoqueDetalhe(bairro, linkEl) {
   const nCols = clickedRow.children.length;
   const box = el("div", { class: "card", style: "margin:0" }, [
     el("h2", { style: "font-size:14.5px" }, `Estoque no perfil vencedor — ${bairro}`),
-    el("div", { class: "card-sub" }, `${listings.length} anúncio${listings.length === 1 ? "" : "s"} dentro da faixa de metragem vencedora do bairro.`),
+    el("div", { class: "card-sub" }, `${listings.length} anúncio${listings.length === 1 ? "" : "s"} dentro da faixa de preço vencedora do bairro (valor pago em revenda, 12m, por tipo de imóvel).`),
   ]);
   if (!listings.length) {
     box.appendChild(el("div", { class: "placeholder-block" }, "Nenhum anúncio ativo dentro dessa faixa no momento."));

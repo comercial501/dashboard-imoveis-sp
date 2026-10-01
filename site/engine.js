@@ -716,6 +716,11 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       bandas,
       profile_sample_size_faixa_preco_v2: inBandV2.length,
       estoque_fora_do_perfil: ownStock.length > 0 && inBandV2.length === 0,
+      // Passo 2 (2026-10-01): lista real dos anúncios dentro da faixa —
+      // alimenta o drill-down "Ver lista completa" do Estoque×Demanda
+      // (ver _matchingListingsByBairro), que antes usava a lista v1
+      // (_matching_listings, por metragem).
+      _matching_listings_v2: inBandV2,
     };
   });
 
@@ -831,9 +836,16 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     // Volume "de referência" = média anual dos 3 anos, não só o último
     // fechado (ver scripts/engine.py.compute — decisão do usuário, 2026-09-25).
     const volumePrimary = round(mean([yearly[b][yearPrev].count, yearly[b][yearFull].count, yearly[b][yearCurr].count]), 0);
+    // stockMatch (v1, metragem) MANTIDO só pro campo obsoleto stock_matching_profile.
     const stockMatch = profile[b].profile_sample_size;
-    const demand = volumePrimary;
-    const ratio = demand > 0 ? stockMatch / demand : (stockMatch > 0 ? 999 : 0);
+    // Passo 2 (2026-10-01): numerador do Estoque×Demanda migrado pra v2
+    // (faixa de preço) + corrige demand pra revenda_12m (o lado Python já
+    // usava revenda_12m desde a Etapa 2, item 1 — aqui ainda estava preso
+    // em volumePrimary, uma divergência Python x JS que só não aparecia
+    // porque nada comparava os dois lados nesse campo específico até agora).
+    const stockMatchV2 = perfilPrecoV2[b].profile_sample_size_faixa_preco_v2;
+    const demand = countRevendaAtual[b];
+    const ratio = demand > 0 ? stockMatchV2 / demand : (stockMatchV2 > 0 ? 999 : 0);
     const paidMedian = pooledMedian[b].median_valor;
     const asking = askingMedian[b];
     // Gap Preço / flag_alerta (Etapa 3, 2026-09-29): segmento (tipo+faixa)
@@ -884,7 +896,9 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       liquidez_total_primary_year: round(mean([liquidez[b][yearPrev].total, liquidez[b][yearFull].total, liquidez[b][yearCurr].total]), 0),
       liquidez_revenda_primary_year: round(mean([liquidez[b][yearPrev].revenda, liquidez[b][yearFull].revenda, liquidez[b][yearCurr].revenda]), 0),
       liquidez_por_ano: { [yearPrev]: liquidez[b][yearPrev], [yearFull]: liquidez[b][yearFull], [yearCurr]: liquidez[b][yearCurr] },
-      _matching_listings: profile[b]._matching_listings,
+      // Passo 2 (2026-10-01): drill-down do Estoque×Demanda migrado pra
+      // lista v2 (faixa de preço) — era profile[b]._matching_listings (v1, metragem).
+      _matching_listings: perfilPrecoV2[b]._matching_listings_v2,
     };
   });
 
@@ -925,7 +939,9 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     bo.score_revenda = round(scoreRevendaMapScope[b]);
     bo.stock_total_demand_ratio = Math.round(totalRatioMapScope[b] * 1000) / 1000;
     bo.flag_saturacao_alta = totalRatioMapScope[b] >= highTercile;
-    bo.flag_prioridade_maxima = bo.stock_matching_profile <= C.captacao_estrategica_max_stock_match
+    // Passo 2 (2026-10-01): migrado de stock_matching_profile (v1) pra
+    // estoque_perfil_faixa_preco (v2).
+    bo.flag_prioridade_maxima = bo.estoque_perfil_faixa_preco <= C.captacao_estrategica_max_stock_match
       && bo.revenda_12m >= C.valor_oportunidade_min_vendas_primary;
   });
 
@@ -1130,7 +1146,13 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     const bo = bairrosOut[b];
     captacaoEstrategica.push({
       bairro: b, flag_prioridade_maxima: bo.flag_prioridade_maxima,
-      perfil: { area_band: bo.area_band, price_band: bo.price_band, profile_quartos: bo.profile_quartos, profile_vagas: bo.profile_vagas, profile_reliability: bo.profile_reliability },
+      // Passo 2 (2026-10-01): perfil migrado pra faixa de preço v2 — ver
+      // nota equivalente em scripts/engine.py._compute_captacao_estrategica.
+      perfil: {
+        faixa_preco: bo.perfil_vencedor_faixa_preco_v2,
+        estoque_perfil_faixa_preco: bo.estoque_perfil_faixa_preco,
+        estoque_fora_do_perfil: bo.estoque_fora_do_perfil,
+      },
       enderecos: enderecos.map((e) => ({
         endereco: e.endereco, n_vendas: e.n_vendas, preco_min: e.preco_min, preco_max: e.preco_max,
         area_min: e.area_min, area_max: e.area_max, unico: e.unico,
