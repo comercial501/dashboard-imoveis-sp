@@ -1909,30 +1909,27 @@ vinha da própria branch mergeada (mesma metodologia nova dos dois lados).
 
 ## Etapa 2 (2026-10-01, branch `etapa-2-integracao-paineis`) — status
 
-Última etapa antes de liberar a dashboard pra CRM e corretores. 4 itens
-pedidos; progresso:
+Última etapa antes de liberar a dashboard pra CRM e corretores. Todos os
+itens pedidos concluídos:
 
-- **Item 2 (concluído)**: painel "Preço por m²" (agora "Valor Total Pago
-  — Apartamento") trocou R$/m² pago por valor total pago (mediana/P25/
-  P75), só revenda (`engine._is_revenda_aprovada`), com o gap R$/m²
-  pedido×pago suspenso pra apartamento. Espelhado em `engine.js`
-  (`uso_code` novo no fim da tupla de `raw.itbi`), validado no navegador
-  campo a campo contra a saída do Python. `_compute_preco_m2` (Ranking/
-  Gap Preço/Valor de Oportunidade/Imóveis Prioritários) **não foi
-  tocado** — escopo deliberadamente restrito a este painel.
-- **Item 3 (concluído, PRIORIDADE)**: `output/valor_pago_por_bairro.csv`
-  — bairro (carteira 77) × tipo × ano, com P25/mediana/P75 do valor total
-  pago em revenda e variação % ano contra ano. Entregue antes do prazo de
+- **Item 2**: painel "Preço por m²" (agora "Valor Total Pago —
+  Apartamento") trocou R$/m² pago por valor total pago (mediana/P25/
+  P75), só revenda, com o gap R$/m² pedido×pago suspenso pra apartamento.
+- **Item 3 (PRIORIDADE)**: `output/valor_pago_por_bairro.csv` — bairro
+  (carteira 77) × tipo × ano, com P25/mediana/P75 do valor total pago em
+  revenda e variação % ano contra ano. Entregue antes do prazo de
   2026-10-07.
-- **Item 1 (pendente)**: ligar Ranking, Visão Geral, Alertas, Perfil por
-  Bairro, Valor de Oportunidade, Estoque×Demanda e Mapa na base nova
-  (carteira 77, cascata de bairro, revenda/planta separadas,
-  `volume_mercado_12m`). Não iniciado nesta sessão — ver justificativa no
-  relatório final entregue ao usuário: é uma migração do núcleo do motor
-  (trocar `TARGETS`/a resolução de bairro usada por TODAS as funções de
-  `engine.py`, replicar em `engine.js`, revalidar campo a campo), do
-  mesmo tamanho/risco que o resto desta auditoria levou semanas pra
-  fechar com segurança — não é "ligar 7 painéis", é substituir a base de
-  dados que os 7 painéis leem. Fica como próximo passo focado.
-- **Item 4 (pendente, depende do item 1)**: painel "Carteira 77" só sai
-  do "(beta)" quando o item 1 estiver pronto.
+- **Item 1**: motor inteiro migrado pra base nova — `TARGETS` (77),
+  resolução de bairro única (cascata de 5 métodos), revenda/planta
+  separadas, `volume_mercado_12m` como volume principal do score. Teste
+  de consistência (`validate_build.check_consistencia_carteira_77`) trava
+  o build se qualquer painel divergir de `carteira_77` — pegou 2 bugs
+  reais de escopo de período/votos antes de qualquer número ser
+  reportado (ver commit `bdeada3`). `_compute_preco_m2` (Alertas/Valor de
+  Oportunidade/Imóveis Prioritários) ganhou o mesmo tratamento do item 2
+  pra apartamento. Espelhado em `engine.js` — verificado no navegador:
+  `computeEngine(RAW, {})` sem filtro bate exato com `data.json` em 77×9
+  campos (1 única divergência de 0,1pp em `trend_pct_mercado_12m`,
+  arredondamento Python×JS pré-existente, não introduzido aqui).
+- **Item 4**: painel "Carteira 77" saiu do "(beta)" — agora é a mesma
+  base que todos os outros painéis.
