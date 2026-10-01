@@ -34,8 +34,14 @@ Revisão 2026-10-01 (ajustes pedidos pelo usuário):
      grupo (bairro+tipo+ano) especificamente — reflete sozinho que 2026
      (ano em andamento) é parcial, sem precisar hardcodar o mês de
      corte.
+  4. main() chama checar_consistencia_com_carteira_77() automaticamente
+     ao final e falha (AssertionError, sys.exit(1)) se divergir de
+     carteira_77 — não depende mais de lembrar de rodar
+     test_carteira_77.py à parte. Não entra no build diário
+     (build_data.py nunca chama este script).
 """
 import csv
+import json
 import sys
 from pathlib import Path
 
@@ -100,6 +106,42 @@ def resolver_revenda_todos_anos():
     return out, {"total_revenda_todos_anos": len(revenda), "fora": fora, "incerto": incerto}
 
 
+def checar_consistencia_com_carteira_77(revenda_resolvida):
+    """Confere que `revenda_resolvida` (resolver_revenda_todos_anos(),
+    caminho de código próprio deste script — não chama
+    resolver_registros_engine() nem gerar_dados_carteira_77()) bate
+    exato com carteira_77 (site/data.json), na janela de 12m, bairro a
+    bairro. Levanta AssertionError se divergir — nunca falha silencioso.
+    Usada tanto aqui (main(), automática) quanto em
+    scripts/test_carteira_77.py (reusa esta função, não duplica a
+    lógica)."""
+    data_json = ROOT / "site" / "data.json"
+    data = json.loads(data_json.read_text(encoding="utf-8"))
+    c77 = data["carteira_77"]
+    ym_inicio = tuple(int(x) for x in c77["periodo_12m"]["inicio"].split("-"))
+    ym_fim = tuple(int(x) for x in c77["periodo_12m"]["fim"].split("-"))
+
+    contagem_12m = {}
+    for r in revenda_resolvida:
+        if r.get("day") is None:
+            continue
+        ym = excel_serial_to_ym(r["day"])
+        if ym_inicio <= ym <= ym_fim:
+            contagem_12m[r["bairro"]] = contagem_12m.get(r["bairro"], 0) + 1
+
+    divergencias = []
+    for b, v in c77["bairros"].items():
+        esperado = v["revenda_12m"]
+        achado = contagem_12m.get(b, 0)
+        if achado != esperado:
+            divergencias.append(f"{b}: carteira_77.revenda_12m={esperado} != valor_pago_por_bairro={achado}")
+    if divergencias:
+        raise AssertionError(
+            "valor_pago_por_bairro.csv diverge de carteira_77:\n  " + "\n  ".join(divergencias)
+        )
+    print(f"[export] OK — consistente com carteira_77 em revenda_12m, {len(c77['bairros'])} bairros.")
+
+
 def main():
     revenda_resolvida, stats = resolver_revenda_todos_anos()
 
@@ -159,6 +201,12 @@ def main():
 
     print(f"[export] {OUT_CSV} escrito ({len(linhas)} linhas)")
 
+    checar_consistencia_com_carteira_77(revenda_resolvida)
+
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except AssertionError as e:
+        print(f"[export] FALHOU: {e}", file=sys.stderr)
+        sys.exit(1)

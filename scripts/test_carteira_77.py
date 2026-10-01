@@ -15,8 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from exportar_valor_pago_por_bairro import resolver_revenda_todos_anos
-from normalize import excel_serial_to_ym
+from exportar_valor_pago_por_bairro import checar_consistencia_com_carteira_77, resolver_revenda_todos_anos
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_JSON = ROOT / "site" / "data.json"
@@ -79,29 +78,18 @@ def main():
     # esse export tem um caminho de código PRÓPRIO (não chama
     # resolver_registros_engine() nem gerar_dados_carteira_77()) — só
     # compartilha a tabela de tradução/cascata/pool de votos de 3 anos.
-    # Confere que ele resolve pro MESMO bairro, na mesma janela de 12m,
-    # que carteira_77 — reparseia o ITBI (~3-4min), por isso não entra no
-    # validate_build.py (que roda a cada build automático).
+    # checar_consistencia_com_carteira_77() (definida em
+    # exportar_valor_pago_por_bairro.py, reusada aqui pra não duplicar a
+    # lógica) confere que ele resolve pro MESMO bairro, na mesma janela
+    # de 12m, que carteira_77 — reparseia o ITBI (~3-4min), por isso não
+    # entra no validate_build.py (que roda a cada build automático). O
+    # próprio exportar_valor_pago_por_bairro.py também chama essa função
+    # automaticamente ao final do seu main(), então rodar este script
+    # separadamente é redundante (mantido por completude/por rodar sem
+    # precisar regravar o CSV).
     print("\n[test_carteira_77] conferindo valor_pago_por_bairro.csv contra carteira_77 (caminho de código próprio)...")
-    ym_inicio = tuple(int(x) for x in c77["periodo_12m"]["inicio"].split("-"))
-    ym_fim = tuple(int(x) for x in c77["periodo_12m"]["fim"].split("-"))
     revenda_resolvida, _stats = resolver_revenda_todos_anos()
-    contagem_12m = {}
-    for r in revenda_resolvida:
-        if r.get("day") is None:
-            continue
-        ym = excel_serial_to_ym(r["day"])
-        if ym_inicio <= ym <= ym_fim:
-            contagem_12m[r["bairro"]] = contagem_12m.get(r["bairro"], 0) + 1
-
-    divergencias = []
-    for b, v in bairros.items():
-        esperado = v["revenda_12m"]
-        achado = contagem_12m.get(b, 0)
-        if achado != esperado:
-            divergencias.append(f"{b}: carteira_77.revenda_12m={esperado} != valor_pago_por_bairro={achado}")
-    assert not divergencias, "valor_pago_por_bairro.csv diverge de carteira_77:\n  " + "\n  ".join(divergencias)
-    print(f"[test_carteira_77] OK — valor_pago_por_bairro.csv bate exato com carteira_77 em revenda_12m, {len(bairros)} bairros.")
+    checar_consistencia_com_carteira_77(revenda_resolvida)
 
     print("[test_carteira_77] OK — todas as checagens passaram.")
 
