@@ -144,12 +144,74 @@ def card_to_record(card):
         "tipo_imovel": TIPO_IMOVEL_NONSTOP.get(card.get("type")),
         "codigo": card.get("base36Id"),
         "link": link,
+        # Passo 3b (2026-10-01, achado da auditoria): a API já manda a data
+        # de cadastro do anúncio — antes isso nunca era capturado. Usado
+        # hoje só pra desempate na deduplicação (mantém o mais recente);
+        # nenhum painel ainda filtra ou avisa por idade — isso é decisão
+        # de mercado, fica pra depois.
+        "created_at": card.get("createdAt"),
     }
 
 
+DEDUP_TOLERANCIA_PRECO = 0.03  # +-3%
+
+
+def deduplicar_registros(records, tolerancia_preco=DEDUP_TOLERANCIA_PRECO, log=print):
+    """Passo 3b (2026-10-01), achado da auditoria: o mesmo imóvel às
+    vezes aparece mais de uma vez no estoque (republicado, ou corretores
+    diferentes anunciando a mesma unidade) — nenhum painel filtrava isso
+    antes (só o export de conteúdo tinha essa regra). Mesmo endereço
+    (addr_key) + mesma área útil + preço dentro de +-3% um do outro = 1
+    anúncio só. Mantém o mais recente (created_at); sem created_at nos
+    dois lados, mantém o primeiro encontrado (ordem estável). Registro
+    sem addr_key (endereço não reconhecido) não entra em nenhum grupo —
+    não dá pra confirmar que é duplicata de nada sem endereço.
+
+    Chamado UMA VEZ em build_data.py, antes de passar usn_records pro
+    motor (Python) e pro raw.json (JS recomputa os filtros em cima do
+    MESMO conjunto já deduplicado — não precisa deduplicar de novo no
+    cliente). Retorna (records_deduplicados, n_removidos)."""
+    sem_endereco = [r for r in records if not r.get("addr_key")]
+    por_endereco = {}
+    for r in records:
+        if r.get("addr_key"):
+            por_endereco.setdefault(r["addr_key"], []).append(r)
+
+    dedupados = list(sem_endereco)
+    n_removidos = 0
+    for grupo in por_endereco.values():
+        por_area = {}
+        for r in grupo:
+            por_area.setdefault(r.get("area"), []).append(r)
+        for recs in por_area.values():
+            usados = [False] * len(recs)
+            for i, r in enumerate(recs):
+                if usados[i]:
+                    continue
+                usados[i] = True
+                cluster = [r]
+                for j in range(i + 1, len(recs)):
+                    if usados[j]:
+                        continue
+                    r2 = recs[j]
+                    v1, v2 = r.get("valor"), r2.get("valor")
+                    if v1 and v2 and abs(v2 - v1) <= tolerancia_preco * v1:
+                        cluster.append(r2)
+                        usados[j] = True
+                representante = max(cluster, key=lambda x: x.get("created_at") or "")
+                dedupados.append(representante)
+                n_removidos += len(cluster) - 1
+    if n_removidos:
+        log(f"[nonstop] deduplicação: {len(records)} -> {len(dedupados)} anúncios únicos (removidos {n_removidos} republicados/duplicados)")
+    return dedupados, n_removidos
+
+
 def fetch_all_records(token, available_for="VENDA"):
-    """Retorna (records, meta) já no formato interno, filtrado pros 47
-    bairros da carteira (bairro=None é descartado, igual ao export manual)."""
+    """Retorna (records, meta) já no formato interno, filtrado pra
+    carteira de 77 bairros (bairro=None é descartado, igual ao export
+    manual). NÃO deduplica aqui — ver deduplicar_registros(), chamada à
+    parte em build_data.py (quem usa esta função isoladamente, como
+    scripts de export, decide se quer deduplicar)."""
     cards = fetch_all_properties(token, available_for)
     rows_seen = len(cards)
     records = []

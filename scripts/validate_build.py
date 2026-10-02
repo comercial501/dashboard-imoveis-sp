@@ -161,12 +161,12 @@ def check_linhas_lidas(year_to_path, itbi_stats):
             f"{sheets_checked} abas, {header_rows} são cabeçalho (esperado {esperado} "
             f"linhas de dado), mas o parser leu {lido}. Diferença: {lido - esperado:+d}."
         )
-    print(f"[validate_build] OK 1/7 — linhas lidas batem: {lido} == {total_rows} totais - {header_rows} cabeçalho, em {sheets_checked} abas.")
+    print(f"[validate_build] OK 1/9 — linhas lidas batem: {lido} == {total_rows} totais - {header_rows} cabeçalho, em {sheets_checked} abas.")
 
 
 def check_variacao_bairros(new_bairros, old_data_path):
     if not old_data_path.exists():
-        print("[validate_build] OK 2/7 — sem versão publicada anterior pra comparar (primeira execução).")
+        print("[validate_build] OK 2/9 — sem versão publicada anterior pra comparar (primeira execução).")
         return
     try:
         old_data = json.loads(old_data_path.read_text(encoding="utf-8"))
@@ -203,7 +203,7 @@ def check_variacao_bairros(new_bairros, old_data_path):
             f"Se a mudança é esperada (correção deliberada de metodologia), rode de novo com "
             f"ALLOW_LARGE_CHANGES=1 no ambiente."
         )
-    print(f"[validate_build] OK 2/7 — nenhum bairro variou mais que {VARIACAO_MAX*100:.0f}% em volume_primary_year.")
+    print(f"[validate_build] OK 2/9 — nenhum bairro variou mais que {VARIACAO_MAX*100:.0f}% em volume_primary_year.")
 
 
 def check_formato_paineis(data):
@@ -224,7 +224,7 @@ def check_formato_paineis(data):
     if not isinstance(data.get("ranking"), list) or len(data["ranking"]) != len(TARGETS):
         raise ValidationError(f"'ranking' deveria ter {len(TARGETS)} bairros, tem {len(data.get('ranking'))}.")
 
-    print(f"[validate_build] OK 3/7 — formato de data.json íntegro: {len(bairros)} bairros, todas as chaves esperadas presentes.")
+    print(f"[validate_build] OK 3/9 — formato de data.json íntegro: {len(bairros)} bairros, todas as chaves esperadas presentes.")
 
 
 def check_consistencia_carteira_77(data):
@@ -262,7 +262,7 @@ def check_consistencia_carteira_77(data):
             f"consistência carteira_77 FALHOU — {len(divergencias)} divergência(s) entre bairros_out e "
             f"carteira_77 (deveriam ser idênticos):\n{linhas}{a_mais}"
         )
-    print(f"[validate_build] OK 4/7 — {len(TARGETS)} bairros batem exato com carteira_77 em {len(campos)} campos.")
+    print(f"[validate_build] OK 4/9 — {len(TARGETS)} bairros batem exato com carteira_77 em {len(campos)} campos.")
 
 
 def check_prontidao_consistencia(data):
@@ -297,7 +297,7 @@ def check_prontidao_consistencia(data):
             f"bairro(s) com amostra pequena (< 100 revendas em 12m) no top 10 do Prontidão: {top10_amostra_pequena} "
             "— não deveriam ocupar posição de topo (gate de merge pedido pelo usuário)."
         )
-    print(f"[validate_build] OK 5/7 — Prontidão: {len(TARGETS)} bairros com nota, top 10 sem amostra pequena.")
+    print(f"[validate_build] OK 5/9 — Prontidão: {len(TARGETS)} bairros com nota, top 10 sem amostra pequena.")
 
 
 def check_perfil_v1_obsoleto(data):
@@ -365,7 +365,7 @@ def check_perfil_v1_obsoleto(data):
     if divergencias:
         linhas = "\n".join(f"  - {d}" for d in divergencias[:30])
         raise ValidationError(f"perfil vencedor v1 ainda em uso onde deveria ser v2:\n{linhas}")
-    print("[validate_build] OK 6/7 — Captação Estratégica/Estoque×Demanda/flag_prioridade_maxima/Painel 8 só usam a faixa de preço v2.")
+    print("[validate_build] OK 6/9 — Captação Estratégica/Estoque×Demanda/flag_prioridade_maxima/Painel 8 só usam a faixa de preço v2.")
 
 
 def check_faixa_metragem_apartamento_suspensa(data):
@@ -406,14 +406,80 @@ def check_faixa_metragem_apartamento_suspensa(data):
     if divergencias:
         linhas = "\n".join(f"  - {d}" for d in divergencias)
         raise ValidationError(f"faixa_metragem() voltou a comparar apartamento ITBI x anúncio:\n{linhas}")
-    print("[validate_build] OK 7/7 — faixa_metragem() não compara apartamento ITBI x anúncio em nenhum painel.")
+    print("[validate_build] OK 7/9 — faixa_metragem() não compara apartamento ITBI x anúncio em nenhum painel.")
 
 
-def validate_before_publish(year_to_path, itbi_stats, data, out_path):
+VARIACAO_MAX_ESTOQUE = 0.30
+
+
+def check_variacao_estoque_nonstop(usn_meta, out_path):
+    """Passo 3b (2026-10-01), item a pedido pelo usuário: mesma lógica de
+    check_variacao_bairros, mas pro ESTOQUE total da nonStop (achado da
+    auditoria: uma resposta vazia/anômala da API — ex. token revogado,
+    endpoint fora do ar devolvendo lista parcial — não travava nada antes;
+    o build publicava silenciosamente um site com metade dos anúncios).
+    Só de um lado (queda): um AUMENTO de estoque nunca é perigoso, então
+    não trava por isso — mirror de VARIACAO_MAX/ALLOW_LARGE_CHANGES."""
+    if not out_path.exists():
+        print("[validate_build] OK 8/9 — sem versão publicada anterior pra comparar estoque (primeira execução).")
+        return
+    try:
+        old_data = json.loads(out_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"[validate_build] AVISO — não consegui ler a versão anterior pra comparar estoque ({e!r}); pulando checagem 8/9.")
+        return
+
+    old_n = (old_data.get("meta", {}).get("usn") or {}).get("rows_apos_dedup")
+    new_n = usn_meta.get("rows_apos_dedup")
+    if old_n is None or new_n is None or old_n == 0:
+        print("[validate_build] OK 8/9 — sem 'rows_apos_dedup' na versão anterior ou atual pra comparar (campo novo); pulando.")
+        return
+
+    variacao = (new_n - old_n) / old_n
+    if variacao < -VARIACAO_MAX_ESTOQUE:
+        msg = (
+            f"estoque válido da nonStop caiu {abs(variacao)*100:.1f}% (de {old_n} para {new_n} "
+            f"anúncios após deduplicação) vs a última publicação — mais que {VARIACAO_MAX_ESTOQUE*100:.0f}%, "
+            "parece resposta vazia/anômala da API (token revogado, endpoint fora do ar, etc.), não uma "
+            "queda real de estoque."
+        )
+        if os.environ.get("ALLOW_LARGE_CHANGES", "").strip() == "1":
+            print(f"[validate_build] AVISO 8/9 — {msg} Mas ALLOW_LARGE_CHANGES=1 está setado — publicando mesmo assim.")
+            return
+        raise ValidationError(
+            f"{msg} Travando a publicação e mantendo os dados anteriores. Se a queda é real e esperada, "
+            "rode de novo com ALLOW_LARGE_CHANGES=1 no ambiente."
+        )
+    print(f"[validate_build] OK 8/9 — estoque nonStop não caiu mais que {VARIACAO_MAX_ESTOQUE*100:.0f}% ({old_n} -> {new_n}).")
+
+
+def check_dedup_aplicada(usn_records):
+    """Passo 3b (2026-10-01), item b pedido pelo usuário: deduplicação de
+    anúncios (mesmo endereço + área + preço ±3%, mantém o mais recente)
+    tem que já ter sido aplicada aos usn_records ANTES de chegarem no
+    motor/raw.json — ver nonstop_client.deduplicar_registros(), chamada
+    uma vez em build_data.py._get_usn_records(). Esta checagem roda a
+    MESMA função de novo sobre o conjunto já deduplicado: se achar
+    qualquer duplicata nova, é sinal de que _get_usn_records() parou de
+    deduplicar (regressão) — deduplicar um conjunto já deduplicado deve
+    sempre dar zero remoções (idempotente)."""
+    import nonstop_client
+
+    _dedupados, n_removidos = nonstop_client.deduplicar_registros(usn_records, log=lambda *a, **k: None)
+    if n_removidos:
+        raise ValidationError(
+            f"{n_removidos} anúncio(s) duplicado(s) (mesmo endereço+área+preço ±3%) encontrados nos "
+            "usn_records que chegaram no motor — a deduplicação deveria ter rodado antes "
+            "(ver build_data.py._get_usn_records) e não rodou, ou rodou e não é idempotente."
+        )
+    print(f"[validate_build] OK 9/9 — {len(usn_records)} anúncios no estoque, nenhuma duplicata (endereço+área+preço ±3%) restante.")
+
+
+def validate_before_publish(year_to_path, itbi_stats, data, out_path, usn_records):
     """Chamado por build_data.py logo antes de escrever site/data.json.
     Levanta SystemExit (para o processo com código != 0) se qualquer
     checagem falhar — build_data.py não deve capturar essa exceção."""
-    print("[validate_build] rodando as 7 checagens antes de publicar...")
+    print("[validate_build] rodando as 9 checagens antes de publicar...")
     check_linhas_lidas(year_to_path, itbi_stats)
     check_variacao_bairros(data["bairros"], out_path)
     check_formato_paineis(data)
@@ -421,4 +487,6 @@ def validate_before_publish(year_to_path, itbi_stats, data, out_path):
     check_prontidao_consistencia(data)
     check_perfil_v1_obsoleto(data)
     check_faixa_metragem_apartamento_suspensa(data)
+    check_variacao_estoque_nonstop(data["meta"]["usn"], out_path)
+    check_dedup_aplicada(usn_records)
     print("[validate_build] todas as checagens passaram — liberado pra publicar.")

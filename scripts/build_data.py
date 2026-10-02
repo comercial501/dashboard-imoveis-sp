@@ -60,25 +60,38 @@ def _load_dotenv():
 
 def _get_usn_records():
     """Estoque atual: API da nonStop se NONSTOP_TOKEN estiver definido,
-    senão cai pro export manual (dados-usenonstop/*.xlsx) como fallback."""
+    senão cai pro export manual (dados-usenonstop/*.xlsx) como fallback.
+    Passo 3b (2026-10-01): deduplica aqui (uma vez só, antes do motor e
+    do raw.json — ver nonstop_client.deduplicar_registros) e marca
+    `consultado_em` com o horário de agora, SÓ quando a busca funciona —
+    se a fonte falhar, o build inteiro para (ver main()) e site/data.json
+    não é sobrescrito, então o `consultado_em` antigo (da última vez que
+    funcionou) continua valendo sozinho, sem precisar de nenhum arquivo
+    de estado novo."""
+    import nonstop_client
+
     token = os.environ.get("NONSTOP_TOKEN", "").strip()
     if token:
-        import nonstop_client
-
         print("[build] usando API da nonStop (NONSTOP_TOKEN definido)")
-        return nonstop_client.fetch_all_records(token)
+        records, meta = nonstop_client.fetch_all_records(token)
+    else:
+        print("[build] NONSTOP_TOKEN não definido — usando export manual dados-usenonstop/*.xlsx como fallback")
+        from parse_usenonstop_xlsx import parse_usenonstop_xlsx
 
-    print("[build] NONSTOP_TOKEN não definido — usando export manual dados-usenonstop/*.xlsx como fallback")
-    from parse_usenonstop_xlsx import parse_usenonstop_xlsx
+        candidates = sorted((ROOT / "dados-usenonstop").glob("*.xlsx"), key=lambda p: p.stat().st_mtime, reverse=True)
+        if not candidates:
+            raise SystemExit(
+                "Sem NONSTOP_TOKEN e sem nenhum .xlsx em dados-usenonstop/ — não há fonte de estoque disponível."
+            )
+        records, stats = parse_usenonstop_xlsx(candidates[0])
+        print(f"[build] {candidates[0].name}: {stats}")
+        meta = {"fonte": "xlsx_manual", "arquivo": candidates[0].name, **stats}
 
-    candidates = sorted((ROOT / "dados-usenonstop").glob("*.xlsx"), key=lambda p: p.stat().st_mtime, reverse=True)
-    if not candidates:
-        raise SystemExit(
-            "Sem NONSTOP_TOKEN e sem nenhum .xlsx em dados-usenonstop/ — não há fonte de estoque disponível."
-        )
-    records, stats = parse_usenonstop_xlsx(candidates[0])
-    print(f"[build] {candidates[0].name}: {stats}")
-    return records, {"fonte": "xlsx_manual", "arquivo": candidates[0].name, **stats}
+    records, n_duplicados = nonstop_client.deduplicar_registros(records)
+    meta["rows_apos_dedup"] = len(records)
+    meta["duplicados_removidos"] = n_duplicados
+    meta["consultado_em"] = datetime.now(timezone.utc).isoformat()
+    return records, meta
 
 
 def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, carteira_77_bairros):
@@ -288,6 +301,7 @@ def main():
         # de comparação controlada no futuro.
         print("[build] SKIP_ITBI_SYNC=1 — base congelada manualmente, sem checar planilha nova na Prefeitura")
         changed_years = set()
+        itbi_sync_erro = None
     else:
         # A Prefeitura já bloqueou a Action com 403 mesmo depois do retry/backoff
         # de itbi_source.py (2 vezes em 3 dias, 2026-09-25 e 2026-09-27) — falha
@@ -300,9 +314,13 @@ def main():
         try:
             changed_years = itbi_source.sync(years)
             print(f"[build] ITBI sincronizado ({time.time() - t_start:.1f}s) — anos atualizados: {sorted(changed_years) or 'nenhum'}")
+            itbi_sync_erro = None
         except Exception as e:
             print(f"[build] AVISO: falha ao sincronizar ITBI da Prefeitura ({e!r}) — usando o cache local em data/itbi_raw/ (pode estar desatualizado; tenta de novo na próxima execução).")
             changed_years = set()
+            # Passo 3b (2026-10-01): exposto em data["meta"]["fontes"]["itbi"]
+            # pra avisar na tela quando o dado estiver usando o cache antigo.
+            itbi_sync_erro = str(e)
 
     year_to_path = {y: itbi_source.RAW_DIR / f"{y}.xlsx" for y in years}
     if not any(p.exists() for p in year_to_path.values()):
@@ -399,13 +417,35 @@ def main():
     data["meta"]["total_itbi_fora_carteira_ou_incerto"] = resolucao_stats["fora_carteira_ou_incerto"]
     data["meta"]["usn"] = usn_meta
 
+    # Passo 3b (2026-10-01), achado da auditoria: até aqui nenhuma das 3
+    # fontes (ITBI/nonStop/Google) tinha data de atualização visível na
+    # tela — build_data.py já sabia essas datas internamente, só não
+    # expunha. itbi.sync_ok=False avisa que a planilha pode estar
+    # desatualizada (ver try/except do itbi_source.sync acima); nonStop
+    # não precisa de sync_ok próprio porque uma falha de busca já derruba
+    # o build inteiro (main() levanta SystemExit antes de chegar aqui) —
+    # consultado_em sempre reflete a última busca bem-sucedida.
+    itbi_state = itbi_source._load_state()
+    ultimo_ano = max(years)
+    data["meta"]["fontes"] = {
+        "itbi": {
+            "ultimo_mes_dado": data["periodo_12m"]["fim"],
+            "arquivo_atualizado_em": (itbi_state.get(str(ultimo_ano)) or {}).get("last_modified"),
+            "sync_ok": itbi_sync_erro is None,
+        },
+        "nonstop": {
+            "consultado_em": usn_meta.get("consultado_em"),
+        },
+        "google_busca": search_interest_meta,
+    }
+
     # Protocolo de segurança pedido pelo usuário em 2026-09-30 (dashboard vai
     # integrar no CRM e ser compartilhada com outros corretores — "não pode
     # quebrar em nenhum momento"): 3 checagens antes de sobrescrever o
     # data.json publicado. Levanta SystemExit e PARA aqui se qualquer uma
     # falhar — nem o CSV nem o raw.json chegam a ser escritos, o data.json
     # anterior fica intacto no disco/git.
-    validate_build.validate_before_publish(year_to_path, itbi_stats, data, OUT)
+    validate_build.validate_before_publish(year_to_path, itbi_stats, data, OUT, usn_records)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

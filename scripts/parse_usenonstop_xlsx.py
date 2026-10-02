@@ -119,6 +119,10 @@ def parse_usenonstop_xlsx(path):
                 "tipo_imovel": TIPO_IMOVEL_NONSTOP.get((cells.get("P") or "").strip()),
                 "codigo": cells.get("B"),
                 "link": cells.get("BA"),
+                # Passo 3b (2026-10-01): export manual não tem data de
+                # cadastro — fica None (mesmo formato de nonstop_client,
+                # só sem o dado; deduplicar_registros() trata isso).
+                "created_at": None,
             })
 
     return records, {"rows_seen": rows_seen, "rows_matched": rows_matched}

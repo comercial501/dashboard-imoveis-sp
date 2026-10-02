@@ -94,6 +94,9 @@ header.app-header {
 header.app-header h1 { font-size: 25px; margin: 0; font-weight: 900; }
 header.app-header .handle { color: var(--text-secondary); font-size: 13.5px; margin-top: 2px; }
 header.app-header .updated { color: var(--text-muted); font-size: 12px; }
+.fontes-status { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-muted); }
+.fontes-status .fonte-item { display: flex; align-items: center; gap: 4px; }
+.fontes-status .fonte-stale { color: var(--status-warning); font-weight: 600; }
 .pdf-btn {
   appearance: none; cursor: pointer; font-family: "Montserrat", sans-serif;
   font-size: 12.5px; font-weight: 600; color: var(--gold);
@@ -326,6 +329,7 @@ a { color: var(--gold-soft); }
 svg.map-svg { width: 100%; height: auto; display: block; }
 .map-bubble { cursor: pointer; stroke: rgba(0,0,0,0.35); stroke-width: 1px; }
 .map-bubble:hover { stroke: var(--gold); stroke-width: 2px; }
+.map-bubble.amostra-pequena { stroke: var(--status-warning); stroke-width: 1.5px; stroke-dasharray: 3 2; }
 .map-label { fill: var(--text-secondary); font-size: 9.5px; font-family: "Montserrat", sans-serif; pointer-events: none; }
 .map-tooltip {
   position: absolute; pointer-events: none; background: var(--surface-2);

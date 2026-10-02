@@ -307,6 +307,39 @@ function renderAll() {
   renderCarteira77();
 }
 
+// Passo 3b (2026-10-01), achado da auditoria: antes nenhuma das 3 fontes
+// (ITBI/nonStop/Google) tinha data de atualização visível na tela — se
+// uma delas falhasse e o build caísse pro cache/dado antigo, não tinha
+// como notar isso sem abrir o console. ITBI com sync_ok=false ou Google
+// com fresco=false ganham destaque em vermelho/laranja; nonStop não tem
+// aviso de "velho" próprio porque uma falha de busca derruba o build
+// inteiro antes de chegar a gerar um data.json novo (ver build_data.py).
+function renderFontesStatus() {
+  const el_ = document.getElementById("fontes-status");
+  if (!el_) return;
+  const f = DATA.meta.fontes;
+  if (!f) { el_.textContent = ""; return; }
+  el_.innerHTML = "";
+
+  const itbiStale = f.itbi && f.itbi.sync_ok === false;
+  const itbiData = f.itbi && f.itbi.arquivo_atualizado_em
+    ? new Date(f.itbi.arquivo_atualizado_em).toLocaleDateString("pt-BR")
+    : "—";
+  el_.appendChild(el("span", { class: "fonte-item" + (itbiStale ? " fonte-stale" : ""), title: itbiStale ? "Falha ao sincronizar com a Prefeitura — usando o último arquivo salvo em cache." : "Último mês de dado do ITBI e data do arquivo baixado da Prefeitura." },
+    `ITBI: ${f.itbi ? f.itbi.ultimo_mes_dado : "—"} (arquivo ${itbiData})${itbiStale ? " ⚠ dado antigo" : ""}`));
+
+  const nsData = f.nonstop && f.nonstop.consultado_em
+    ? new Date(f.nonstop.consultado_em).toLocaleString("pt-BR")
+    : "—";
+  el_.appendChild(el("span", { class: "fonte-item", title: "Horário da última consulta bem-sucedida à nonStop." }, `nonStop: ${nsData}`));
+
+  const g = f.google_busca;
+  const googleStale = g && g.fresco === false;
+  const gData = g && g.fetched_at ? new Date(g.fetched_at).toLocaleDateString("pt-BR") : null;
+  el_.appendChild(el("span", { class: "fonte-item" + (googleStale ? " fonte-stale" : ""), title: g ? "Data da última busca de interesse no Google Ads Keyword Planner." : "Busca no Google não configurada." },
+    g ? `Google: ${gData}${googleStale ? " ⚠ dado antigo" : ""}` : "Google: sem dado"));
+}
+
 async function main() {
   const res = await fetch("data.json");
   if (!res.ok) {
@@ -321,6 +354,7 @@ async function main() {
   document.getElementById("updated-at").textContent = `Dados de ${m.years.join("/")} · gerado em ${DATA.generated_at}`;
   const fonte = m.usn && m.usn.fonte === "nonstop_api" ? "API nonStop" : "export nonStop";
   document.getElementById("fontes-foot").textContent = `ITBI (Prefeitura) · ${fonte}`;
+  renderFontesStatus();
 
   setupTabs();
   setupFiltros();
@@ -949,12 +983,18 @@ function renderMapa() {
   withCentroid.forEach(({ name, b }) => {
     const cx = px(b.centroid[1]), cy = py(b.centroid[0]);
     const r = 5 + Math.sqrt(b.revenda_12m / maxVolume) * 18;
-    const circle = svg("circle", { cx, cy, r, class: "map-bubble", fill: colorFor(b.score) });
+    // Passo 3b (2026-10-01), item d pedido pelo usuário: mesmo selo de
+    // amostra pequena já usado no Ranking/Prontidão/Estoque×Demanda
+    // (< 100 revendas em 12m) — aqui como borda tracejada na bolha, já
+    // que não há espaço pra um badge de texto dentro do mapa.
+    const bubbleClass = "map-bubble" + (b.amostra_pequena_ranking ? " amostra-pequena" : "");
+    const circle = svg("circle", { cx, cy, r, class: bubbleClass, fill: colorFor(b.score) });
     circle.addEventListener("pointermove", (e) => {
       const rect = s.getBoundingClientRect();
       tooltip.innerHTML = "";
       tooltip.appendChild(el("div", { style: "font-weight:650; margin-bottom:3px" }, name));
       tooltip.appendChild(el("div", {}, `Score ${fmtInt(b.score)} · ${fmtInt(b.revenda_12m)} vendas de revenda (12m, ${periodo12mLabel()}) · ${fmtInt(b.planta_12m)} lançamentos (12m) · ${fmtInt(b.volume_12m)} no giro total`));
+      if (b.amostra_pequena_ranking) tooltip.appendChild(el("div", { style: "color:var(--status-warning); font-weight:600; margin-top:2px" }, "Amostra pequena (< 100 revendas em 12m)"));
       tooltip.style.left = (cx / W) * rect.width + "px";
       tooltip.style.top = (cy / H) * rect.height + "px";
       tooltip.style.opacity = 1;
@@ -976,6 +1016,7 @@ function renderMapa() {
   legend.appendChild(el("div", { class: "item" }, [el("span", { class: "key", style: `background:${MAP_COLOR_RAMP[0]}` }), "Score baixo"]));
   legend.appendChild(el("div", { class: "item" }, [el("span", { class: "key", style: `background:${MAP_COLOR_RAMP[5]}` }), "Score alto"]));
   legend.appendChild(el("div", { class: "item" }, "Raio da bolha ∝ √(vendas no ano)"));
+  legend.appendChild(el("div", { class: "item" }, [el("span", { class: "key", style: "background:transparent; border:1.5px dashed var(--status-warning)" }), "Borda tracejada = amostra pequena (< 100 revendas em 12m)"]));
   box.appendChild(legend);
 }
 
@@ -1170,6 +1211,10 @@ function renderEstoqueDemanda() {
           if (r.flag_oportunidade) wrap.appendChild(badge("Oportunidade", "gold"));
           if (r.flag_alerta) wrap.appendChild(badge("Alerta preço", "critical"));
           if (r.estoque_fora_do_perfil) wrap.appendChild(badge("Estoque fora do perfil", "warning"));
+          // Passo 3b (2026-10-01), item d pedido pelo usuário: mesmo selo já
+          // usado no Ranking/Prontidão (< 100 revendas em 12m) — cobertura
+          // calculada sobre pouca amostra não é confiável.
+          if (r.amostra_pequena_ranking) wrap.appendChild(badge("Amostra pequena", "neutral"));
           if (!wrap.children.length) wrap.appendChild(badge("Neutro", "neutral"));
           return wrap;
         },
