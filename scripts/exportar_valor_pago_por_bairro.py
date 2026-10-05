@@ -17,11 +17,12 @@ meses. `resolver_revenda_todos_anos()` é verificado contra carteira_77
 em scripts/test_carteira_77.py (caminho de código próprio, não reusa
 resolver_registros_engine()).
 
-Mediana/P25/P75 usam trim_outliers_iqr (mesmo corte de outlier já usado
-em todo o resto do motor) — protege contra erro de digitação isolado
-(um zero a mais/a menos) distorcer o P75. `n_vendas` conta TODAS as
-revendas do grupo, antes do corte de outlier (mesmo padrão de
-engine.py: contagem = bruta, preço = limpo).
+Mediana/P25/P75 usam só a CAMADA LIMPA ÚNICA de preço (2026-10-05,
+clean_itbi.motivo_valor_sujo: limites duros R$ 10 mil–R$ 100 mi e valor
+declarado >= SUBDECLARACAO_LIMITE da "Base de Cálculo adotada") e nenhum
+outro corte. `n_vendas` conta TODAS as revendas do grupo (volume/giro,
+mesmo padrão de engine.py: contagem = bruta, preço = limpo);
+`n_vendas_limpas` é a amostra do preço e é ela que define `amostra_pequena`.
 
 Revisão 2026-10-01 (ajustes pedidos pelo usuário):
   1. Só ano real da transação >= 2024 (campo "day", não o arquivo/aba de
@@ -48,8 +49,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import cascata_completa as cc
+import clean_itbi
 import tradutor_bairro as tb
-from normalize import excel_serial_to_ym, median, percentile, trim_outliers_iqr
+from normalize import excel_serial_to_ym, median, percentile
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT_CSV = ROOT / "output" / "valor_pago_por_bairro.csv"
@@ -156,23 +158,23 @@ def main():
         if ano < ANO_MINIMO:
             descartados_ano_antigo += 1
             continue
-        grupos.setdefault((r["bairro"], tipo, ano), []).append((r["valor"], mes))
+        limpo = clean_itbi.motivo_valor_sujo(r["valor"], r.get("base_calculo")) is None
+        grupos.setdefault((r["bairro"], tipo, ano), []).append((r["valor"], mes, limpo))
     print(f"[export] descartados por ano real < {ANO_MINIMO} (guia paga com atraso): {descartados_ano_antigo}")
 
     linhas = []
     for (bairro, tipo, ano), pares in grupos.items():
-        valores = [v for v, _ in pares]
-        meses = sorted(set(m for _, m in pares))
-        n_vendas = len(valores)
-        limpos = trim_outliers_iqr(valores)
+        meses = sorted(set(m for _, m, _l in pares))
+        n_vendas = len(pares)
+        limpos = [v for v, _m, ok in pares if ok]
         meses_cobertos = f"{MESES_PT[meses[0] - 1]}–{MESES_PT[meses[-1] - 1]}" if meses else "—"
         linhas.append({
             "bairro": bairro, "tipo": tipo, "periodo": ano, "meses_cobertos": meses_cobertos,
-            "n_vendas": n_vendas,
-            "p25": round(percentile(25, limpos), 2),
-            "mediana": round(median(limpos), 2),
-            "p75": round(percentile(75, limpos), 2),
-            "amostra_pequena": n_vendas < MIN_AMOSTRA,
+            "n_vendas": n_vendas, "n_vendas_limpas": len(limpos),
+            "p25": round(percentile(25, limpos), 2) if limpos else None,
+            "mediana": round(median(limpos), 2) if limpos else None,
+            "p75": round(percentile(75, limpos), 2) if limpos else None,
+            "amostra_pequena": len(limpos) < MIN_AMOSTRA,
         })
 
     medianas = {(l["bairro"], l["tipo"], l["periodo"]): l["mediana"] for l in linhas}
@@ -193,7 +195,7 @@ def main():
     OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT_CSV, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=[
-            "bairro", "tipo", "periodo", "meses_cobertos", "n_vendas", "p25", "mediana", "p75",
+            "bairro", "tipo", "periodo", "meses_cobertos", "n_vendas", "n_vendas_limpas", "p25", "mediana", "p75",
             "amostra_pequena", "variacao_pct_ano_anterior",
         ])
         w.writeheader()

@@ -52,6 +52,7 @@ EXPECTED_HEADERS = {
     "I": "Valor de Transação (declarado pelo contribuinte)",
     "J": "Data de Transação",
     "L": "Proporção Transmitida (%)",
+    "N": "Base de Cálculo adotada",
     "W": "Área Construída (m2)",
     "X": "Uso (IPTU)",
 }
@@ -161,12 +162,12 @@ def check_linhas_lidas(year_to_path, itbi_stats):
             f"{sheets_checked} abas, {header_rows} são cabeçalho (esperado {esperado} "
             f"linhas de dado), mas o parser leu {lido}. Diferença: {lido - esperado:+d}."
         )
-    print(f"[validate_build] OK 1/11 — linhas lidas batem: {lido} == {total_rows} totais - {header_rows} cabeçalho, em {sheets_checked} abas.")
+    print(f"[validate_build] OK 1/12 — linhas lidas batem: {lido} == {total_rows} totais - {header_rows} cabeçalho, em {sheets_checked} abas.")
 
 
 def check_variacao_bairros(new_bairros, old_data_path):
     if not old_data_path.exists():
-        print("[validate_build] OK 2/11 — sem versão publicada anterior pra comparar (primeira execução).")
+        print("[validate_build] OK 2/12 — sem versão publicada anterior pra comparar (primeira execução).")
         return
     try:
         old_data = json.loads(old_data_path.read_text(encoding="utf-8"))
@@ -203,7 +204,7 @@ def check_variacao_bairros(new_bairros, old_data_path):
             f"Se a mudança é esperada (correção deliberada de metodologia), rode de novo com "
             f"ALLOW_LARGE_CHANGES=1 no ambiente."
         )
-    print(f"[validate_build] OK 2/11 — nenhum bairro variou mais que {VARIACAO_MAX*100:.0f}% em volume_primary_year.")
+    print(f"[validate_build] OK 2/12 — nenhum bairro variou mais que {VARIACAO_MAX*100:.0f}% em volume_primary_year.")
 
 
 def check_formato_paineis(data):
@@ -224,7 +225,7 @@ def check_formato_paineis(data):
     if not isinstance(data.get("ranking"), list) or len(data["ranking"]) != len(TARGETS):
         raise ValidationError(f"'ranking' deveria ter {len(TARGETS)} bairros, tem {len(data.get('ranking'))}.")
 
-    print(f"[validate_build] OK 3/11 — formato de data.json íntegro: {len(bairros)} bairros, todas as chaves esperadas presentes.")
+    print(f"[validate_build] OK 3/12 — formato de data.json íntegro: {len(bairros)} bairros, todas as chaves esperadas presentes.")
 
 
 def check_consistencia_carteira_77(data):
@@ -262,7 +263,7 @@ def check_consistencia_carteira_77(data):
             f"consistência carteira_77 FALHOU — {len(divergencias)} divergência(s) entre bairros_out e "
             f"carteira_77 (deveriam ser idênticos):\n{linhas}{a_mais}"
         )
-    print(f"[validate_build] OK 4/11 — {len(TARGETS)} bairros batem exato com carteira_77 em {len(campos)} campos.")
+    print(f"[validate_build] OK 4/12 — {len(TARGETS)} bairros batem exato com carteira_77 em {len(campos)} campos.")
 
 
 def check_prontidao_consistencia(data):
@@ -297,7 +298,7 @@ def check_prontidao_consistencia(data):
             f"bairro(s) com amostra pequena (< 100 revendas em 12m) no top 10 do Prontidão: {top10_amostra_pequena} "
             "— não deveriam ocupar posição de topo (gate de merge pedido pelo usuário)."
         )
-    print(f"[validate_build] OK 5/11 — Prontidão: {len(TARGETS)} bairros com nota, top 10 sem amostra pequena.")
+    print(f"[validate_build] OK 5/12 — Prontidão: {len(TARGETS)} bairros com nota, top 10 sem amostra pequena.")
 
 
 def check_perfil_v1_obsoleto(data):
@@ -354,7 +355,7 @@ def check_perfil_v1_obsoleto(data):
     if divergencias:
         linhas = "\n".join(f"  - {d}" for d in divergencias[:30])
         raise ValidationError(f"perfil vencedor v1 ainda em uso onde deveria ser v2:\n{linhas}")
-    print("[validate_build] OK 6/11 — nenhum painel (site/app.js) lê mais os campos do perfil v1 (metragem); todos usam a faixa de preço v2.")
+    print("[validate_build] OK 6/12 — nenhum painel (site/app.js) lê mais os campos do perfil v1 (metragem); todos usam a faixa de preço v2.")
 
 
 def check_faixa_metragem_apartamento_suspensa(data):
@@ -395,7 +396,7 @@ def check_faixa_metragem_apartamento_suspensa(data):
     if divergencias:
         linhas = "\n".join(f"  - {d}" for d in divergencias)
         raise ValidationError(f"faixa_metragem() voltou a comparar apartamento ITBI x anúncio:\n{linhas}")
-    print("[validate_build] OK 7/11 — faixa_metragem() não compara apartamento ITBI x anúncio em nenhum painel.")
+    print("[validate_build] OK 7/12 — faixa_metragem() não compara apartamento ITBI x anúncio em nenhum painel.")
 
 
 def check_selos_idade_bonus(data, usn_records):
@@ -481,7 +482,7 @@ def check_selos_idade_bonus(data, usn_records):
     n_esc = sum(1 for b in TARGETS if bairros[b]["selo_escassez_real"])
     n_fora = sum(1 for b in TARGETS if bairros[b]["estoque_fora_do_perfil"])
     n_antigos = sum(1 for im in ip if im.get("anuncio_antigo"))
-    print(f"[validate_build] OK 10/11 — selos ({n_esc} pouco estoque na rede, {n_fora} estoque da rede fora do perfil, exclusivos e só com 100+ revendas), {n_antigos} anúncios antigos mantidos nas contas (idade = cadastro mais antigo entre duplicatas), bônus de captação na escala.")
+    print(f"[validate_build] OK 10/12 — selos ({n_esc} pouco estoque na rede, {n_fora} estoque da rede fora do perfil, exclusivos e só com 100+ revendas), {n_antigos} anúncios antigos mantidos nas contas (idade = cadastro mais antigo entre duplicatas), bônus de captação na escala.")
 
 
 def check_captacao_limpa(data):
@@ -537,7 +538,119 @@ def check_captacao_limpa(data):
         raise ValidationError(f"Captação Ativa fora da regra de revenda limpa/mediana:\n{linhas}")
     n_end = len(data.get("captacao_ativa", []))
     n_faixa = sum(1 for c in data["captacao_ativa"] if not c["poucas_vendas"])
-    print(f"[validate_build] OK 11/11 — Captação Ativa: {n_end} endereços com 2+ revendas limpas, preço por mediana ({n_faixa} com faixa P25-P75, o resto 'poucas vendas'), sem mínimo-máximo.")
+    print(f"[validate_build] OK 11/12 — Captação Ativa: {n_end} endereços com 2+ revendas limpas, preço por mediana ({n_faixa} com faixa P25-P75, o resto 'poucas vendas'), sem mínimo-máximo.")
+
+
+def check_camada_limpa_unica(data, itbi_records):
+    """CAMADA LIMPA ÚNICA (2026-10-05): uma só regra de limpeza de preço do
+    ITBI pro dashboard inteiro (clean_itbi.build_clean_layer: limites duros
+    R$ 10 mil–R$ 100 mi + sem subdeclaração vs "Base de Cálculo adotada";
+    sem corte P5-P95, sem IQR). Trava o build se qualquer cálculo de preço
+    não bater com uma recomputação independente SÓ a partir dessa camada:
+
+      1. integridade da camada: nenhum registro is_clean_sale viola a regra
+         (natureza/100%/tipo/limites/subdeclaração) e nenhum que a cumpre
+         ficou de fora (nenhum corte extra escondido);
+      2. faixa do perfil vencedor v2 (P25-P75 por bairro+tipo, revenda 12m);
+      3. painel "Preço por m²" (mediana de valor total pago, apartamento);
+      4. Captação Ativa (n_vendas e mediana por endereço);
+      5. estático: engine.py só chama trim_outliers_iqr em preço PEDIDO/
+         anúncio (nonStop), nunca em preço pago do ITBI, e o exportador de
+         valor pago usa a mesma regra (motivo_valor_sujo)."""
+    import clean_itbi
+    import engine
+    from normalize import excel_serial_to_ym, median, percentile, today_excel_serial
+
+    divergencias = []
+
+    # 1. integridade da camada
+    for r in itbi_records:
+        rege = (
+            r.get("tipo_imovel") is not None and r["is_compra_venda"] and r["is_full_transfer"]
+            and clean_itbi.motivo_valor_sujo(r["valor"], r.get("base_calculo")) is None
+        )
+        if bool(r["is_clean_sale"]) != bool(rege):
+            divergencias.append(f"camada: registro (SQL {r.get('sql')}, valor {r['valor']}) is_clean_sale={r['is_clean_sale']} mas a regra única diz {bool(rege)}")
+            break
+
+    # janelas
+    pi, pf = data["periodo_12m"]["inicio"], data["periodo_12m"]["fim"]
+    y, m = map(int, pi.split("-"))
+    periodo = set()
+    while True:
+        periodo.add((y, m))
+        if f"{y:04d}-{m:02d}" == pf:
+            break
+        m += 1
+        if m > 12:
+            y, m = y + 1, 1
+
+    def mesmo(a, b):
+        return a is None and b is None or (a is not None and b is not None and abs(a - b) <= 0.011)
+
+    # 2. faixa v2
+    por_bt = {}
+    for r in itbi_records:
+        if not engine._is_revenda_limpa(r) or r["day"] is None or r.get("tipo_imovel") not in engine.PERFIL_PRECO_V2_TIPOS:
+            continue
+        if excel_serial_to_ym(r["day"]) in periodo:
+            por_bt.setdefault((r["bairro"], r["tipo_imovel"]), []).append(r["valor"])
+    for b in TARGETS:
+        for tipo in engine.PERFIL_PRECO_V2_TIPOS:
+            vals = por_bt.get((b, tipo), [])
+            esperado = [round(percentile(25, vals), 2), round(percentile(75, vals), 2)] if vals else None
+            achado = data["bairros"][b]["perfil_vencedor_faixa_preco_v2"].get(tipo)
+            ok = (esperado is None and achado is None) or (esperado and achado and mesmo(esperado[0], achado[0]) and mesmo(esperado[1], achado[1]))
+            if not ok:
+                divergencias.append(f"faixa v2 {b}/{tipo}: data.json={achado} != recomputado da camada limpa={esperado}")
+
+    # 3. Preço por m² (valor total, apartamento)
+    hoje = today_excel_serial()
+    vt = {}
+    for r in itbi_records:
+        if r["bairro"] not in TARGETS or r.get("tipo_imovel") != "apartamento" or r["day"] is None:
+            continue
+        if not (0 <= hoje - r["day"] <= engine.JANELA_PRECO_M2_DIAS):
+            continue
+        f = clean_itbi.faixa_metragem(r["area"])
+        if f is None or not engine._is_revenda_limpa(r):
+            continue
+        vt.setdefault((r["bairro"], f), []).append(r["valor"])
+    for linha in data["preco_m2_painel"]:
+        vals = vt.get((linha["bairro"], linha["faixa"]), [])
+        esperado = round(median(vals), 2) if vals else None
+        if not mesmo(esperado, linha["valor_total_mediana"]):
+            divergencias.append(f"Preço por m² {linha['bairro']}/{linha['faixa']}: mediana {linha['valor_total_mediana']} != recomputada {esperado}")
+            if len(divergencias) > 12:
+                break
+
+    # 4. Captação Ativa
+    por_end = {}
+    for r in itbi_records:
+        if r.get("addr_key") and engine._is_revenda_limpa(r):
+            por_end.setdefault(r["addr_key"], []).append(r["valor"])
+    for c in data["captacao_ativa"]:
+        vals = por_end.get(c["addr_key"], [])
+        if len(vals) != c["n_vendas"] or not mesmo(round(median(vals), 2), c["preco_mediana"]):
+            divergencias.append(f"Captação {c['endereco']}: n={c['n_vendas']}/mediana={c['preco_mediana']} != recomputado n={len(vals)}/mediana={round(median(vals), 2) if vals else None}")
+            if len(divergencias) > 16:
+                break
+
+    # 5. estático
+    fonte_engine = (ROOT / "scripts" / "engine.py").read_text(encoding="utf-8").splitlines()
+    permitidas = ("pedido.get(key", 'for r in by_bairro[b] if r["valor"]')
+    for i, linha in enumerate(fonte_engine):
+        if "trim_outliers_iqr(" in linha and not linha.strip().startswith(("#", "def ")) and not any(p in linha for p in permitidas):
+            divergencias.append(f"scripts/engine.py linha {i + 1}: trim_outliers_iqr em cálculo que não é preço pedido/anúncio: {linha.strip()[:90]}")
+    fonte_export = (ROOT / "scripts" / "exportar_valor_pago_por_bairro.py").read_text(encoding="utf-8")
+    if "motivo_valor_sujo" not in fonte_export or "trim_outliers_iqr(" in fonte_export:
+        divergencias.append("scripts/exportar_valor_pago_por_bairro.py não usa só a camada limpa única (motivo_valor_sujo) ou ainda usa trim_outliers_iqr.")
+
+    if divergencias:
+        linhas = "\n".join(f"  - {d}" for d in divergencias[:20])
+        raise ValidationError(f"cálculo de preço fora da camada limpa única:\n{linhas}")
+    n_clean = sum(1 for r in itbi_records if r["is_clean_sale"])
+    print(f"[validate_build] OK 12/12 — camada limpa única: {n_clean} registros limpos; faixa v2, Preço por m² e Captação batem com a recomputação só da camada limpa; nenhum corte extra.")
 
 
 VARIACAO_MAX_ESTOQUE = 0.30
@@ -552,18 +665,18 @@ def check_variacao_estoque_nonstop(usn_meta, out_path):
     Só de um lado (queda): um AUMENTO de estoque nunca é perigoso, então
     não trava por isso — mirror de VARIACAO_MAX/ALLOW_LARGE_CHANGES."""
     if not out_path.exists():
-        print("[validate_build] OK 8/11 — sem versão publicada anterior pra comparar estoque (primeira execução).")
+        print("[validate_build] OK 8/12 — sem versão publicada anterior pra comparar estoque (primeira execução).")
         return
     try:
         old_data = json.loads(out_path.read_text(encoding="utf-8"))
     except Exception as e:
-        print(f"[validate_build] AVISO — não consegui ler a versão anterior pra comparar estoque ({e!r}); pulando checagem 8/11.")
+        print(f"[validate_build] AVISO — não consegui ler a versão anterior pra comparar estoque ({e!r}); pulando checagem 8/12.")
         return
 
     old_n = (old_data.get("meta", {}).get("usn") or {}).get("rows_apos_dedup")
     new_n = usn_meta.get("rows_apos_dedup")
     if old_n is None or new_n is None or old_n == 0:
-        print("[validate_build] OK 8/11 — sem 'rows_apos_dedup' na versão anterior ou atual pra comparar (campo novo); pulando.")
+        print("[validate_build] OK 8/12 — sem 'rows_apos_dedup' na versão anterior ou atual pra comparar (campo novo); pulando.")
         return
 
     variacao = (new_n - old_n) / old_n
@@ -575,13 +688,13 @@ def check_variacao_estoque_nonstop(usn_meta, out_path):
             "queda real de estoque."
         )
         if os.environ.get("ALLOW_LARGE_CHANGES", "").strip() == "1":
-            print(f"[validate_build] AVISO 8/11 — {msg} Mas ALLOW_LARGE_CHANGES=1 está setado — publicando mesmo assim.")
+            print(f"[validate_build] AVISO 8/12 — {msg} Mas ALLOW_LARGE_CHANGES=1 está setado — publicando mesmo assim.")
             return
         raise ValidationError(
             f"{msg} Travando a publicação e mantendo os dados anteriores. Se a queda é real e esperada, "
             "rode de novo com ALLOW_LARGE_CHANGES=1 no ambiente."
         )
-    print(f"[validate_build] OK 8/11 — estoque nonStop não caiu mais que {VARIACAO_MAX_ESTOQUE*100:.0f}% ({old_n} -> {new_n}).")
+    print(f"[validate_build] OK 8/12 — estoque nonStop não caiu mais que {VARIACAO_MAX_ESTOQUE*100:.0f}% ({old_n} -> {new_n}).")
 
 
 def check_dedup_aplicada(usn_records):
@@ -603,14 +716,14 @@ def check_dedup_aplicada(usn_records):
             "usn_records que chegaram no motor — a deduplicação deveria ter rodado antes "
             "(ver build_data.py._get_usn_records) e não rodou, ou rodou e não é idempotente."
         )
-    print(f"[validate_build] OK 9/11 — {len(usn_records)} anúncios no estoque, nenhuma duplicata (endereço+área+preço ±3%) restante.")
+    print(f"[validate_build] OK 9/12 — {len(usn_records)} anúncios no estoque, nenhuma duplicata (endereço+área+preço ±3%) restante.")
 
 
-def validate_before_publish(year_to_path, itbi_stats, data, out_path, usn_records):
+def validate_before_publish(year_to_path, itbi_stats, data, out_path, usn_records, itbi_records):
     """Chamado por build_data.py logo antes de escrever site/data.json.
     Levanta SystemExit (para o processo com código != 0) se qualquer
     checagem falhar — build_data.py não deve capturar essa exceção."""
-    print("[validate_build] rodando as 11 checagens antes de publicar...")
+    print("[validate_build] rodando as 12 checagens antes de publicar...")
     check_linhas_lidas(year_to_path, itbi_stats)
     check_variacao_bairros(data["bairros"], out_path)
     check_formato_paineis(data)
@@ -622,4 +735,5 @@ def validate_before_publish(year_to_path, itbi_stats, data, out_path, usn_record
     check_dedup_aplicada(usn_records)
     check_selos_idade_bonus(data, usn_records)
     check_captacao_limpa(data)
+    check_camada_limpa_unica(data, itbi_records)
     print("[validate_build] todas as checagens passaram — liberado pra publicar.")

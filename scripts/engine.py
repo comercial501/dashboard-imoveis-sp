@@ -196,25 +196,13 @@ def _is_valid_sale(r):
     return r["is_compra_venda"] and r["is_full_transfer"] and r["tipo_imovel"] is not None
 
 
-# Etapa 2 do item 3 da auditoria de ITBI (2026-10-01): mesma definição de
-# "revenda" já aprovada em cascata_completa.classificar_revenda_planta_
-# aprovada — proporção transmitida 100% E uso IPTU residencial (10 ou 20,
-# não o conjunto mais amplo {10,12,14,20,21,22,25} de clean_itbi.
-# TIPO_IMOVEL_POR_USO). Usada só pelo painel "Preço por m²" (valor total
-# pago em apartamento) — ver _compute_preco_m2_painel.
-_USO_REVENDA_APROVADA = {"10", "20"}
-
-
-def _is_revenda_aprovada(r):
-    return r["is_compra_venda"] and r["is_full_transfer"] and r.get("uso_code") in _USO_REVENDA_APROVADA
-
 
 # Captação limpa (2026-10-05): a Captação Ativa passa a contar vendas e
 # calcular preço só sobre REVENDA LIMPA — mesma base do carteira_77
 # (is_revenda: natureza "1.Compra e venda", proporção 100%, uso
 # residencial) MAIS a camada de limpeza de preço do resto do dashboard
-# (is_clean_sale: valor entre R$ 10 mil e R$ 100 mi, área conhecida e
-# R$/m² dentro de P5–P95 do segmento bairro+tipo+faixa). Antes só exigia
+# (is_clean_sale: valor entre R$ 10 mil e R$ 100 mi e declarado >= 60% da
+# base de cálculo adotada — ver clean_itbi). Antes só exigia
 # compra e venda + 100% + tipo de imóvel (_is_valid_sale), então guias de
 # valor absurdo (ex.: R$ 36 mil num apartamento de 99 m²) entravam na
 # contagem e na faixa. Planta e valores fora do padrão ficam em contagens
@@ -232,7 +220,7 @@ def _aggregate_itbi(itbi_records, years):
     `avg_valor`/`median_valor` e `pairs_all_years` (faixa de metragem/preço,
     Perfil Vencedor) usam a camada de dados limpa (`is_clean_sale` — ver
     clean_itbi.py: natureza, % transmitido, tipo de imóvel, deduplicado por
-    SQL e sem outlier de R$/m² pro seu segmento bairro+tipo+faixa) —
+    SQL, limites duros de valor e sem subdeclaração vs a base de cálculo) —
     decisão explícita do usuário de não deixar isso contaminar
     preço/metragem, mas manter contando pra volume/liquidez."""
     yearly_count = {b: {y: 0 for y in years} for b in TARGETS}
@@ -263,10 +251,9 @@ def _aggregate_itbi(itbi_records, years):
     for b in TARGETS:
         yearly[b] = {}
         for y in years:
-            # trim_outliers_iqr protege a mediana contra erro de digitação
-            # isolado (ex: um valor com um zero a mais/a menos) — ver
-            # achado da auditoria de 2026-09-24 no README.
-            vals = trim_outliers_iqr(yearly_valores_venda[b][y])
+            # (Camada limpa única, 2026-10-05: o corte por IQR que ficava aqui
+            # saiu — a limpeza de preço do ITBI é uma só, ver clean_itbi.)
+            vals = yearly_valores_venda[b][y]  # camada limpa única: sem corte extra
             yearly[b][y] = {
                 "count": yearly_count[b][y],
                 "avg_valor": _round(mean(vals), 2),
@@ -283,7 +270,7 @@ def _aggregate_itbi(itbi_records, years):
     pooled_median = {}
     for b in TARGETS:
         pool = [v for y in years for v in yearly_valores_venda[b][y]]
-        vals = trim_outliers_iqr(pool)
+        vals = pool  # camada limpa única: sem corte extra
         pooled_median[b] = {
             "avg_valor": _round(mean(vals), 2),
             "median_valor": _round(median(vals), 2),
@@ -544,7 +531,9 @@ def _compute_perfil_vencedor_faixa_preco_v2(itbi_records, periodo_12m, usn_by_ba
     periodo_set = set(periodo_12m)
     valores_por_bairro_tipo = {b: {t: [] for t in PERFIL_PRECO_V2_TIPOS} for b in TARGETS}
     for r in itbi_records:
-        if not r.get("is_revenda"):
+        # Camada limpa única (2026-10-05): só revenda limpa (is_revenda +
+        # is_clean_sale), e P25-P75 SEM nenhum corte extra (IQR saiu).
+        if not _is_revenda_limpa(r):
             continue
         b = r["bairro"]
         tipo = r.get("tipo_imovel")
@@ -564,8 +553,7 @@ def _compute_perfil_vencedor_faixa_preco_v2(itbi_records, periodo_12m, usn_by_ba
             if not valores:
                 bandas[tipo] = None
                 continue
-            valores_ok = trim_outliers_iqr(valores)
-            bandas[tipo] = [_round(percentile(25, valores_ok), 2), _round(percentile(75, valores_ok), 2)]
+            bandas[tipo] = [_round(percentile(25, valores), 2), _round(percentile(75, valores), 2)]
 
         own_stock = usn_by_bairro[b]
         in_band = []
@@ -599,13 +587,13 @@ def _compute_profile(pairs_all_years, usn_by_bairro, centroids):
         if len(own_pairs) >= RELIABILITY_THRESHOLD:
             lo, hi, valores = mode_bucket_from_pairs(own_pairs)
             if lo is not None:
-                # trim_outliers_iqr protege a faixa/mediana de preço contra
+                # (campo OBSOLETO v1; camada limpa única, sem IQR) protegia a faixa/mediana de preço contra
                 # erro de digitação isolado dentro do bucket de metragem
                 # vencedora — mesmo critério já usado na mediana de bairro e
                 # na mediana pedida (achado da auditoria de 2026-09-25: sem
                 # isso, 30 dos 45 bairros com faixa individual tinham pelo
                 # menos 1 outlier contaminando essa faixa).
-                valores_ok = trim_outliers_iqr(valores)
+                valores_ok = valores  # camada limpa única: sem corte extra
                 entry["area_band"] = [lo, hi]
                 entry["price_band"] = [_round(percentile(25, valores_ok), 2), _round(percentile(75, valores_ok), 2)]
                 entry["price_band_median"] = _round(median(valores_ok), 2)
@@ -621,7 +609,7 @@ def _compute_profile(pairs_all_years, usn_by_bairro, centroids):
                     neighbor_info.append({"bairro": other, "distancia_km": round(dist, 2), "n_pares": len(n_pairs)})
                 lo, hi, valores = mode_bucket_from_pairs(pool)
                 if lo is not None and valores:
-                    valores_ok = trim_outliers_iqr(valores)
+                    valores_ok = valores  # camada limpa única: sem corte extra
                     entry["area_band"] = [lo, hi]
                     entry["price_band"] = [_round(percentile(25, valores_ok), 2), _round(percentile(75, valores_ok), 2)]
                     entry["price_band_median"] = _round(median(valores_ok), 2)
@@ -783,7 +771,7 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
             continue
         # Contagens separadas (nunca entram em n_vendas nem na faixa de
         # preço): venda na planta e revenda cujo valor ficou fora do padrão
-        # (is_clean_sale falso — subdeclarado, R$/m² fora de P5–P95, etc.).
+        # (is_clean_sale falso — subdeclarado vs a base de cálculo ou fora dos limites duros).
         n_planta = sum(1 for r in all_recs if r.get("is_planta"))
         n_valor_fora_padrao = sum(1 for r in all_recs if r.get("is_revenda") and not r.get("is_clean_sale"))
 
@@ -941,7 +929,7 @@ def _compute_preco_m2(itbi_records, usn_records, hoje_serial):
                 gap_pct = _round((mediana_pedido - mediana_pago) / mediana_pago * 100, 1)
 
         valor_total_vals = valor_total.get((bairro, f), []) if is_apto else []
-        valor_total_limpos = trim_outliers_iqr(valor_total_vals)
+        valor_total_limpos = valor_total_vals  # camada limpa única: sem corte extra
         valor_total_mediana = _round(median(valor_total_limpos), 2) if valor_total_limpos else None
         valor_total_p25 = _round(percentile(25, valor_total_limpos), 2) if valor_total_limpos else None
         valor_total_p75 = _round(percentile(75, valor_total_limpos), 2) if valor_total_limpos else None
@@ -974,7 +962,7 @@ def _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial):
     revenda de planta — podia misturar lançamento fechado dentro da
     janela de 12 meses com revenda de verdade. Pedido do usuário: pra
     apartamento, trocar R$/m² pago por VALOR TOTAL pago (mediana/P25/P75)
-    só de REVENDA (`_is_revenda_aprovada` — mesma regra do item 3) e
+    só de REVENDA (`_is_revenda_limpa` — camada limpa única) e
     suspender o gap pedido×pago (calibração fica pra depois). `casa` não
     passa pelo filtro `tipo_imovel != "apartamento"` desta função (nunca
     passou — já era só apartamento antes) e continua de fora, sem mudança,
@@ -994,7 +982,7 @@ def _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial):
             continue
         if r["is_clean_sale"]:
             pago.setdefault((r["bairro"], f), []).append(r["valor_m2"])
-        if _is_revenda_aprovada(r):
+        if _is_revenda_limpa(r):
             valor_total.setdefault((r["bairro"], f), []).append(r["valor"])
 
     pedido = {}  # (bairro, faixa) -> [valor_m2, ...] (estoque atual, sem janela de tempo — não tem "data da venda")
@@ -1017,7 +1005,7 @@ def _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial):
             if not pago_vals and not valor_total_vals and key not in pedido:
                 continue
 
-            valor_total_limpos = trim_outliers_iqr(valor_total_vals)
+            valor_total_limpos = valor_total_vals  # camada limpa única: sem corte extra
             valor_total_mediana = _round(median(valor_total_limpos), 2) if valor_total_limpos else None
             valor_total_p25 = _round(percentile(25, valor_total_limpos), 2) if valor_total_limpos else None
             valor_total_p75 = _round(percentile(75, valor_total_limpos), 2) if valor_total_limpos else None

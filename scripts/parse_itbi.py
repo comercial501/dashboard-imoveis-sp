@@ -172,6 +172,22 @@ def parse_itbi_file(path, somente_uso_residencial=True):
                     except ValueError:
                         pass
 
+                # Camada limpa única (2026-10-05): "Base de Cálculo adotada" (col N)
+                # = valor que a própria Prefeitura adota pro ITBI (o maior
+                # entre o declarado e o venal de referência). Quando o valor
+                # declarado (col I) fica muito abaixo dela, o declarado é
+                # sinal de subdeclaração — ver clean_itbi.SUBDECLARACAO_LIMITE.
+                # None quando ausente ou <= 0 (então a regra não se aplica).
+                base_calculo = None
+                base_raw = cells.get("N")
+                if base_raw is not None:
+                    try:
+                        b_val = float(base_raw)
+                        if b_val > 0:
+                            base_calculo = b_val
+                    except ValueError:
+                        pass
+
                 natureza = (cells.get("H") or "").strip()
                 is_compra_venda = bool(NATUREZA_COMPRA_VENDA_RE.match(natureza))
                 is_retomada = bool(NATUREZA_RETOMADA_RE.match(natureza))
@@ -206,6 +222,7 @@ def parse_itbi_file(path, somente_uso_residencial=True):
                     "sheet_year": sheet_year,
                     "day": day,
                     "valor": valor,
+                    "base_calculo": base_calculo,
                     "area": area,
                     "sql": normalize_sql(cells.get("A")),
                     "uso_code": uso_code,

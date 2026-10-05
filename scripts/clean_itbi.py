@@ -27,7 +27,7 @@ filtros de PREÇO propriamente ditos (natureza, % transmitido, tipo de
 imóvel, outlier por bairro+tipo+faixa de metragem) e devolve um log
 auditável de quantas linhas saíram em cada etapa.
 """
-from normalize import percentile
+from normalize import percentile  # noqa: F401 (usado por outros módulos que importam daqui)
 
 # "Uso (IPTU)" -> tipo de imóvel comparável a um anúncio de venda (unidade
 # individual). 21/22 ("Prédio de apartamento, não em condomínio") são o
@@ -89,7 +89,6 @@ def faixa_metragem(area):
     return None
 
 
-MIN_AMOSTRA_OUTLIER = 10  # segmentos menores que isso não têm poder estatístico pra P5/P95 confiável
 
 # Item 2 da auditoria de 2026-09-30: valor declarado implausível pra uma
 # venda de mercado de verdade (erro de digitação, valor simbólico entre
@@ -97,6 +96,40 @@ MIN_AMOSTRA_OUTLIER = 10  # segmentos menores que isso não têm poder estatíst
 # sentido julgar o valor de uma FRAÇÃO pelo mesmo limiar do imóvel inteiro).
 VALOR_MIN_REAL = 10_000
 VALOR_MAX_REAL = 100_000_000
+
+# Camada limpa única (2026-10-05): regra de SUBDECLARAÇÃO. A Prefeitura
+# calcula o ITBI sobre a "Base de Cálculo adotada" (o maior entre o valor
+# declarado e o venal de referência). Quando o valor declarado fica abaixo de
+# SUBDECLARACAO_LIMITE da base, o declarado é descartado do PREÇO (a guia
+# continua contando em volume/giro). Distribuição medida nas revendas dos
+# últimos 12 meses: 80% têm declarado = base; percentis 1/5/10 = 0,28/0,70/
+# 0,84. Comparando cada guia com as outras vendas do MESMO prédio, abaixo de
+# 50% da base 98-100% estão muito abaixo das vizinhas (anomalia real); entre
+# 60-70% só ~55%; entre 70-80% ~35% (perto do ruído natural de 7%).
+SUBDECLARACAO_LIMITE = 0.60
+
+
+def motivo_valor_sujo(valor, base_calculo):
+    """REGRA ÚNICA de valor (camada limpa): devolve None se o valor serve
+    pra PREÇO, ou o motivo da exclusão — "valor_irreal" (fora de
+    VALOR_MIN_REAL..VALOR_MAX_REAL) ou "subdeclarado" (declarado abaixo de
+    SUBDECLARACAO_LIMITE x base de cálculo adotada). Usada por
+    build_clean_layer e por qualquer script que calcule preço direto de
+    registros do parse (ex.: exportar_valor_pago_por_bairro.py)."""
+    if not (VALOR_MIN_REAL <= valor <= VALOR_MAX_REAL):
+        return "valor_irreal"
+    if eh_subdeclarado(valor, base_calculo):
+        return "subdeclarado"
+    return None
+
+
+def eh_subdeclarado(valor, base_calculo, limite=None):
+    """True se o valor declarado ficou abaixo de `limite` (default
+    SUBDECLARACAO_LIMITE) da base de cálculo adotada. Sem base (None/<=0) a
+    regra não se aplica."""
+    if not base_calculo or base_calculo <= 0:
+        return False
+    return valor < (SUBDECLARACAO_LIMITE if limite is None else limite) * base_calculo
 
 
 def resolve_bairros(records, log=print):
@@ -185,103 +218,72 @@ def dedup_by_sql(records, log=print):
 
 
 def build_clean_layer(records, log=print):
-    """records: já resolvidos (bairro sempre presente) e deduplicados.
-    Aplica os filtros de PREÇO (natureza, % transmitido, tipo de imóvel,
-    área válida, outlier de R$/m² por bairro+tipo+faixa) e devolve
+    """CAMADA LIMPA ÚNICA DE PREÇO (2026-10-05) — a mesma regra pro
+    dashboard inteiro (Captação Ativa, faixa do perfil vencedor v2, painel
+    "Preço por m²", medianas de bairro, exportações). records: já resolvidos
+    (bairro sempre presente) e deduplicados. Devolve
     (records_com_flag_e_campos_novos, log_auditavel).
 
+    is_clean_sale = True quando o registro é uma venda de mercado cujo VALOR
+    é confiável pra preço:
+      1. tipo de imóvel conhecido (não é prédio inteiro, uso 21/22);
+      2. natureza "1.Compra e venda";
+      3. 100% do imóvel (proporção transmitida);
+      4. limites duros: VALOR_MIN_REAL <= valor <= VALOR_MAX_REAL;
+      5. sem subdeclaração: valor declarado >= SUBDECLARACAO_LIMITE x "Base
+         de Cálculo adotada" pela Prefeitura (quando a base existe).
+    NÃO há mais corte estatístico por R$/m² (P5-P95 por segmento — tirava
+    ~10% de vendas legítimas de propósito) nem exigência de área: mediana e
+    P25-P75 já são robustas e valor total não depende de área. `valor_m2`
+    continua calculado quando a área é válida (R$/m² só existe com área).
+
     Cada record de entrada ganha:
-      - tipo_imovel: "apartamento" | "casa" | None (None = fora do escopo,
-        ex: prédio inteiro — não confundir com "não residencial", que já
-        foi filtrado em parse_itbi.py)
-      - valor_m2: valor / area, quando area válida
-      - is_clean_sale: True só quando passa TODOS os filtros desta camada
+      - tipo_imovel: "apartamento" | "casa" | None
+      - valor_m2: valor / area, quando area válida (senão None)
+      - is_clean_sale: ver regra acima
     Volume/liquidez (engine.py) continuam usando is_compra_venda/
     is_full_transfer direto nos records originais — is_clean_sale é só
-    pra cálculo de PREÇO.
-    """
+    pra cálculo de PREÇO."""
     entrada = len(records)
     excl_tipo = 0
     excl_natureza = 0
     excl_natureza_por_tipo = {}
     excl_fracao = 0
     excl_valor_irreal = 0
-    excl_sem_area = 0
+    excl_subdeclarado = 0
+    limpos_sem_area = 0
 
     candidatos = []
     for r in records:
         tipo = TIPO_IMOVEL_POR_USO.get(r["uso_code"])
         rec = {**r, "tipo_imovel": tipo, "valor_m2": None, "is_clean_sale": False}
+        if r.get("area"):
+            rec["valor_m2"] = round(r["valor"] / r["area"], 2)
+        candidatos.append(rec)
         if tipo is None:
             excl_tipo += 1
-            candidatos.append(rec)
             continue
         if not r["is_compra_venda"]:
             excl_natureza += 1
             label = r.get("natureza_raw") or "(sem natureza)"
             excl_natureza_por_tipo[label] = excl_natureza_por_tipo.get(label, 0) + 1
-            candidatos.append(rec)
             continue
         if not r["is_full_transfer"]:
             excl_fracao += 1
-            candidatos.append(rec)
             continue
-        # Item 2 da auditoria de 2026-09-30: valor implausível pra uma venda
-        # de mercado (erro de digitação/valor simbólico) — só faz sentido
-        # julgar aqui porque já garantimos "compra e venda" + 100% do imóvel
-        # (fração e outras naturezas têm valor sistematicamente menor, não
-        # comparável a este limiar).
-        if not (VALOR_MIN_REAL <= r["valor"] <= VALOR_MAX_REAL):
+        # Só faz sentido julgar o valor aqui porque já garantimos "compra e
+        # venda" + 100% do imóvel (fração e outras naturezas têm valor
+        # sistematicamente menor, não comparável a este limiar).
+        motivo = motivo_valor_sujo(r["valor"], r.get("base_calculo"))
+        if motivo == "valor_irreal":
             excl_valor_irreal += 1
-            candidatos.append(rec)
             continue
-        if not r["area"]:
-            excl_sem_area += 1
-            candidatos.append(rec)
+        if motivo == "subdeclarado":
+            excl_subdeclarado += 1
             continue
-        rec["valor_m2"] = round(r["valor"] / r["area"], 2)
-        candidatos.append(rec)
-
-    # Outlier de R$/m² por bairro + tipo + faixa de metragem — cercas
-    # simples de percentil (P5/P95), não Tukey/IQR: aqui queremos um corte
-    # absoluto de cauda (Etapa 3 pediu P5–P95 explicitamente), diferente do
-    # trim_outliers_iqr usado no resto do motor (adaptativo por IQR).
-    groups = {}
-    for rec in candidatos:
-        if rec["valor_m2"] is None:
-            continue
-        f = faixa_metragem(rec["area"])
-        if f is None:
-            continue
-        rec["_faixa_metragem"] = f
-        groups.setdefault((rec["bairro"], rec["tipo_imovel"], f), []).append(rec)
-
-    excl_outlier = 0
-    segmentos_log = []
-    for (bairro, tipo, f), recs in groups.items():
-        vals = [rec["valor_m2"] for rec in recs]
-        n = len(vals)
-        if n < MIN_AMOSTRA_OUTLIER:
-            segmentos_log.append({
-                "bairro": bairro, "tipo_imovel": tipo, "faixa": f,
-                "n": n, "amostra_pequena": True, "removidos": 0,
-            })
-            for rec in recs:
-                rec["is_clean_sale"] = True
-            continue
-        p5, p95 = percentile(5, vals), percentile(95, vals)
-        removidos_aqui = 0
-        for rec in recs:
-            if p5 <= rec["valor_m2"] <= p95:
-                rec["is_clean_sale"] = True
-            else:
-                removidos_aqui += 1
-        excl_outlier += removidos_aqui
-        segmentos_log.append({
-            "bairro": bairro, "tipo_imovel": tipo, "faixa": f, "n": n,
-            "amostra_pequena": False, "p5_valor_m2": round(p5, 2), "p95_valor_m2": round(p95, 2),
-            "removidos": removidos_aqui,
-        })
+        rec["is_clean_sale"] = True
+        if not r.get("area"):
+            limpos_sem_area += 1
 
     saida_limpa = sum(1 for rec in candidatos if rec["is_clean_sale"])
     stats = {
@@ -293,16 +295,15 @@ def build_clean_layer(records, log=print):
         ),
         "excluidos_transferencia_parcial": excl_fracao,
         "excluidos_valor_irreal": excl_valor_irreal,
-        "excluidos_sem_area_construida_valida": excl_sem_area,
-        "excluidos_outlier_valor_m2_fora_p5_p95": excl_outlier,
+        "excluidos_subdeclarado": excl_subdeclarado,
+        "subdeclaracao_limite": SUBDECLARACAO_LIMITE,
+        "limpos_sem_area_valida": limpos_sem_area,
         "total_saida_clean_sale": saida_limpa,
-        "segmentos_bairro_tipo_faixa": sorted(segmentos_log, key=lambda s: -s["removidos"]),
     }
     log(
         "[clean] build_clean_layer: entrada={total_entrada} -> limpo={total_saida_clean_sale} "
         "(prédio inteiro -{excluidos_predio_inteiro_uso_21_22}, natureza -{excluidos_natureza_nao_compra_venda}, "
         "fração parcial -{excluidos_transferencia_parcial}, valor irreal -{excluidos_valor_irreal}, "
-        "sem área -{excluidos_sem_area_construida_valida}, "
-        "outlier R$/m² -{excluidos_outlier_valor_m2_fora_p5_p95})".format(**stats)
+        "subdeclarado -{excluidos_subdeclarado}; limpos sem área válida: {limpos_sem_area_valida})".format(**stats)
     )
     return candidatos, stats

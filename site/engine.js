@@ -164,15 +164,6 @@ function cmpLower(a, b) {
   return al < bl ? -1 : al > bl ? 1 : 0;
 }
 
-// Etapa 2, item 2 (2026-10-01) — mesma regra de
-// scripts/engine.py._is_revenda_aprovada: proporção transmitida 100% E
-// uso IPTU residencial (10 ou 20 — não o conjunto mais amplo de
-// tipoImovel, que também inclui 12/14/21/22/25).
-const USO_REVENDA_APROVADA = new Set(["10", "20"]);
-function isRevendaAprovada(r) {
-  return r.isCompraVenda && r.isFullTransfer && USO_REVENDA_APROVADA.has(r.usoCode);
-}
-
 // Faixas vêm de raw.constants.faixas_metragem (mesma fonte que
 // scripts/clean_itbi.FAIXAS_METRAGEM — nunca hardcoded aqui de novo).
 // Cada item é [lo, hi, label]; hi null = faixa aberta (acima de).
@@ -293,7 +284,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   TARGETS.forEach((b) => {
     yearly[b] = {};
     [yearPrev, yearFull, yearCurr].forEach((y) => {
-      const vals = trimOutliersIqr(yearlyValoresVenda[b][y]);
+      const vals = yearlyValoresVenda[b][y]; // camada limpa única: sem corte extra
       yearly[b][y] = { count: yearlyCount[b][y], avg_valor: round(mean(vals), 2), median_valor: round(median(vals), 2) };
     });
   });
@@ -304,7 +295,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   const pooledMedian = {};
   TARGETS.forEach((b) => {
     const pool = [yearPrev, yearFull, yearCurr].flatMap((y) => yearlyValoresVenda[b][y]);
-    const vals = trimOutliersIqr(pool);
+    const vals = pool; // camada limpa única: sem corte extra
     pooledMedian[b] = { avg_valor: round(mean(vals), 2), median_valor: round(median(vals), 2), n: vals.length };
   });
 
@@ -356,7 +347,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       }
 
       const valorTotalVals = isApto ? (valorTotal[`${bairro}\u0001${faixa}`] || []) : [];
-      const valorTotalLimpos = trimOutliersIqr(valorTotalVals);
+      const valorTotalLimpos = valorTotalVals; // camada limpa única: sem corte extra
       const valorTotalMediana = valorTotalLimpos.length ? round(median(valorTotalLimpos), 2) : null;
       const valorTotalP25 = valorTotalLimpos.length ? round(percentile(25, valorTotalLimpos), 2) : null;
       const valorTotalP75 = valorTotalLimpos.length ? round(percentile(75, valorTotalLimpos), 2) : null;
@@ -383,7 +374,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   //
   // Etapa 2, item 2 (2026-10-01): pra apartamento, R$/m² pago×pedido foi
   // substituído por valor TOTAL pago (mediana/P25/P75) só de REVENDA
-  // (isRevendaAprovada) — gap_pct/mediana_pago_m2/mediana_pedido_m2 ficam
+  // (isRevendaLimpa) — gap_pct/mediana_pago_m2/mediana_pedido_m2 ficam
   // sempre null agora (suspensos, calibração fica pra depois); campos
   // novos valor_total_*/n_vendas_revenda_12m são aditivos.
   const precoM2Painel = [];
@@ -396,7 +387,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       if (f == null) continue;
       const key = `${r.bairro}\u0001${f}`;
       if (r.isCleanSale) (pago[key] ||= []).push(round(r.valor / r.area, 2));
-      if (isRevendaAprovada(r)) (valorTotal[key] ||= []).push(r.valor);
+      if (isRevendaLimpa(r)) (valorTotal[key] ||= []).push(r.valor);
     }
     for (const r of usnRecords) {
       if (!(r.bairro in yearlyCount) || r.tipoImovel !== "apartamento") continue;
@@ -413,7 +404,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
         const valorTotalVals = valorTotal[key] || [];
         if (!pagoVals.length && !valorTotalVals.length && !(key in pedido)) continue;
 
-        const valorTotalLimpos = trimOutliersIqr(valorTotalVals);
+        const valorTotalLimpos = valorTotalVals; // camada limpa única: sem corte extra
         const valorTotalMediana = valorTotalLimpos.length ? round(median(valorTotalLimpos), 2) : null;
         const valorTotalP25 = valorTotalLimpos.length ? round(percentile(25, valorTotalLimpos), 2) : null;
         const valorTotalP75 = valorTotalLimpos.length ? round(percentile(75, valorTotalLimpos), 2) : null;
@@ -610,7 +601,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
         // trimOutliersIqr protege a faixa/mediana contra erro de digitação
         // isolado dentro do bucket de metragem vencedora — ver
         // scripts/engine.py._compute_profile (auditoria de 2026-09-25).
-        const valoresOk = trimOutliersIqr(valores);
+        const valoresOk = valores; // campo OBSOLETO v1; camada limpa única, sem corte extra
         entry.area_band = [lo, hi];
         entry.price_band = [round(percentile(25, valoresOk), 2), round(percentile(75, valoresOk), 2)];
         entry.price_band_median = round(median(valoresOk), 2);
@@ -628,7 +619,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
         }
         const [lo, hi, valores] = modeBucketFromPairs(pool, C.area_bucket_width, C.max_per_exact_area);
         if (lo != null && valores.length) {
-          const valoresOk = trimOutliersIqr(valores);
+          const valoresOk = valores; // campo OBSOLETO v1; camada limpa única, sem corte extra
           entry.area_band = [lo, hi];
           entry.price_band = [round(percentile(25, valoresOk), 2), round(percentile(75, valoresOk), 2)];
           entry.price_band_median = round(median(valoresOk), 2);
@@ -694,7 +685,8 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     const valoresPorTipo = { apartamento: [], casa: [] };
     perfilPrecoV2[b] = { bandas: {}, profile_sample_size_faixa_preco_v2: 0 };
     for (const r of itbiRecords) {
-      if (r.bairro !== b || !r.isRevenda || r.day == null) continue;
+      // Camada limpa única (2026-10-05): só revenda limpa (is_revenda + is_clean_sale).
+      if (r.bairro !== b || !isRevendaLimpa(r) || r.day == null) continue;
       if (!PERFIL_PRECO_V2_TIPOS.includes(r.tipoImovel)) continue;
       if (!periodoSet.has(ymKey(excelSerialToYm(r.day)))) continue;
       valoresPorTipo[r.tipoImovel].push(r.valor);
@@ -706,7 +698,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
         bandas[tipo] = null;
         continue;
       }
-      const valoresOk = trimOutliersIqr(valores);
+      const valoresOk = valores; // camada limpa única: sem corte extra
       bandas[tipo] = [round(percentile(25, valoresOk), 2), round(percentile(75, valoresOk), 2)];
     }
     const ownStock = usnByBairro[b];

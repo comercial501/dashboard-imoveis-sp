@@ -2072,3 +2072,35 @@ pra depois):
 - `validate_build`: 11 checagens (nova: `check_captacao_limpa`).
 - Texto do endereço da Captação (grafia de anúncios nonStop) alinhado entre
   Python e JS: o ÚLTIMO anúncio com grafia vence nos dois lados.
+
+## Camada limpa única de preço (2026-10-05) — AGUARDA APROVAÇÃO PRA MERGE
+
+Uma só regra de limpeza de preço do ITBI pro dashboard inteiro
+(`clean_itbi.build_clean_layer` / `motivo_valor_sujo`):
+
+1. tipo de imóvel conhecido, natureza "1.Compra e venda", 100% do imóvel;
+2. limites duros: R$ 10 mil ≤ valor ≤ R$ 100 mi;
+3. **subdeclaração**: guia cujo valor declarado fique abaixo de
+   `SUBDECLARACAO_LIMITE` (60%) da "Base de Cálculo adotada" pela Prefeitura
+   (coluna N, agora lida em `parse_itbi.py` como `base_calculo`; sem base a
+   regra não se aplica) sai do PREÇO (continua contando em volume/giro).
+Saiu: o corte estatístico P5–P95 por segmento (tirava ~10% de vendas
+legítimas), a exigência de área e todo `trim_outliers_iqr` sobre preço pago
+(restou só em preço PEDIDO/anúncio da nonStop). Mediana e P25–P75 sem
+nenhum outro corte.
+
+Aplicada em: Captação Ativa, faixa do perfil vencedor v2, painel "Preço por
+m²" (valor total), medianas de bairro/R$/m² e `exportar_valor_pago_por_bairro.py`
+(novas colunas `n_vendas_limpas`; `amostra_pequena` passa a usar a amostra
+limpa). Volumes (giro, carteira_77, contagens) seguem contando tudo.
+`validate_build` (12ª checagem, `check_camada_limpa_unica`) recomputa a camada,
+a faixa v2, o Preço por m² e a Captação só a partir da camada limpa e varre o
+código estático (sem IQR em preço pago; exportador usa a mesma regra).
+
+Escolha do corte (revendas dos últimos 12 meses com base de cálculo): 80% das
+guias têm declarado = base; percentis 1/5/10/25/50 de declarado÷base =
+0,277 / 0,695 / 0,843 / 1,0 / 1,0. Comparando cada guia com as outras vendas
+do mesmo prédio, abaixo de 50% da base 98–100% estão muito abaixo das
+vizinhas; 50–60%: 82%; 60–70%: 55%; 70–80%: 35% (ruído natural ~7%).
+Cortes: 50% tira 848 guias (2,2%), 60% tira 1.271 (3,3%), 70% tira 1.975
+(5,1%). Trocar é mudar `SUBDECLARACAO_LIMITE` e rodar o build.

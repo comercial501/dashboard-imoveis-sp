@@ -152,7 +152,7 @@ def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, car
             # Etapa 2, item 2 (2026-10-01): uso_code (coluna X do ITBI, "10"/
             # "20"/...) — campo NOVO, acrescentado no fim da tupla (não mexe
             # nos índices existentes) pra engine.js replicar
-            # engine.py._is_revenda_aprovada (valor total pago em revenda,
+            # engine.py._is_revenda_limpa (valor total pago em revenda,
             # painel "Preço por m²").
             r.get("uso_code"),
             # Etapa 2, item 1.2b (2026-10-01): is_revenda/is_planta — já
@@ -492,7 +492,7 @@ def main():
     # data.json publicado. Levanta SystemExit e PARA aqui se qualquer uma
     # falhar — nem o CSV nem o raw.json chegam a ser escritos, o data.json
     # anterior fica intacto no disco/git.
-    validate_build.validate_before_publish(year_to_path, itbi_stats, data, OUT, usn_records)
+    validate_build.validate_before_publish(year_to_path, itbi_stats, data, OUT, usn_records, itbi_records)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
