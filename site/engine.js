@@ -985,10 +985,29 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     captacao: C.pesos_painel8.captacao / pesosPainel8AptoSoma,
   };
 
-  const bonusCaptacao = (nVendas) => {
+  const bonusPorVendas = (nVendas) => {
     if (!nVendas || nVendas < 2) return 0;
     const v = C.captacao_bonus_por_vendas[String(nVendas)];
     return v != null ? v : C.captacao_bonus_max;
+  };
+  // Passo 4 (2026-10-05): bônus de captação HÍBRIDO — ver nota equivalente
+  // em scripts/engine.py._bonus_captacao_hibrido. Retorna { bonus, regua, giro }.
+  const bonusCaptacaoHibrido = (nVendas, unidades, tipoImovel) => {
+    if (!nVendas || nVendas < 2) return { bonus: 0, regua: null, giro: null };
+    let bonus, regua, giro = null;
+    if (unidades && unidades >= C.captacao_min_unidades_giro && tipoImovel !== "casa") {
+      giro = nVendas / unidades;
+      bonus = C.captacao_bonus_max;
+      for (const [limite, valor] of C.captacao_giro_faixas) {
+        if (giro < limite) { bonus = valor; break; }
+      }
+      regua = "giro do prédio";
+    } else {
+      bonus = bonusPorVendas(nVendas);
+      regua = "nº de vendas";
+    }
+    if (nVendas < C.captacao_min_vendas_bonus_alto) bonus = Math.min(bonus, C.captacao_bonus_sem_minimo_max);
+    return { bonus, regua, giro };
   };
 
   const resumoImovel = (price, aderenciaFinal, tipoImovel, scoreRevendaBairro, nVendasEndereco) => {
@@ -1047,7 +1066,8 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     // — ver engine.py._bonus_captacao.
     const nVendasEndereco = u.addrKey != null ? (captacaoNVendas.get(String(u.addrKey)) || 0) : 0;
     const temCaptacao = nVendasEndereco > 0;
-    const bonus = bonusCaptacao(nVendasEndereco);
+    const unidadesEndereco = u.addrKey != null && raw.unidades_endereco ? (raw.unidades_endereco[String(u.addrKey)] ?? null) : null;
+    const { bonus, regua, giro } = bonusCaptacaoHibrido(nVendasEndereco, unidadesEndereco, u.tipoImovel);
     const finalScore = isApto
       ? pesosPainel8Apartamento.revenda * b.score_revenda + pesosPainel8Apartamento.aderencia * aderencia + pesosPainel8Apartamento.captacao * bonus
       : C.pesos_painel8.revenda * b.score_revenda + C.pesos_painel8.preco * price.score
@@ -1059,6 +1079,8 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       score_bairro_revenda: round(b.score_revenda), price_alignment: round(price.score),
       profile_adherence: round(aderencia), tem_captacao_ativa: temCaptacao,
       captacao_n_vendas: nVendasEndereco, captacao_bonus: bonus,
+      captacao_regua: regua, captacao_unidades: temCaptacao ? unidadesEndereco : null,
+      captacao_giro_pct: giro != null ? round(giro * 100, 2) : null,
       idade_dias: u.idadeDias ?? null,
       anuncio_antigo: u.idadeDias != null && u.idadeDias > C.anuncio_antigo_dias,
       final_score: round(finalScore, 2), resumo: resumoImovel(price, aderencia, u.tipoImovel, b.score_revenda, nVendasEndereco),

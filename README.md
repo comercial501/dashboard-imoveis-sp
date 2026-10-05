@@ -2027,3 +2027,23 @@ pra depois):
   `meta.usn.antigos_por_republicacao` conta quantos anúncios só são antigos
   por causa disso. `validate_build` check 10 trava se a data original for
   perdida.
+
+## Passo 4 (2026-10-05) — bônus de captação híbrido
+
+- **Régua do bônus de captação** (10% do Painel 8; `engine._bonus_captacao_hibrido`):
+  1. endereço com **10+ unidades residenciais** no IPTU 2026 (e imóvel que não
+     é casa): **giro relativo** = vendas em 3 anos ÷ unidades — < 7% = 40,
+     7–10% = 60, 10–15% = 80, ≥ 15% = 100;
+  2. endereço com < 10 unidades, **casa**, ou **sem casamento com o IPTU**
+     (~1%): **nº de vendas** — 2 = 40, 3 = 60, 4 = 80, 5+ = 100;
+  3. em qualquer régua, **bônus acima de 60 exige ≥ 3 vendas** em 3 anos.
+  Cada imóvel traz `captacao_regua` ("giro do prédio" / "nº de vendas"),
+  `captacao_unidades` e `captacao_giro_pct`, exibidos no detalhe do imóvel.
+  Unidades por endereço: `cascata_completa.unidades_por_endereco()` (mesma
+  chave rua|número do ITBI/nonStop); o raw.json leva `unidades_endereco`.
+- **Pesos revisados em 05/10/2026, mantidos; reavaliar após 4 semanas de uso.**
+  (Ranking, Prontidão e Painel 8 — sensibilidade estável.)
+- Workflow `build-data.yml` fixado em `ubuntu-24.04` (ubuntu-latest migra pra
+  Ubuntu 26 em 19/10/2026; a migração será testada numa branch separada).
+- `validate_build` check 10 recomputa o bônus híbrido a partir dos campos do
+  imóvel e trava se divergir ou se houver bônus > 60 com menos de 3 vendas.

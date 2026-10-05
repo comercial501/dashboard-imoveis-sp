@@ -119,7 +119,7 @@ def _get_usn_records():
     return records, meta
 
 
-def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, carteira_77_bairros, limiar_escassez_real):
+def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, carteira_77_bairros, limiar_escassez_real, unidades_endereco):
     """Registros individuais + tabelas de índice, pro motor de cálculo em
     JavaScript (site/engine.js) recomputar tudo no navegador quando o
     usuário usa os filtros de bairro/preço — mesma ideia do antigo
@@ -192,6 +192,9 @@ def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, car
         # não reprocessar o cadastro do GeoSampa aqui. engine.js usa isso
         # pra recalcular giro_12m_pct = revenda_12m (filtrado) / unidades.
         "unidades_iptu": {b: carteira_77_bairros[b]["unidades_iptu"] for b in TARGETS},
+        # Passo 4: índice do endereço (mesmo addr_display/intern) -> unidades
+        # residenciais do IPTU 2026; só endereços que têm casamento.
+        "unidades_endereco": {str(idx): unidades_endereco[k] for k, idx in addr_index.items() if k in unidades_endereco},
         "constants": {
             "reliability_threshold": engine.RELIABILITY_THRESHOLD,
             "neighbor_max_km": 3,
@@ -220,6 +223,10 @@ def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, car
             "anuncio_antigo_dias": engine.ANUNCIO_ANTIGO_DIAS,
             "captacao_bonus_por_vendas": {str(k): v for k, v in engine.CAPTACAO_BONUS_POR_VENDAS.items()},
             "captacao_bonus_max": engine.CAPTACAO_BONUS_MAX,
+            "captacao_min_unidades_giro": engine.CAPTACAO_MIN_UNIDADES_GIRO,
+            "captacao_giro_faixas": [list(f) for f in engine.CAPTACAO_GIRO_FAIXAS],
+            "captacao_min_vendas_bonus_alto": engine.CAPTACAO_MIN_VENDAS_BONUS_ALTO,
+            "captacao_bonus_sem_minimo_max": engine.CAPTACAO_BONUS_SEM_MINIMO_MAX,
             "limiar_escassez_real": limiar_escassez_real,
             "min_anuncios_alerta": engine.MIN_ANUNCIOS_ALERTA,
             "janela_preco_m2_dias": engine.JANELA_PRECO_M2_DIAS,
@@ -419,7 +426,13 @@ def main():
     carteira_77 = cascata_completa.gerar_dados_carteira_77()
     print(f"[build] carteira_77 calculada ({len(carteira_77['bairros'])} bairros)")
 
-    result = engine.compute(itbi_records, usn_records, years, carteira_77["bairros"], periodo_12m_externo)
+    # Passo 4 (2026-10-05): unidades residenciais do IPTU por endereço —
+    # base do bônus de captação por giro do prédio (cadastro já em memória,
+    # lido pela carteira_77 logo acima; ver cascata_completa.carregar_unidades_iptu).
+    unidades_endereco = cascata_completa.unidades_por_endereco()
+    print(f"[build] unidades IPTU por endereço: {len(unidades_endereco)} endereços")
+
+    result = engine.compute(itbi_records, usn_records, years, carteira_77["bairros"], periodo_12m_externo, unidades_endereco)
     print(f"[build] motor de cálculo concluído ({time.time() - t_start:.1f}s total)")
 
     _write_preco_m2_csv(result["preco_m2_painel"], OUT_PRECO_M2_CSV)
@@ -484,7 +497,7 @@ def main():
     OUT.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"[build] {OUT} escrito ({OUT.stat().st_size:,} bytes)")
 
-    raw = build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, carteira_77["bairros"], data["meta"]["limiar_escassez_real"])
+    raw = build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, carteira_77["bairros"], data["meta"]["limiar_escassez_real"], unidades_endereco)
     raw["search_interest"] = search_interest or {}
     raw["search_interest_meta"] = search_interest_meta
     OUT_RAW.write_text(json.dumps(raw, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

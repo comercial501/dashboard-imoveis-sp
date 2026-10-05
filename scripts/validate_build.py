@@ -413,8 +413,13 @@ def check_selos_idade_bonus(data, usn_records):
       2. IDADE: algum anúncio válido (valor > 0) do estoque ficou FORA de
          imoveis_prioritarios (anúncio antigo NUNCA é excluído — só ganha
          selo), ou `anuncio_antigo` divergir de idade_dias > 365.
-      3. BÔNUS DE CAPTAÇÃO: captacao_bonus fora da escala 2=40/3=60/4=80/
-         5+=100 (0 se o endereço não está na Captação Ativa).
+      3. BÔNUS DE CAPTAÇÃO (híbrido, Passo 4): captacao_bonus precisa bater
+         com a recomputação a partir dos campos do próprio imóvel —
+         régua de giro (>= 10 unidades no IPTU e não-casa: < 7% = 40,
+         7-10% = 60, 10-15% = 80, >= 15% = 100) ou régua de nº de vendas
+         (2=40/3=60/4=80/5+=100) — com bônus acima de 60 só com >= 3
+         vendas; captacao_regua coerente (giro só com unidades >= 10 e
+         não-casa) e 0 se o endereço não está na Captação Ativa.
       4. (Passo 3d) IDADE = cadastro MAIS ANTIGO entre as duplicatas:
          nenhum anúncio do estoque pode ter created_at_mais_antigo MAIS
          NOVO que o próprio created_at, nem idade_dias menor que a do
@@ -461,8 +466,13 @@ def check_selos_idade_bonus(data, usn_records):
             divergencias.append(f"imoveis_prioritarios[{im.get('codigo')}].anuncio_antigo={im.get('anuncio_antigo')!r}, esperado {esperado!r} (idade_dias={im.get('idade_dias')})")
             break
         n = im.get("captacao_n_vendas", 0)
-        if im.get("captacao_bonus") != engine._bonus_captacao(n):
-            divergencias.append(f"imoveis_prioritarios[{im.get('codigo')}].captacao_bonus={im.get('captacao_bonus')!r} fora da escala para {n} venda(s) (esperado {engine._bonus_captacao(n)})")
+        un = im.get("captacao_unidades")
+        esperado_b, esperada_regua, _g = engine._bonus_captacao_hibrido(n, un, im.get("tipo_imovel"))
+        if im.get("captacao_bonus") != esperado_b or im.get("captacao_regua") != esperada_regua:
+            divergencias.append(f"imoveis_prioritarios[{im.get('codigo')}]: bônus {im.get('captacao_bonus')!r}/régua {im.get('captacao_regua')!r}, esperado {esperado_b!r}/{esperada_regua!r} ({n} venda(s), {un} unidade(s), tipo {im.get('tipo_imovel')})")
+            break
+        if im.get("captacao_bonus", 0) > engine.CAPTACAO_BONUS_SEM_MINIMO_MAX and n < engine.CAPTACAO_MIN_VENDAS_BONUS_ALTO:
+            divergencias.append(f"imoveis_prioritarios[{im.get('codigo')}]: bônus {im.get('captacao_bonus')} com só {n} venda(s) (acima de 60 exige >= 3)")
             break
 
     if divergencias:

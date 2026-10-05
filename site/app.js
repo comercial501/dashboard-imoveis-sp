@@ -1153,6 +1153,24 @@ function renderCaptacao() {
 // ---------------------------------------------------------------------------
 // Imóveis Prioritários (Painel 8)
 // ---------------------------------------------------------------------------
+// Passo 4 (2026-10-05): mostra qual régua gerou o bônus de captação do
+// imóvel — "giro do prédio" (vendas em 3 anos ÷ unidades do IPTU, prédios
+// com 10+ unidades) ou "nº de vendas" (prédios pequenos, casas, ou endereço
+// sem casamento com o IPTU).
+function captacaoReguaTexto(im) {
+  const n = im.captacao_n_vendas;
+  const vendas = `${fmtInt(n)} venda${n === 1 ? "" : "s"} em 3 anos`;
+  const limite = n < 3 ? " · limite de 60 pontos com menos de 3 vendas" : "";
+  if (im.captacao_regua === "giro do prédio") {
+    return `Bônus de captação ${fmtInt(im.captacao_bonus)} — régua: giro do prédio (${vendas} ÷ ${fmtInt(im.captacao_unidades)} unidades = ${fmtPct(im.captacao_giro_pct)})${limite}`;
+  }
+  let motivo;
+  if (im.tipo_imovel === "casa") motivo = "casa";
+  else if (im.captacao_unidades == null) motivo = "endereço sem casamento com o IPTU";
+  else motivo = `prédio com ${fmtInt(im.captacao_unidades)} unidade${im.captacao_unidades === 1 ? "" : "s"}, menos de 10`;
+  return `Bônus de captação ${fmtInt(im.captacao_bonus)} — régua: nº de vendas (${vendas}; ${motivo})${limite}`;
+}
+
 function imovelRow(im, i) {
   const item = el("div", { class: `imovel-row${i < 3 ? " r" + (i + 1) : ""}` }, [
     el("div", { class: "medal" }, String(i + 1)),
@@ -1169,6 +1187,7 @@ function imovelRow(im, i) {
         el("span", {}, ["Vagas ", el("b", {}, im.vagas ?? "—")]),
       ]),
       el("div", { class: "resumo" }, im.resumo || "—"),
+      im.captacao_regua ? el("div", { class: "small muted", style: "margin-top:3px" }, captacaoReguaTexto(im)) : null,
     ]),
   ]);
   if (im.link) {
@@ -1184,7 +1203,7 @@ function renderPrioritarios() {
   const top = DATA.imoveis_prioritarios.slice(0, 50);
   top.forEach((im, i) => box.appendChild(imovelRow(im, i)));
   box.appendChild(el("div", { class: "note methodology" },
-    `Mostrando os 50 melhores de ${DATA.imoveis_prioritarios.length} imóveis pontuados. Fórmula (casa): 35% liquidez de revenda do bairro + 30% alinhamento de preço (R$/m² do anúncio × mediana paga do mesmo tipo de imóvel e faixa de metragem) + 25% aderência à faixa de preço vencedora do bairro (valor pago em revenda, 12m, por tipo) + 10% bônus de captação ativa (gradual pelo nº de vendas no endereço em 3 anos: 2 vendas = 40, 3 = 60, 4 = 80, 5 ou mais = 100). Apartamento: componente de preço suspenso (aguardando calibração de área) — peso redistribuído entre liquidez (50%), aderência (~35,7%) e captação (~14,3%).`));
+    `Mostrando os 50 melhores de ${DATA.imoveis_prioritarios.length} imóveis pontuados. Fórmula (casa): 35% liquidez de revenda do bairro + 30% alinhamento de preço (R$/m² do anúncio × mediana paga do mesmo tipo de imóvel e faixa de metragem) + 25% aderência à faixa de preço vencedora do bairro (valor pago em revenda, 12m, por tipo) + 10% bônus de captação ativa (híbrido: prédio com 10+ unidades no IPTU usa o giro — vendas em 3 anos ÷ unidades: menos de 7% = 40, 7–10% = 60, 10–15% = 80, 15% ou mais = 100; prédio com menos de 10 unidades, casa ou endereço sem casamento com o IPTU usa o nº de vendas: 2 = 40, 3 = 60, 4 = 80, 5 ou mais = 100; bônus acima de 60 exige pelo menos 3 vendas). Apartamento: componente de preço suspenso (aguardando calibração de área) — peso redistribuído entre liquidez (50%), aderência (~35,7%) e captação (~14,3%).`));
 }
 
 // ---------------------------------------------------------------------------

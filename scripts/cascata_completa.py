@@ -22,6 +22,7 @@ votos de endereço/CEP (nunca cruza entre si) — só a quadra fiscal (`votos_
 quadra_resolvidos`, inerentemente um dado do IPTU) e a tabela de tradução
 são compartilhadas entre os 3, conforme protocolo já aprovado.
 """
+import functools
 import re
 import sys
 from pathlib import Path
@@ -225,8 +226,11 @@ def amostrar_planta_sfh_sem_token(planta_recs, n=20, seed=42):
 
 
 # --- universo de unidades do IPTU (giro) ------------------------------------
+@functools.lru_cache(maxsize=1)
 def carregar_unidades_iptu():
-    """Lê o cadastro reduzido do IPTU, filtra TIPOS_RESIDENCIAIS (apto +
+    """(Memoizada: lida uma vez só por execução — tanto a carteira_77 quanto
+    unidades_por_endereco() usam a mesma lista, nenhum chamador a altera.)
+    Lê o cadastro reduzido do IPTU, filtra TIPOS_RESIDENCIAIS (apto +
     residência), devolve registros no shape esperado pela Cascata
     (bairro_raw, addr_key, cep, sq, num_norm)."""
     import csv
@@ -249,6 +253,19 @@ def carregar_unidades_iptu():
                 "num_norm": num_norm,
             })
     return out
+
+
+def unidades_por_endereco():
+    """Passo 4 (2026-10-05): nº de unidades residenciais (apto + residência)
+    do cadastro do IPTU 2026 por endereço (mesma chave rua|número do ITBI e
+    da nonStop, normalize.address_key) — base do bônus de captação por giro
+    relativo do prédio (vendas em 3 anos / unidades). Endereço ausente aqui
+    = sem casamento com o IPTU."""
+    contagem = {}
+    for u in carregar_unidades_iptu():
+        if u["addr_key"]:
+            contagem[u["addr_key"]] = contagem.get(u["addr_key"], 0) + 1
+    return contagem
 
 
 # --- orquestração -----------------------------------------------------------

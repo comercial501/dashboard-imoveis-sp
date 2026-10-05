@@ -111,6 +111,42 @@ ANUNCIO_ANTIGO_DIAS = 365
 CAPTACAO_BONUS_POR_VENDAS = {2: 40, 3: 60, 4: 80}
 CAPTACAO_BONUS_MAX = 100
 
+# Passo 4 (2026-10-05): bônus de captação HÍBRIDO.
+#  1. Endereço com >= 10 unidades residenciais no IPTU 2026 (e imóvel que não
+#     é casa): giro relativo = vendas em 3 anos / unidades; < 7% = 40,
+#     7-10% = 60, 10-15% = 80, >= 15% = 100.
+#  2. Endereço com < 10 unidades, casa, ou SEM casamento com o IPTU (~1%):
+#     escala por nº de vendas (CAPTACAO_BONUS_POR_VENDAS).
+#  3. Em qualquer régua, bônus acima de 60 exige >= 3 vendas em 3 anos.
+CAPTACAO_MIN_UNIDADES_GIRO = 10
+CAPTACAO_GIRO_FAIXAS = ((0.07, 40), (0.10, 60), (0.15, 80))  # abaixo do limite -> bônus; resto -> MAX
+CAPTACAO_MIN_VENDAS_BONUS_ALTO = 3
+CAPTACAO_BONUS_SEM_MINIMO_MAX = 60
+REGUA_GIRO = "giro do prédio"
+REGUA_VENDAS = "nº de vendas"
+
+
+def _bonus_captacao_hibrido(n_vendas, unidades, tipo_imovel):
+    """Retorna (bônus, régua, giro). régua = REGUA_GIRO ou REGUA_VENDAS (None
+    se o endereço não está na Captação Ativa); giro só vem na régua de giro."""
+    if not n_vendas or n_vendas < 2:
+        return 0, None, None
+    if unidades and unidades >= CAPTACAO_MIN_UNIDADES_GIRO and tipo_imovel != "casa":
+        giro = n_vendas / unidades
+        bonus = CAPTACAO_BONUS_MAX
+        for limite, valor in CAPTACAO_GIRO_FAIXAS:
+            if giro < limite:
+                bonus = valor
+                break
+        regua = REGUA_GIRO
+    else:
+        giro = None
+        bonus = _bonus_captacao(n_vendas)
+        regua = REGUA_VENDAS
+    if n_vendas < CAPTACAO_MIN_VENDAS_BONUS_ALTO:
+        bonus = min(bonus, CAPTACAO_BONUS_SEM_MINIMO_MAX)
+    return bonus, regua, giro
+
 
 def _bonus_captacao(n_vendas):
     """None/0/1 vendas = 0 (endereço fora da Captação Ativa); 2/3/4 =
@@ -1101,7 +1137,7 @@ def _resumo_imovel(price, aderencia_final, tipo_imovel, score_revenda_bairro, n_
     return " · ".join(frases[:2])
 
 
-def _compute_imoveis_prioritarios(usn_records, bairros_out, captacao_n_vendas):
+def _compute_imoveis_prioritarios(usn_records, bairros_out, captacao_n_vendas, unidades_por_endereco):
     out = []
     for u in usn_records:
         if u["valor"] is None or u["valor"] <= 0:
@@ -1145,7 +1181,8 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, captacao_n_vendas):
         # endereço (ver _bonus_captacao) — antes era 100 ou 0.
         n_vendas_endereco = captacao_n_vendas.get(u["addr_key"], 0) if u["addr_key"] is not None else 0
         tem_captacao = n_vendas_endereco > 0
-        bonus = _bonus_captacao(n_vendas_endereco)
+        unidades_endereco = unidades_por_endereco.get(u["addr_key"]) if u["addr_key"] is not None else None
+        bonus, regua, giro = _bonus_captacao_hibrido(n_vendas_endereco, unidades_endereco, u.get("tipo_imovel"))
 
         if is_apto:
             final_score = (
@@ -1175,6 +1212,10 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, captacao_n_vendas):
             # removidos daqui — não alimentam mais nada neste painel.
             "profile_adherence": _round(aderencia), "tem_captacao_ativa": tem_captacao,
             "captacao_n_vendas": n_vendas_endereco, "captacao_bonus": bonus,
+            # Passo 4: qual régua gerou o bônus ("giro do prédio" ou "nº de
+            # vendas"), as unidades do IPTU e o giro (só na régua de giro).
+            "captacao_regua": regua, "captacao_unidades": unidades_endereco if tem_captacao else None,
+            "captacao_giro_pct": _round(giro * 100, 2) if giro is not None else None,
             # Passo 3c: idade do anúncio (dias, vs horário da consulta) e
             # selo "Anúncio antigo" — nunca exclui o imóvel de nenhuma conta.
             "idade_dias": u.get("idade_dias"),
@@ -1339,7 +1380,7 @@ def _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out):
 # ---------------------------------------------------------------------------
 # Orquestração principal
 # ---------------------------------------------------------------------------
-def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_externo):
+def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_externo, unidades_por_endereco=None):
     """years: lista de 3 anos ascendente, ex: [2024, 2025, 2026].
     carteira_77_bairros: dict bairro -> {unidades_iptu, giro_12m_pct, ...}
     de cascata_completa.gerar_dados_carteira_77()['bairros'] — fonte
@@ -1350,7 +1391,10 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
     resolver_registros_engine() sobre TODOS os registros antes de
     classificar revenda/planta — ver _compute_volume_12m, item 1.1 da
     Etapa 2 (precisa ser o MESMO período de carteira_77, senão
-    revenda_12m/planta_12m divergem — pego pelo teste de consistência)."""
+    revenda_12m/planta_12m divergem — pego pelo teste de consistência).
+    unidades_por_endereco: dict addr_key -> nº de unidades residenciais do
+    IPTU 2026 (cascata_completa.unidades_por_endereco) — alimenta a régua de
+    giro do bônus de captação (Passo 4); vazio = tudo pela régua de vendas."""
     year_prev, year_full, year_curr = years
 
     yearly, pairs_all_years, month_counts, pooled_median = _aggregate_itbi(itbi_records, years)
@@ -1620,7 +1664,7 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
     ranking = sorted(TARGETS, key=lambda b: -bairros_out[b]["score"])
 
     # --- Painel 8: imóveis prioritários ---
-    imoveis_prioritarios = _compute_imoveis_prioritarios(usn_records, bairros_out, addr_in_captacao_ativa)
+    imoveis_prioritarios = _compute_imoveis_prioritarios(usn_records, bairros_out, addr_in_captacao_ativa, unidades_por_endereco or {})
 
     # --- Painel 2: Prontidão para Campanha ---
     # Etapa 2, revisão 2026-10-01: f2 agora usa estoque_perfil_faixa_preco
