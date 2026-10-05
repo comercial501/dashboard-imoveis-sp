@@ -209,6 +209,23 @@ def _is_revenda_aprovada(r):
     return r["is_compra_venda"] and r["is_full_transfer"] and r.get("uso_code") in _USO_REVENDA_APROVADA
 
 
+# Captação limpa (2026-10-05): a Captação Ativa passa a contar vendas e
+# calcular preço só sobre REVENDA LIMPA — mesma base do carteira_77
+# (is_revenda: natureza "1.Compra e venda", proporção 100%, uso
+# residencial) MAIS a camada de limpeza de preço do resto do dashboard
+# (is_clean_sale: valor entre R$ 10 mil e R$ 100 mi, área conhecida e
+# R$/m² dentro de P5–P95 do segmento bairro+tipo+faixa). Antes só exigia
+# compra e venda + 100% + tipo de imóvel (_is_valid_sale), então guias de
+# valor absurdo (ex.: R$ 36 mil num apartamento de 99 m²) entravam na
+# contagem e na faixa. Planta e valores fora do padrão ficam em contagens
+# separadas (n_planta / n_valor_fora_padrao), nunca no preço.
+CAPTACAO_MIN_VENDAS_FAIXA = 4  # P25-P75 só com 4+ revendas limpas; abaixo disso só a mediana
+
+
+def _is_revenda_limpa(r):
+    return bool(r.get("is_revenda")) and bool(r.get("is_clean_sale"))
+
+
 def _aggregate_itbi(itbi_records, years):
     """Volume (`count`) conta QUALQUER transação residencial válida — giro
     do bairro é giro, mesmo quando o valor não é confiável pra preço.
@@ -752,18 +769,23 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
                 if r.get("is_revenda"):
                     liquidez[r["bairro"]][r["sheet_year"]]["revenda"] += 1
 
-        # Só venda válida (compra e venda de mercado E 100% do imóvel — ver
-        # _is_valid_sale) conta como "venda" pro histórico de PREÇO de um
+        # Só REVENDA LIMPA (compra e venda de mercado, 100% do imóvel, uso
+        # residencial e valor dentro do padrão — ver _is_revenda_limpa) conta como "venda" pro histórico de PREÇO de um
         # endereço: herança/doação/integralização de capital tem valor
         # contábil, e transferência de fração ideal (coproprietário vendendo
         # só a sua parte) tem valor proporcional à fração, não ao imóvel
         # inteiro — nenhum dos dois é preço de mercado do apartamento e não
         # deveriam contar como "n vendas" nem entrar na faixa de preço
         # exibida pro usuário.
-        recs = [r for r in all_recs if _is_valid_sale(r)]
+        recs = [r for r in all_recs if _is_revenda_limpa(r)]
         if not recs:
             n_addr_sem_venda_real += 1
             continue
+        # Contagens separadas (nunca entram em n_vendas nem na faixa de
+        # preço): venda na planta e revenda cujo valor ficou fora do padrão
+        # (is_clean_sale falso — subdeclarado, R$/m² fora de P5–P95, etc.).
+        n_planta = sum(1 for r in all_recs if r.get("is_planta"))
+        n_valor_fora_padrao = sum(1 for r in all_recs if r.get("is_revenda") and not r.get("is_clean_sale"))
 
         # addr_key é só rua+número (ver normalize.address_key) — o mesmo
         # prédio pode ter linhas do ITBI com bairro diferente entre si
@@ -776,7 +798,11 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
         # prédio, sem complemento de unidade) sobre o title-case derivado do
         # ITBI, igual ao critério documentado (ver §3 do spec de metodologia)
         # e já aplicado no lado JS via a tabela de interning do raw.json.
-        preferido = next((u["addr_display_building"] for u in usn_aqui if u.get("addr_display_building")), None)
+        # Mesmo critério do raw.json/engine.js (tabela de interning: o ÚLTIMO
+        # anúncio com grafia vence) — antes o Python pegava o primeiro e as
+        # duas pontas divergiam no texto quando dois anúncios do mesmo prédio
+        # grafavam o endereço diferente (ex.: "Queiroz" x "Queiróz").
+        preferido = next((u["addr_display_building"] for u in reversed(usn_aqui) if u.get("addr_display_building")), None)
         if preferido:
             endereco = preferido
         tem_hoje, unidades_hoje = _tem_unidade_a_venda_hoje(usn_aqui)
@@ -785,7 +811,8 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
             r = recs[0]
             captacao_unico.append({
                 "bairro": bairro, "addr_key": addr_key, "endereco": endereco,
-                "n_vendas": 1, "preco_min": r["valor"], "preco_max": r["valor"],
+                "n_vendas": 1, "preco_mediana": r["valor"], "preco_p25": None, "preco_p75": None,
+                "poucas_vendas": True, "n_planta": n_planta, "n_valor_fora_padrao": n_valor_fora_padrao,
                 "area_min": r["area"], "area_max": r["area"],
                 "tem_unidade_a_venda_hoje": tem_hoje, "unidades_a_venda_hoje": unidades_hoje,
             })
@@ -804,8 +831,13 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
         area_min, area_max = _coherent_area_range(areas)
         captacao_ativa.append({
             "bairro": bairro, "addr_key": addr_key, "endereco": endereco,
-            "n_vendas": len(recs), "preco_min": min(valores), "preco_max": max(valores),
-            "preco_medio": _round(mean(valores), 2),
+            "n_vendas": len(recs), "preco_mediana": _round(median(valores), 2),
+            # Captação limpa: faixa P25-P75 só com 4+ revendas limpas; com
+            # menos, só a mediana + "poucas vendas" (em vez de mínimo-máximo).
+            "preco_p25": _round(percentile(25, valores), 2) if len(valores) >= CAPTACAO_MIN_VENDAS_FAIXA else None,
+            "preco_p75": _round(percentile(75, valores), 2) if len(valores) >= CAPTACAO_MIN_VENDAS_FAIXA else None,
+            "poucas_vendas": len(valores) < CAPTACAO_MIN_VENDAS_FAIXA,
+            "n_planta": n_planta, "n_valor_fora_padrao": n_valor_fora_padrao,
             "area_min": area_min, "area_max": area_max,
             "tem_unidade_a_venda_hoje": tem_hoje, "unidades_a_venda_hoje": unidades_hoje,
         })
@@ -1358,8 +1390,10 @@ def _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out):
                 "estoque_fora_do_perfil": bo["estoque_fora_do_perfil"],
             },
             "enderecos": [
-                {"endereco": e["endereco"], "n_vendas": e["n_vendas"], "preco_min": e["preco_min"],
-                 "preco_max": e["preco_max"], "area_min": e["area_min"], "area_max": e["area_max"],
+                {"endereco": e["endereco"], "n_vendas": e["n_vendas"], "preco_mediana": e["preco_mediana"],
+                 "preco_p25": e["preco_p25"], "preco_p75": e["preco_p75"], "poucas_vendas": e["poucas_vendas"],
+                 "n_planta": e["n_planta"], "n_valor_fora_padrao": e["n_valor_fora_padrao"],
+                 "area_min": e["area_min"], "area_max": e["area_max"],
                  "unico": e["unico"], "tem_unidade_a_venda_hoje": e["tem_unidade_a_venda_hoje"],
                  "unidades_a_venda_hoje": e["unidades_a_venda_hoje"]}
                 for e in enderecos

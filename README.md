@@ -2047,3 +2047,28 @@ pra depois):
   Ubuntu 26 em 19/10/2026; a migração será testada numa branch separada).
 - `validate_build` check 10 recomputa o bônus híbrido a partir dos campos do
   imóvel e trava se divergir ou se houver bônus > 60 com menos de 3 vendas.
+
+## Captação limpa (2026-10-05)
+
+- **Base da Captação Ativa**: passa a contar vendas e calcular preço só sobre
+  **revenda limpa** — `is_revenda` (a mesma do `carteira_77`: "1.Compra e
+  venda", proporção 100%, uso residencial) **mais** a camada limpa de preço
+  do resto do dashboard (`is_clean_sale`: valor entre R$ 10 mil e R$ 100 mi,
+  área conhecida e R$/m² dentro de P5–P95 do segmento bairro+tipo+faixa).
+  Antes só exigia compra e venda + 100% + tipo de imóvel, sem nenhum corte de
+  valor, então guias de valor absurdo (ex.: R$ 36 mil num apartamento de
+  99 m²) entravam na contagem e na faixa. O corte P5–P95 por construção
+  também retira ~10% de vendas legítimas das pontas de cada segmento.
+- **Preço**: MEDIANA; faixa P25–P75 só com 4+ revendas limpas (com menos,
+  só a mediana e "poucas vendas"). Campos `preco_mediana`, `preco_p25`,
+  `preco_p75`, `poucas_vendas` (substituem `preco_min/max/medio`).
+- **Contagens separadas** (nunca entram no preço): `n_planta` e
+  `n_valor_fora_padrao` (revendas ignoradas por valor fora do padrão).
+  Parciais (<100%, uso residencial) não existem na base do motor.
+- **Metragem** exibida como "área do cadastro" (ITBI, inclui áreas comuns e
+  vagas), nunca como área útil.
+- Efeito em cascata (mesma `n_vendas`): bônus de captação do Painel 8 e
+  `f4` do Prontidão passam a usar a contagem limpa.
+- `validate_build`: 11 checagens (nova: `check_captacao_limpa`).
+- Texto do endereço da Captação (grafia de anúncios nonStop) alinhado entre
+  Python e JS: o ÚLTIMO anúncio com grafia vence nos dois lados.

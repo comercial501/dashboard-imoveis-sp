@@ -1097,13 +1097,29 @@ function renderCaptacao() {
       // Passo 3c: algum anúncio ativo desse endereço tem mais de 365 dias.
       const unidadeAntiga = (e.unidades_a_venda_hoje || []).find((u) => u.anuncio_antigo);
       if (unidadeAntiga) nameLine.push(anuncioAntigoBadge(unidadeAntiga.idade_dias));
-      let metaLine = `${e.n_vendas} venda${e.n_vendas === 1 ? "" : "s"}${e.area_min != null ? ` · ${fmtM2(e.area_min)}${e.area_max !== e.area_min ? "–" + fmtM2(e.area_max) : ""}` : ""}`;
+      // Captação limpa (2026-10-05): n_vendas = só revenda limpa (compra e
+      // venda, 100%, uso residencial, valor dentro do padrão — mesma base do
+      // Carteira 77). Planta e valores fora do padrão aparecem à parte e
+      // nunca entram no preço. A metragem é a ÁREA DO CADASTRO do ITBI
+      // (inclui áreas comuns e vagas), não a área útil.
+      const partesMeta = [`${e.n_vendas} revenda${e.n_vendas === 1 ? "" : "s"} limpa${e.n_vendas === 1 ? "" : "s"}`];
+      if (e.area_min != null) {
+        partesMeta.push(`área do cadastro ${fmtM2(e.area_min)}${e.area_max !== e.area_min ? "–" + fmtM2(e.area_max) : ""}`);
+      }
+      if (e.n_planta) partesMeta.push(`+${fmtInt(e.n_planta)} na planta (fora do preço)`);
+      if (e.n_valor_fora_padrao) partesMeta.push(`${fmtInt(e.n_valor_fora_padrao)} revenda${e.n_valor_fora_padrao === 1 ? "" : "s"} com valor fora do padrão ignorada${e.n_valor_fora_padrao === 1 ? "" : "s"}`);
+      const metaLine = partesMeta.join(" · ");
+      // Preço: mediana; faixa P25–P75 só com 4+ revendas limpas (senão "poucas vendas").
+      const precoNodes = [el("div", { style: "white-space:nowrap" }, `mediana ${fmtMoneyCompact(e.preco_mediana)}`)];
+      precoNodes.push(e.poucas_vendas
+        ? el("div", { class: "small muted" }, "poucas vendas")
+        : el("div", { class: "small muted", style: "white-space:nowrap" }, `P25–P75: ${fmtMoneyCompact(e.preco_p25)} – ${fmtMoneyCompact(e.preco_p75)}`));
       const row = el("div", { class: "addr-row" }, [
         el("div", {}, [
           el("div", { class: "addr-name" }, nameLine),
           el("div", { class: "addr-meta" }, metaLine),
         ]),
-        el("div", { class: "addr-price" }, e.preco_min === e.preco_max ? fmtMoneyCompact(e.preco_min) : `${fmtMoneyCompact(e.preco_min)} – ${fmtMoneyCompact(e.preco_max)}`),
+        el("div", { class: "addr-price", style: "text-align:right" }, precoNodes),
       ]);
       container.appendChild(row);
       if (e.tem_unidade_a_venda_hoje && e.unidades_a_venda_hoje && e.unidades_a_venda_hoje.length) {

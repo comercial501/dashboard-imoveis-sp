@@ -210,6 +210,7 @@ def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, car
             "valor_oportunidade_min_vendas_primary": engine.VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY,
             "captacao_estrategica_max_stock_match": engine.CAPTACAO_ESTRATEGICA_MAX_STOCK_MATCH,
             "captacao_estrategica_min_enderecos": engine.CAPTACAO_ESTRATEGICA_MIN_ENDERECOS,
+            "captacao_min_vendas_faixa": engine.CAPTACAO_MIN_VENDAS_FAIXA,
             "area_bucket_width": 20,
             "max_per_exact_area": 5,
             "area_cap": 600,

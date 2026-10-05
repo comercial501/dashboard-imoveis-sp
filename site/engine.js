@@ -252,7 +252,11 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   // outlier por bairro+tipo+faixa da camada limpa, que já é considerado no
   // isCleanSale de cada linha (esse é usado só na agregação por bairro,
   // abaixo) — ver scripts/engine.py._is_valid_sale.
-  const isValidSale = (r) => r.isCompraVenda && r.isFullTransfer && r.tipoImovel != null;
+  // Captação limpa (2026-10-05): Captação Ativa conta vendas e calcula preço
+  // só sobre REVENDA LIMPA (is_revenda + is_clean_sale) — ver nota
+  // equivalente em scripts/engine.py._is_revenda_limpa.
+  const isRevendaLimpa = (r) => !!r.isRevenda && !!r.isCleanSale;
+  const CAPTACAO_MIN_VENDAS_FAIXA = C.captacao_min_vendas_faixa;
 
   // --- 1. Agregação ITBI por bairro/ano + pares (área,valor) ---
   // count = QUALQUER transação residencial válida (giro do bairro é giro,
@@ -789,12 +793,19 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     // Volume/liquidez conta TODA transação residencial válida, no bairro em
     // que foi de fato registrada linha a linha — não muda com o filtro de
     // natureza abaixo, que só afeta a identidade do PRÉDIO (Captação Ativa).
-    for (const r of allRecs) if (liquidez[r.bairro][r.sheetYear]) liquidez[r.bairro][r.sheetYear].total++;
+    for (const r of allRecs) {
+      if (liquidez[r.bairro][r.sheetYear]) {
+        liquidez[r.bairro][r.sheetYear].total++;
+        if (r.isRevenda) liquidez[r.bairro][r.sheetYear].revenda++;
+      }
+    }
 
     // Só venda válida conta como venda de mercado pro histórico de PREÇO
-    // de um endereço (mesmo critério da mediana de bairro — ver isValidSale).
-    const recs = allRecs.filter(isValidSale);
+    // de um endereço — revenda limpa, ver isRevendaLimpa.
+    const recs = allRecs.filter(isRevendaLimpa);
     if (!recs.length) { nAddrSemVendaReal++; continue; }
+    const nPlanta = allRecs.filter((r) => r.isPlanta).length;
+    const nValorForaPadrao = allRecs.filter((r) => r.isRevenda && !r.isCleanSale).length;
 
     const bairro = majorityBairro(recs);
     const endereco = recs.find((r) => r.addrDisplay)?.addrDisplay || String(addrKey);
@@ -802,9 +813,9 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
 
     if (recs.length === 1) {
       const r = recs[0];
-      if (liquidez[bairro][r.sheetYear]) liquidez[bairro][r.sheetYear].revenda++;
       captacaoUnico.push({
-        bairro, addr_key: addrKey, endereco, n_vendas: 1, preco_min: r.valor, preco_max: r.valor,
+        bairro, addr_key: addrKey, endereco, n_vendas: 1, preco_mediana: r.valor, preco_p25: null, preco_p75: null,
+        poucas_vendas: true, n_planta: nPlanta, n_valor_fora_padrao: nValorForaPadrao,
         area_min: r.area, area_max: r.area, tem_unidade_a_venda_hoje: temHoje, unidades_a_venda_hoje: unidadesHoje,
       });
       continue;
@@ -815,12 +826,16 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     if (priceIncoherent(valores)) { nAddrDiscarded++; continue; }
     if (isLaunch(recs.map((r) => r.day))) { nAddrLaunch++; continue; }
 
-    for (const r of recs) if (liquidez[bairro][r.sheetYear]) liquidez[bairro][r.sheetYear].revenda++;
     const areas = recs.map((r) => r.area).filter((a) => a != null);
     const [areaMin, areaMax] = coherentAreaRange(areas);
     captacaoAtiva.push({
       bairro, addr_key: addrKey, endereco, n_vendas: recs.length,
-      preco_min: Math.min(...valores), preco_max: Math.max(...valores), preco_medio: round(mean(valores), 2),
+      preco_mediana: round(median(valores), 2),
+      // Faixa P25-P75 só com 4+ revendas limpas; com menos, só a mediana.
+      preco_p25: valores.length >= CAPTACAO_MIN_VENDAS_FAIXA ? round(percentile(25, valores), 2) : null,
+      preco_p75: valores.length >= CAPTACAO_MIN_VENDAS_FAIXA ? round(percentile(75, valores), 2) : null,
+      poucas_vendas: valores.length < CAPTACAO_MIN_VENDAS_FAIXA,
+      n_planta: nPlanta, n_valor_fora_padrao: nValorForaPadrao,
       area_min: areaMin, area_max: areaMax,
       tem_unidade_a_venda_hoje: temHoje, unidades_a_venda_hoje: unidadesHoje,
     });
@@ -1217,7 +1232,9 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
         estoque_fora_do_perfil: bo.estoque_fora_do_perfil,
       },
       enderecos: enderecos.map((e) => ({
-        endereco: e.endereco, n_vendas: e.n_vendas, preco_min: e.preco_min, preco_max: e.preco_max,
+        endereco: e.endereco, n_vendas: e.n_vendas, preco_mediana: e.preco_mediana,
+        preco_p25: e.preco_p25, preco_p75: e.preco_p75, poucas_vendas: e.poucas_vendas,
+        n_planta: e.n_planta, n_valor_fora_padrao: e.n_valor_fora_padrao,
         area_min: e.area_min, area_max: e.area_max, unico: e.unico,
         tem_unidade_a_venda_hoje: e.tem_unidade_a_venda_hoje, unidades_a_venda_hoje: e.unidades_a_venda_hoje,
       })),
