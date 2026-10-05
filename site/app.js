@@ -92,7 +92,7 @@ function anuncioAntigoBadge(idadeDias) {
   const anos = idadeDias != null ? (idadeDias / 365).toFixed(1).replace(".", ",") : null;
   return el("span", {
     class: "badge warning",
-    title: idadeDias != null ? `Cadastrado na nonStop há ${fmtInt(idadeDias)} dias (${anos} anos)` : "Anúncio com mais de 365 dias",
+    title: idadeDias != null ? `Primeiro cadastro na nonStop há ${fmtInt(idadeDias)} dias (${anos} anos) — vale a data mais antiga entre anúncios duplicados do mesmo imóvel` : "Anúncio com mais de 365 dias",
   }, "Anúncio antigo — validar disponibilidade");
 }
 
@@ -480,7 +480,7 @@ async function printFullDashboard() {
   // Estoque × Demanda só busca engine.js/raw.json (e enche
   // DATA._matchingListingsByBairro) na primeira vez que alguém entra nessa
   // aba ou mexe num filtro — sem isso, o PDF completo podia sair com
-  // "Carregando lista detalhada de estoque…" se baixado logo após abrir a
+  // "Carregando lista detalhada do estoque da rede…" se baixado logo após abrir a
   // página. Garante que já carregou antes de imprimir.
   await ensureEngineLoaded();
   recomputeAndRenderAll();
@@ -725,8 +725,8 @@ function renderVisaoGeral() {
   // Passo 3c (2026-10-05): "Prioridade Máxima" virou dois selos separados.
   const nEscassez = DATA.captacao_estrategica.filter((g) => g.selo_escassez_real).length;
   const nForaPerfil = DATA.captacao_estrategica.filter((g) => g.perfil.estoque_fora_do_perfil).length;
-  tiles.appendChild(statTile("Bairros com escassez real", fmtInt(nEscassez)));
-  tiles.appendChild(statTile("Bairros com estoque fora do perfil", fmtInt(nForaPerfil)));
+  tiles.appendChild(statTile("Bairros com pouco estoque na rede", fmtInt(nEscassez)));
+  tiles.appendChild(statTile("Bairros com estoque da rede fora do perfil", fmtInt(nForaPerfil)));
 
   const alertBox = document.getElementById("visao-alertas");
   alertBox.innerHTML = "";
@@ -781,7 +781,7 @@ function renderRanking() {
       { key: "trend_pct_revenda_12m", label: "Tendência de revenda (12m vs ano anterior)", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
       { key: "planta_12m", label: "Lançamentos (12m)" },
       { key: "volume_12m", label: "Todas as transferências (12m)" },
-      { key: "stock_demand_ratio", label: "Estoque/Demanda", fmt: (v) => (v >= 999 ? "∞" : v.toFixed(2)) },
+      { key: "stock_demand_ratio", label: "Estoque da rede/Demanda", fmt: (v) => (v >= 999 ? "∞" : v.toFixed(2)) },
       { key: "price_gap_pct", label: "Gap Preço", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
       {
         key: "flags", label: "Sinais", sortable: false, render: (r) => {
@@ -821,17 +821,17 @@ function renderProntidao() {
     const body = el("div", { class: "rank-body" });
     const nameLine = el("div", { class: "rank-name" }, [
       name,
-      b.selo_escassez_real ? badge("Escassez real", "gold") : null,
+      b.selo_escassez_real ? badge("Pouco estoque na rede", "gold") : null,
       b.amostra_pequena_ranking ? badge("Amostra pequena", "neutral") : null,
       // Revisão 2026-10-01 (item 3 do ajuste da faixa de preço v2):
       // distingue "0 porque não há estoque nenhum" de "0 porque há
       // estoque ativo, mas nenhum dentro da faixa de preço vencedora" —
       // só o 2º caso mostra o selo (ver engine.py.estoque_fora_do_perfil).
-      b.estoque_fora_do_perfil ? badge("Estoque fora do perfil", "warning") : null,
+      b.estoque_fora_do_perfil ? badge("Estoque da rede fora do perfil", "warning") : null,
       searchInterestBadge(b),
     ]);
     body.appendChild(nameLine);
-    body.appendChild(el("div", { class: "rank-meta" }, `Ranking de Oportunidade: score ${fmtInt(b.score)} · estoque no perfil vencedor (faixa de preço) ${fmtInt(b.estoque_perfil_faixa_preco)} · toque para ver os 10 melhores imóveis`));
+    body.appendChild(el("div", { class: "rank-meta" }, `Ranking de Oportunidade: score ${fmtInt(b.score)} · estoque da rede no perfil vencedor (faixa de preço) ${fmtInt(b.estoque_perfil_faixa_preco)} · toque para ver os 10 melhores imóveis`));
     row.appendChild(body);
     const track = el("div", { class: "rank-bar-track" });
     track.appendChild(el("div", { class: "rank-bar-fill", style: `width:${Math.min(100, b.prontidao_campanha)}%` }));
@@ -903,34 +903,34 @@ function renderPerfilContent(name) {
   });
   linhasPerfil.forEach((l) => perfilBox.appendChild(l));
   perfilBox.appendChild(el("div", { class: "small muted", style: "margin-top:8px" },
-    `Anúncios ativos dentro da faixa: ${fmtInt(b.estoque_perfil_faixa_preco)} de ${fmtInt(b.stock_total)}.`));
+    `Anúncios da rede nonStop dentro da faixa: ${fmtInt(b.estoque_perfil_faixa_preco)} de ${fmtInt(b.stock_total)}.`));
   box.appendChild(perfilBox);
 
   const stockBox = el("section", { class: "card", style: "margin:0 0 14px; padding:16px 18px;" });
   const stockHeader = el("div", { style: "display:flex; align-items:center; gap:8px" }, [
-    el("h2", { style: "font-size:14.5px; margin:0" }, "Estoque × Demanda"),
+    el("h2", { style: "font-size:14.5px; margin:0" }, "Estoque da rede × Demanda"),
   ]);
   // Passo 2 (2026-10-01): "Estoque no perfil vencedor" migrado pra faixa
   // de preço v2 (era metragem, v1 — ver scripts/engine.py.compute).
-  if (b.selo_escassez_real) stockHeader.appendChild(badge("Escassez real", "gold"));
-  if (b.estoque_fora_do_perfil) stockHeader.appendChild(badge("Estoque fora do perfil", "warning"));
+  if (b.selo_escassez_real) stockHeader.appendChild(badge("Pouco estoque na rede", "gold"));
+  if (b.estoque_fora_do_perfil) stockHeader.appendChild(badge("Estoque da rede fora do perfil", "warning"));
   // barRows() limpa o container que recebe — por isso desenha numa caixa
   // própria e só depois junta com o cabeçalho (antes o título e os selos
   // deste bloco sumiam).
   const stockBars = el("div", {});
   barRows(stockBars, [
-    { label: "Estoque total anunciado", value: b.stock_total, colorVar: "--series-blue" },
-    { label: "Estoque no perfil vencedor (faixa de preço)", value: b.estoque_perfil_faixa_preco, colorVar: "--gold" },
+    { label: "Estoque total da rede", value: b.stock_total, colorVar: "--series-blue" },
+    { label: "Estoque da rede no perfil vencedor (faixa de preço)", value: b.estoque_perfil_faixa_preco, colorVar: "--gold" },
   ], { maxOverride: Math.max(b.stock_total, 1) });
   stockBox.appendChild(stockHeader);
   stockBox.appendChild(stockBars);
   stockBox.appendChild(el("div", { class: "small muted", style: "margin-top:8px" },
-    `Razão estoque no perfil / vendas de revenda (12m, ${periodo12mLabel()}): ${b.stock_demand_ratio >= 999 ? "∞ (sem demanda registrada)" : b.stock_demand_ratio.toFixed(2)}`));
+    `Razão estoque da rede no perfil / vendas de revenda (12m, ${periodo12mLabel()}): ${b.stock_demand_ratio >= 999 ? "∞ (sem demanda registrada)" : b.stock_demand_ratio.toFixed(2)}`));
   // Passo 3c (2026-10-05): % do estoque com mais de 365 dias de cadastro.
   stockBox.appendChild(el("div", { class: "small muted", style: "margin-top:4px" },
     b.estoque_antigo_365d_pct == null
-      ? "Idade do estoque: sem data de cadastro na fonte."
-      : `Estoque com mais de 365 dias de cadastro: ${fmtPct(b.estoque_antigo_365d_pct)} (${fmtInt(b.estoque_antigo_365d)} de ${fmtInt(b.stock_total)} anúncios).`));
+      ? "Idade do estoque da rede: sem data de cadastro na fonte."
+      : `Estoque da rede com mais de 365 dias de cadastro: ${fmtPct(b.estoque_antigo_365d_pct)} (${fmtInt(b.estoque_antigo_365d)} de ${fmtInt(b.stock_total)} anúncios).`));
   box.appendChild(stockBox);
 
   const priceBox = el("section", { class: "card", style: "margin:0; padding:16px 18px;" });
@@ -980,7 +980,7 @@ function renderMapa() {
     .map((name) => ({ name, b: DATA.bairros[name] }))
     .filter((x) => x.b.centroid);
   if (!withCentroid.length) {
-    box.appendChild(el("div", { class: "placeholder-block" }, "Sem coordenadas suficientes no estoque atual para desenhar o mapa."));
+    box.appendChild(el("div", { class: "placeholder-block" }, "Sem coordenadas suficientes no estoque atual da rede para desenhar o mapa."));
     return;
   }
 
@@ -1068,10 +1068,10 @@ function renderCaptacao() {
     const summary = el("summary", {}, [
       el("span", {}, [
         g.bairro,
-        g.selo_escassez_real ? badge("Escassez real", "gold") : null,
-        // Passo 2 (2026-10-01): selo "Estoque fora do perfil" também aqui
+        g.selo_escassez_real ? badge("Pouco estoque na rede", "gold") : null,
+        // Passo 2 (2026-10-01): selo "Estoque da rede fora do perfil" também aqui
         // (ver engine.py._compute_captacao_estrategica).
-        g.perfil.estoque_fora_do_perfil ? badge("Estoque fora do perfil", "warning") : null,
+        g.perfil.estoque_fora_do_perfil ? badge("Estoque da rede fora do perfil", "warning") : null,
         searchInterestBadge(DATA.bairros[g.bairro]), pdfLink,
       ]),
       el("span", { class: "n" }, `${g.enderecos.length} endereço${g.enderecos.length === 1 ? "" : "s"}`),
@@ -1220,7 +1220,7 @@ function renderEstoqueDemanda() {
   container.innerHTML = "";
 
   if (!DATA._matchingListingsByBairro) {
-    container.appendChild(el("div", { class: "note" }, "Carregando lista detalhada de estoque…"));
+    container.appendChild(el("div", { class: "note" }, "Carregando lista detalhada do estoque da rede…"));
     ensureEngineLoaded().then(() => recomputeAndRenderAll());
     return;
   }
@@ -1232,14 +1232,14 @@ function renderEstoqueDemanda() {
     columns: [
       { key: "bairro", label: "Bairro" },
       { key: "revenda_12m", label: `Demanda (revenda 12m, ${periodo12mLabel()})` },
-      { key: "stock_total", label: "Estoque total" },
+      { key: "stock_total", label: "Estoque total da rede" },
       // Passo 2 (2026-10-01): migrado pra faixa de preço v2 (era metragem, v1).
-      { key: "estoque_perfil_faixa_preco", label: "Estoque no perfil (faixa de preço)" },
+      { key: "estoque_perfil_faixa_preco", label: "Estoque da rede no perfil (faixa de preço)" },
       { key: "stock_demand_ratio", label: "Cobertura", fmt: (v) => (v >= 999 ? "∞" : v.toFixed(3)) },
       // Passo 3c (2026-10-05): % do estoque do bairro com mais de 365 dias
       // de cadastro na nonStop.
       {
-        key: "estoque_antigo_365d_pct", label: "Estoque com +365 dias",
+        key: "estoque_antigo_365d_pct", label: "Estoque da rede com +365 dias",
         fmt: (v, r) => (v == null ? "—" : `${fmtPct(v)} (${fmtInt(r.estoque_antigo_365d)})`),
       },
       {
@@ -1247,8 +1247,8 @@ function renderEstoqueDemanda() {
           const wrap = el("div", {});
           if (r.flag_oportunidade) wrap.appendChild(badge("Oportunidade", "gold"));
           if (r.flag_alerta) wrap.appendChild(badge("Alerta preço", "critical"));
-          if (r.selo_escassez_real) wrap.appendChild(badge("Escassez real", "gold"));
-          if (r.estoque_fora_do_perfil) wrap.appendChild(badge("Estoque fora do perfil", "warning"));
+          if (r.selo_escassez_real) wrap.appendChild(badge("Pouco estoque na rede", "gold"));
+          if (r.estoque_fora_do_perfil) wrap.appendChild(badge("Estoque da rede fora do perfil", "warning"));
           // Passo 3b (2026-10-01), item d pedido pelo usuário: mesmo selo já
           // usado no Ranking/Prontidão (< 100 revendas em 12m) — cobertura
           // calculada sobre pouca amostra não é confiável.
@@ -1284,7 +1284,7 @@ function toggleEstoqueDetalhe(bairro, linkEl) {
   const listings = (DATA._matchingListingsByBairro && DATA._matchingListingsByBairro[bairro]) || [];
   const nCols = clickedRow.children.length;
   const box = el("div", { class: "card", style: "margin:0" }, [
-    el("h2", { style: "font-size:14.5px" }, `Estoque no perfil vencedor — ${bairro}`),
+    el("h2", { style: "font-size:14.5px" }, `Estoque da rede no perfil vencedor — ${bairro}`),
     el("div", { class: "card-sub" }, `${listings.length} anúncio${listings.length === 1 ? "" : "s"} dentro da faixa de preço vencedora do bairro (valor pago em revenda, 12m, por tipo de imóvel).`),
   ]);
   if (!listings.length) {

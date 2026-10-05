@@ -2010,3 +2010,20 @@ pra depois):
   `anuncio_antigo` coerente com `idade_dias`, bônus na escala).
 - `output/anuncios_acima_40mil_por_m2_2026-10-05.csv`: listagem pontual (só
   leitura) dos anúncios ativos acima de R$ 40 mil/m².
+
+## Passo 3d (2026-10-05) — rótulos "da rede" e idade pelo cadastro mais antigo
+
+- **Rótulos**: o estoque é o da REDE nonStop integrada, não o do mercado.
+  "Escassez real" → "Pouco estoque na rede"; "Estoque fora do perfil" →
+  "Estoque da rede fora do perfil" (só texto na tela — os campos continuam
+  `selo_escassez_real` / `estoque_fora_do_perfil`). Colunas/legendas de
+  Estoque × Demanda, Prontidão e Perfil por Bairro dizem "estoque da rede" e
+  os 3 painéis têm a nota "Estoque = imóveis ativos na rede nonStop
+  integrada, não o mercado inteiro".
+- **Idade do anúncio**: a deduplicação continua mantendo o anúncio MAIS
+  RECENTE (preço e dados atuais), mas a idade (`idade_dias`, selo "Anúncio
+  antigo") vale a data de cadastro MAIS ANTIGA entre as duplicatas
+  (`created_at_mais_antigo`, idempotente na reaplicação da dedup).
+  `meta.usn.antigos_por_republicacao` conta quantos anúncios só são antigos
+  por causa disso. `validate_build` check 10 trava se a data original for
+  perdida.

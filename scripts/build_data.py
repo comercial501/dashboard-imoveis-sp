@@ -99,15 +99,23 @@ def _get_usn_records():
     # "Anúncio antigo" nunca diverge entre os dois motores. None quando a
     # fonte não traz data de cadastro (export manual .xlsx) — sem data,
     # nunca é marcado como antigo.
+    # Passo 3d: idade = cadastro MAIS ANTIGO entre as duplicatas (ver
+    # nonstop_client.deduplicar_registros). meta["antigos_por_republicacao"]
+    # conta quantos anúncios só são "antigos" por causa disso (o anúncio
+    # mantido, mais recente, teria <= 365 dias sozinho).
+    def _dias(iso):
+        try:
+            return max(0, (consultado_em - datetime.fromisoformat(iso.replace("Z", "+00:00"))).days)
+        except (ValueError, AttributeError):
+            return None
+
+    por_republicacao = 0
     for r in records:
-        criado = r.get("created_at")
-        r["idade_dias"] = None
-        if criado:
-            try:
-                dt = datetime.fromisoformat(criado.replace("Z", "+00:00"))
-                r["idade_dias"] = max(0, (consultado_em - dt).days)
-            except ValueError:
-                pass
+        r["idade_dias"] = _dias(r.get("created_at_mais_antigo") or r.get("created_at") or "")
+        mantido = _dias(r.get("created_at") or "")
+        if r["idade_dias"] is not None and mantido is not None and r["idade_dias"] > engine.ANUNCIO_ANTIGO_DIAS >= mantido:
+            por_republicacao += 1
+    meta["antigos_por_republicacao"] = por_republicacao
     return records, meta
 
 

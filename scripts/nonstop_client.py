@@ -171,12 +171,23 @@ def deduplicar_registros(records, tolerancia_preco=DEDUP_TOLERANCIA_PRECO, log=p
     motor (Python) e pro raw.json (JS recomputa os filtros em cima do
     MESMO conjunto já deduplicado — não precisa deduplicar de novo no
     cliente). Retorna (records_deduplicados, n_removidos)."""
+    # Passo 3d (2026-10-05): o anúncio mantido é o MAIS RECENTE (preço e
+    # dados atuais), mas a idade do imóvel é a data de cadastro MAIS
+    # ANTIGA entre as duplicatas — republicar não "rejuvenesce" o imóvel.
+    # `created_at_mais_antigo` carrega isso; usa o valor já existente se
+    # houver, pra reaplicar a função sobre um conjunto já deduplicado
+    # (check_dedup_aplicada) nunca perder a data original.
+    def _cadastro(r):
+        return r.get("created_at_mais_antigo") or r.get("created_at") or ""
+
     sem_endereco = [r for r in records if not r.get("addr_key")]
     por_endereco = {}
     for r in records:
         if r.get("addr_key"):
             por_endereco.setdefault(r["addr_key"], []).append(r)
 
+    for r in sem_endereco:
+        r["created_at_mais_antigo"] = _cadastro(r) or None
     dedupados = list(sem_endereco)
     n_removidos = 0
     for grupo in por_endereco.values():
@@ -199,6 +210,7 @@ def deduplicar_registros(records, tolerancia_preco=DEDUP_TOLERANCIA_PRECO, log=p
                         cluster.append(r2)
                         usados[j] = True
                 representante = max(cluster, key=lambda x: x.get("created_at") or "")
+                representante["created_at_mais_antigo"] = min((_cadastro(x) for x in cluster if _cadastro(x)), default=None)
                 dedupados.append(representante)
                 n_removidos += len(cluster) - 1
     if n_removidos:

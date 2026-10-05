@@ -402,7 +402,8 @@ def check_selos_idade_bonus(data, usn_records):
     """Passo 3c (2026-10-05), decisões de mercado da auditoria. Trava o
     build se:
 
-      1. SELOS: "Escassez real" e "Estoque fora do perfil" (que
+      1. SELOS: "Pouco estoque na rede" (campo selo_escassez_real) e
+         "Estoque da rede fora do perfil" (que
          substituíram "Prioridade Máxima") divergirem da recomputação
          independente a partir de data.json — regra: só acendem com >= 100
          revendas em 12m (amostra_pequena_ranking False) E <= 2 anúncios na
@@ -413,7 +414,11 @@ def check_selos_idade_bonus(data, usn_records):
          imoveis_prioritarios (anúncio antigo NUNCA é excluído — só ganha
          selo), ou `anuncio_antigo` divergir de idade_dias > 365.
       3. BÔNUS DE CAPTAÇÃO: captacao_bonus fora da escala 2=40/3=60/4=80/
-         5+=100 (0 se o endereço não está na Captação Ativa)."""
+         5+=100 (0 se o endereço não está na Captação Ativa).
+      4. (Passo 3d) IDADE = cadastro MAIS ANTIGO entre as duplicatas:
+         nenhum anúncio do estoque pode ter created_at_mais_antigo MAIS
+         NOVO que o próprio created_at, nem idade_dias menor que a do
+         anúncio mantido (sinal de que a data original foi perdida)."""
     import engine
 
     divergencias = []
@@ -438,6 +443,12 @@ def check_selos_idade_bonus(data, usn_records):
         if (v.get("selo_escassez_real") or v.get("estoque_fora_do_perfil")) and v["amostra_pequena_ranking"]:
             divergencias.append(f"{b}: selo aceso em bairro com amostra pequena (< 100 revendas)")
 
+    for u in usn_records:
+        mais_antigo, proprio = u.get("created_at_mais_antigo"), u.get("created_at")
+        if mais_antigo and proprio and mais_antigo > proprio:
+            divergencias.append(f"anúncio {u.get('codigo')}: created_at_mais_antigo ({mais_antigo}) é mais novo que created_at ({proprio}) — data original das duplicatas perdida.")
+            break
+
     ip = data.get("imoveis_prioritarios", [])
     codigos_ip = {im["codigo"] for im in ip}
     validos = [u for u in usn_records if u.get("valor") and u["valor"] > 0 and u["bairro"] in bairros]
@@ -460,7 +471,7 @@ def check_selos_idade_bonus(data, usn_records):
     n_esc = sum(1 for b in TARGETS if bairros[b]["selo_escassez_real"])
     n_fora = sum(1 for b in TARGETS if bairros[b]["estoque_fora_do_perfil"])
     n_antigos = sum(1 for im in ip if im.get("anuncio_antigo"))
-    print(f"[validate_build] OK 10/10 — selos ({n_esc} escassez real, {n_fora} fora do perfil, exclusivos e só com 100+ revendas), {n_antigos} anúncios antigos mantidos nas contas, bônus de captação na escala.")
+    print(f"[validate_build] OK 10/10 — selos ({n_esc} pouco estoque na rede, {n_fora} estoque da rede fora do perfil, exclusivos e só com 100+ revendas), {n_antigos} anúncios antigos mantidos nas contas (idade = cadastro mais antigo entre duplicatas), bônus de captação na escala.")
 
 
 VARIACAO_MAX_ESTOQUE = 0.30
