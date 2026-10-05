@@ -90,11 +90,28 @@ def _get_usn_records():
     records, n_duplicados = nonstop_client.deduplicar_registros(records)
     meta["rows_apos_dedup"] = len(records)
     meta["duplicados_removidos"] = n_duplicados
-    meta["consultado_em"] = datetime.now(timezone.utc).isoformat()
+    consultado_em = datetime.now(timezone.utc)
+    meta["consultado_em"] = consultado_em.isoformat()
+
+    # Passo 3c (2026-10-05): idade do anúncio em dias, medida contra o
+    # horário desta consulta (não contra "hoje" no navegador) — assim
+    # engine.py e engine.js usam exatamente o mesmo número e o selo
+    # "Anúncio antigo" nunca diverge entre os dois motores. None quando a
+    # fonte não traz data de cadastro (export manual .xlsx) — sem data,
+    # nunca é marcado como antigo.
+    for r in records:
+        criado = r.get("created_at")
+        r["idade_dias"] = None
+        if criado:
+            try:
+                dt = datetime.fromisoformat(criado.replace("Z", "+00:00"))
+                r["idade_dias"] = max(0, (consultado_em - dt).days)
+            except ValueError:
+                pass
     return records, meta
 
 
-def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, carteira_77_bairros):
+def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, carteira_77_bairros, limiar_escassez_real):
     """Registros individuais + tabelas de índice, pro motor de cálculo em
     JavaScript (site/engine.js) recomputar tudo no navegador quando o
     usuário usa os filtros de bairro/preço — mesma ideia do antigo
@@ -150,6 +167,9 @@ def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, car
             bairro_idx[r["bairro"]], aidx, r["addr_display"], r["valor"], r["area"],
             r["quartos"], r["vagas"], r["lat"], r["lon"], r["situacao_code"], r["codigo"], r["link"],
             r.get("tipo_imovel"),
+            # Passo 3c (2026-10-05): idade_dias — campo NOVO no fim da
+            # tupla (não mexe nos índices existentes), ver _get_usn_records.
+            r.get("idade_dias"),
         ])
 
     return {
@@ -188,6 +208,11 @@ def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, car
             "min_transacoes_preco_m2_12m": engine.MIN_TRANSACOES_PRECO_M2_12M,
             "min_vendas_tendencia": engine.MIN_VENDAS_TENDENCIA,
             "min_vendas_top10": engine.MIN_VENDAS_TOP10,
+            # Passo 3c (2026-10-05)
+            "anuncio_antigo_dias": engine.ANUNCIO_ANTIGO_DIAS,
+            "captacao_bonus_por_vendas": {str(k): v for k, v in engine.CAPTACAO_BONUS_POR_VENDAS.items()},
+            "captacao_bonus_max": engine.CAPTACAO_BONUS_MAX,
+            "limiar_escassez_real": limiar_escassez_real,
             "min_anuncios_alerta": engine.MIN_ANUNCIOS_ALERTA,
             "janela_preco_m2_dias": engine.JANELA_PRECO_M2_DIAS,
             # Congelado no momento do build — o recompute no navegador (ao
@@ -451,7 +476,7 @@ def main():
     OUT.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"[build] {OUT} escrito ({OUT.stat().st_size:,} bytes)")
 
-    raw = build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, carteira_77["bairros"])
+    raw = build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, carteira_77["bairros"], data["meta"]["limiar_escassez_real"])
     raw["search_interest"] = search_interest or {}
     raw["search_interest_meta"] = search_interest_meta
     OUT_RAW.write_text(json.dumps(raw, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

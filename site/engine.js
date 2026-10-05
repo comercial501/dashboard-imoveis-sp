@@ -224,11 +224,11 @@ function decodeRecords(raw, priceMin, priceMax) {
   }
 
   const usn = [];
-  for (const [bIdx, addrIdx, addrDisplay, valor, area, quartos, vagas, lat, lon, situacaoCode, codigo, link, tipoImovel] of raw.usn) {
+  for (const [bIdx, addrIdx, addrDisplay, valor, area, quartos, vagas, lat, lon, situacaoCode, codigo, link, tipoImovel, idadeDias] of raw.usn) {
     if (!inPriceRange(valor)) continue;
     usn.push({
       bairro: raw.bairros[bIdx], addrKey: addrIdx, addrDisplay, valor, area, quartos, vagas,
-      lat, lon, situacaoCode, codigo, link, tipoImovel,
+      lat, lon, situacaoCode, codigo, link, tipoImovel, idadeDias,
     });
   }
 
@@ -688,7 +688,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   const perfilPrecoV2 = {};
   TARGETS.forEach((b) => {
     const valoresPorTipo = { apartamento: [], casa: [] };
-    perfilPrecoV2[b] = { bandas: {}, profile_sample_size_faixa_preco_v2: 0, estoque_fora_do_perfil: false };
+    perfilPrecoV2[b] = { bandas: {}, profile_sample_size_faixa_preco_v2: 0 };
     for (const r of itbiRecords) {
       if (r.bairro !== b || !r.isRevenda || r.day == null) continue;
       if (!PERFIL_PRECO_V2_TIPOS.includes(r.tipoImovel)) continue;
@@ -713,7 +713,6 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     perfilPrecoV2[b] = {
       bandas,
       profile_sample_size_faixa_preco_v2: inBandV2.length,
-      estoque_fora_do_perfil: ownStock.length > 0 && inBandV2.length === 0,
       // Passo 2 (2026-10-01): lista real dos anúncios dentro da faixa —
       // alimenta o drill-down "Ver lista completa" do Estoque×Demanda
       // (ver _matchingListingsByBairro), que antes usava a lista v1
@@ -759,7 +758,11 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
 
   const temUnidadeHoje = (recs) => {
     const ativos = (recs || []).filter((r) => r.situacaoCode !== 3 && r.situacaoCode !== 4);
-    return [ativos.length > 0, ativos.map((r) => ({ codigo: r.codigo, valor: r.valor, link: r.link }))];
+    return [ativos.length > 0, ativos.map((r) => ({
+      codigo: r.codigo, valor: r.valor, link: r.link,
+      idade_dias: r.idadeDias ?? null,
+      anuncio_antigo: r.idadeDias != null && r.idadeDias > C.anuncio_antigo_dias,
+    }))];
   };
 
   const byAddr = {};
@@ -826,7 +829,17 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   // addr_key vira string ao passar por Object.keys(byAddr) — normaliza pra
   // String() dos dois lados na hora de comparar, senão Set.has(numero) falha
   // silenciosamente contra chaves guardadas como string.
-  const addrInCaptacaoAtiva = new Set(captacaoAtiva.map((c) => String(c.addr_key)));
+  const captacaoNVendas = new Map(captacaoAtiva.map((c) => [String(c.addr_key), c.n_vendas]));
+
+  // Passo 3c: % do estoque do bairro com mais de 365 dias de cadastro —
+  // ver nota equivalente em scripts/engine.py.compute.
+  const estoqueAntigoN = {}, estoqueAntigoPct = {};
+  TARGETS.forEach((b) => {
+    const comData = usnByBairro[b].filter((r) => r.idadeDias != null);
+    const antigos = comData.filter((r) => r.idadeDias > C.anuncio_antigo_dias).length;
+    estoqueAntigoN[b] = antigos;
+    estoqueAntigoPct[b] = comData.length ? round((100 * antigos) / comData.length, 1) : null;
+  });
 
   // --- montagem preliminar por bairro (todos os 47 — o filtro de bairro só entra na normalização/ranking) ---
   const bairrosOut = {};
@@ -886,7 +899,10 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       // equivalente em scripts/engine.py.compute.
       estoque_perfil_faixa_preco: perfilPrecoV2[b].profile_sample_size_faixa_preco_v2,
       perfil_vencedor_faixa_preco_v2: perfilPrecoV2[b].bandas,
-      estoque_fora_do_perfil: perfilPrecoV2[b].estoque_fora_do_perfil,
+      // Passo 3c: selos preenchidos no loop de flags (precisam do estoque
+      // total/demanda de todos os bairros) — ver engine.py.compute.
+      estoque_fora_do_perfil: false, selo_escassez_real: false,
+      estoque_antigo_365d: estoqueAntigoN[b], estoque_antigo_365d_pct: estoqueAntigoPct[b],
       asking_median_valor: asking, paid_median_valor_primary_year: paidMedian,
       centroid: centroids[b],
       stock_demand_ratio: Math.round(ratio * 1000) / 1000, price_gap_pct: priceGapPct,
@@ -937,10 +953,14 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     bo.score_revenda = round(scoreRevendaMapScope[b]);
     bo.stock_total_demand_ratio = Math.round(totalRatioMapScope[b] * 1000) / 1000;
     bo.flag_saturacao_alta = totalRatioMapScope[b] >= highTercile;
-    // Passo 2 (2026-10-01): migrado de stock_matching_profile (v1) pra
-    // estoque_perfil_faixa_preco (v2).
-    bo.flag_prioridade_maxima = bo.estoque_perfil_faixa_preco <= C.captacao_estrategica_max_stock_match
-      && bo.revenda_12m >= C.valor_oportunidade_min_vendas_primary;
+    // Passo 3c (2026-10-05): "Prioridade Máxima" dividida em dois selos
+    // que nunca acendem juntos — ver nota equivalente em engine.py.compute.
+    // limiar_escassez_real vem fixo do build (universo dos 77), nunca
+    // recalculado pelo escopo do filtro.
+    const elegivelSelo = !bo.amostra_pequena_ranking && bo.estoque_perfil_faixa_preco <= C.captacao_estrategica_max_stock_match;
+    const escassez = elegivelSelo && totalRatioMapScope[b] <= C.limiar_escassez_real;
+    bo.selo_escassez_real = escassez;
+    bo.estoque_fora_do_perfil = elegivelSelo && !escassez && bo.stock_total > 0;
   });
 
   const ranking = [...scope].sort((a, b) => bairrosOut[b].score - bairrosOut[a].score);
@@ -965,7 +985,13 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     captacao: C.pesos_painel8.captacao / pesosPainel8AptoSoma,
   };
 
-  const resumoImovel = (price, aderenciaFinal, tipoImovel, scoreRevendaBairro, temCaptacao) => {
+  const bonusCaptacao = (nVendas) => {
+    if (!nVendas || nVendas < 2) return 0;
+    const v = C.captacao_bonus_por_vendas[String(nVendas)];
+    return v != null ? v : C.captacao_bonus_max;
+  };
+
+  const resumoImovel = (price, aderenciaFinal, tipoImovel, scoreRevendaBairro, nVendasEndereco) => {
     const frases = [];
     // Passo 2b: componente de preço suspenso pra apartamento — mensagem
     // fixa em vez do zone/ratio de R$/m², que não existe mais pra esse tipo.
@@ -981,7 +1007,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     // "estimativa regional" (era reliability de área, v1).
     if (aderenciaFinal >= 80) frases.push("Bate com a faixa de preço vencedora do bairro (revenda, 12m)");
     if (scoreRevendaBairro >= 70) frases.push("Bairro com liquidez de revenda alta");
-    if (temCaptacao) frases.push("Prédio com histórico de giro comprovado");
+    if (nVendasEndereco) frases.push(`Prédio com histórico de giro comprovado (${nVendasEndereco} vendas em 3 anos)`);
     return frases.slice(0, 2).join(" · ");
   };
 
@@ -1017,8 +1043,11 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       }
     }
 
-    const temCaptacao = u.addrKey != null && addrInCaptacaoAtiva.has(String(u.addrKey));
-    const bonus = temCaptacao ? 100 : 0;
+    // Passo 3c (2026-10-05): bônus gradual pelo nº de vendas do endereço
+    // — ver engine.py._bonus_captacao.
+    const nVendasEndereco = u.addrKey != null ? (captacaoNVendas.get(String(u.addrKey)) || 0) : 0;
+    const temCaptacao = nVendasEndereco > 0;
+    const bonus = bonusCaptacao(nVendasEndereco);
     const finalScore = isApto
       ? pesosPainel8Apartamento.revenda * b.score_revenda + pesosPainel8Apartamento.aderencia * aderencia + pesosPainel8Apartamento.captacao * bonus
       : C.pesos_painel8.revenda * b.score_revenda + C.pesos_painel8.preco * price.score
@@ -1029,7 +1058,10 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       valor: u.valor, area: u.area, quartos: u.quartos, vagas: u.vagas, tipo_imovel: u.tipoImovel, addr_key: u.addrKey,
       score_bairro_revenda: round(b.score_revenda), price_alignment: round(price.score),
       profile_adherence: round(aderencia), tem_captacao_ativa: temCaptacao,
-      final_score: round(finalScore, 2), resumo: resumoImovel(price, aderencia, u.tipoImovel, b.score_revenda, temCaptacao),
+      captacao_n_vendas: nVendasEndereco, captacao_bonus: bonus,
+      idade_dias: u.idadeDias ?? null,
+      anuncio_antigo: u.idadeDias != null && u.idadeDias > C.anuncio_antigo_dias,
+      final_score: round(finalScore, 2), resumo: resumoImovel(price, aderencia, u.tipoImovel, b.score_revenda, nVendasEndereco),
     });
   }
   // Desempate por endereço (minúsculas) + código — nunca addr_key: aqui é
@@ -1081,6 +1113,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       valor_m2: isApto ? null : round(valorRef, 2), mediana_pago_m2: isApto ? null : medianaRef,
       valor_total_mediana: isApto ? medianaRef : null,
       desconto_pct: round(desconto * 100), atencao: desconto >= C.valor_oportunidade_atencao_desconto,
+      idade_dias: im.idade_dias, anuncio_antigo: im.anuncio_antigo,
     });
   }
   valorOportunidadeImoveis.sort((a, b) => b.desconto_pct - a.desconto_pct || cmpLower(a.endereco || "", b.endereco || "") || String(a.codigo || "").localeCompare(String(b.codigo || "")));
@@ -1153,7 +1186,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
 
     const bo = bairrosOut[b];
     captacaoEstrategica.push({
-      bairro: b, flag_prioridade_maxima: bo.flag_prioridade_maxima,
+      bairro: b, selo_escassez_real: bo.selo_escassez_real,
       // Passo 2 (2026-10-01): perfil migrado pra faixa de preço v2 — ver
       // nota equivalente em scripts/engine.py._compute_captacao_estrategica.
       perfil: {
@@ -1168,7 +1201,8 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       })),
     });
   });
-  captacaoEstrategica.sort((a, b) => (a.flag_prioridade_maxima ? 0 : 1) - (b.flag_prioridade_maxima ? 0 : 1)
+  const ordemSelo = (g) => (g.selo_escassez_real ? 0 : (g.perfil.estoque_fora_do_perfil ? 1 : 2));
+  captacaoEstrategica.sort((a, b) => ordemSelo(a) - ordemSelo(b)
     || bairrosOut[b.bairro].volume_primary_year - bairrosOut[a.bairro].volume_primary_year
     || cmpLower(a.bairro, b.bairro));
 
@@ -1185,7 +1219,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   const captacaoAtivaFinal = captacaoAtiva.filter((c) => scopeSet.has(c.bairro));
 
   return {
-    meta: { years: raw.years, primary_year: yearFull, inprogress_year: yearCurr, enderecos_captacao_ativa: captacaoAtivaFinal.length },
+    meta: { years: raw.years, primary_year: yearFull, inprogress_year: yearCurr, enderecos_captacao_ativa: captacaoAtivaFinal.length, limiar_escassez_real: C.limiar_escassez_real },
     periodo_12m: periodo12mMeta,
     ranking,
     prontidao_ranking: prontidaoRanking,

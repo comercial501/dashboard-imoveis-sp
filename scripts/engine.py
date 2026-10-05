@@ -100,6 +100,25 @@ MIN_ANUNCIOS_ALERTA = 3
 MIN_VENDAS_TENDENCIA = 50  # por janela (atual E anterior) — abaixo disso, tendência = neutra (não entra no score)
 MIN_VENDAS_TOP10 = 100  # bairro com menos que isso em revenda_12m não entra no top 10 de "Onde anunciar agora"
 
+# Passo 3c (2026-10-05), decisões de mercado da auditoria:
+# - Anúncio com mais de 365 dias (idade medida contra o horário da consulta
+#   à nonStop, ver build_data._get_usn_records) continua em TODAS as contas
+#   — só ganha o selo "Anúncio antigo — validar disponibilidade".
+ANUNCIO_ANTIGO_DIAS = 365
+# - Bônus de captação do Painel 8 deixa de ser tudo-ou-nada: cresce com o
+#   nº de vendas no endereço (ITBI, 3 anos, só venda válida). Todo endereço
+#   em captacao_ativa tem >= 2 vendas; 5 ou mais = bônus cheio.
+CAPTACAO_BONUS_POR_VENDAS = {2: 40, 3: 60, 4: 80}
+CAPTACAO_BONUS_MAX = 100
+
+
+def _bonus_captacao(n_vendas):
+    """None/0/1 vendas = 0 (endereço fora da Captação Ativa); 2/3/4 =
+    40/60/80; 5+ = 100."""
+    if not n_vendas or n_vendas < 2:
+        return 0
+    return CAPTACAO_BONUS_POR_VENDAS.get(n_vendas, CAPTACAO_BONUS_MAX)
+
 PESOS_PAINEL8 = {"revenda": 0.35, "preco": 0.30, "aderencia": 0.25, "captacao": 0.10}
 PESOS_PRONTIDAO = {"f1": 0.15, "f2": 0.20, "f3": 0.15, "f4": 0.15, "f5": 0.25, "f6": 0.10}
 
@@ -504,11 +523,6 @@ def _compute_perfil_vencedor_faixa_preco_v2(itbi_records, periodo_12m, usn_by_ba
         out[b] = {
             "bandas": bandas,
             "profile_sample_size_faixa_preco_v2": len(in_band),
-            # item 3 do pedido (2026-10-01): distingue "0 porque não há
-            # estoque nenhum" de "0 porque há estoque, mas fora da
-            # faixa" — o selo "Estoque fora do perfil" só faz sentido no
-            # segundo caso.
-            "estoque_fora_do_perfil": len(own_stock) > 0 and len(in_band) == 0,
         }
     return out
 
@@ -774,7 +788,14 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
 
 def _tem_unidade_a_venda_hoje(usn_recs_no_addr):
     ativos = [r for r in usn_recs_no_addr if r["situacao_code"] not in (3, 4)]  # exclui LANCAMENTO/CONSTRUCAO
-    unidades = [{"codigo": r["codigo"], "valor": r["valor"], "link": r["link"]} for r in ativos]
+    unidades = [
+        {
+            "codigo": r["codigo"], "valor": r["valor"], "link": r["link"],
+            "idade_dias": r.get("idade_dias"),
+            "anuncio_antigo": r.get("idade_dias") is not None and r["idade_dias"] > ANUNCIO_ANTIGO_DIAS,
+        }
+        for r in ativos
+    ]
     return len(ativos) > 0, unidades
 
 
@@ -1051,7 +1072,7 @@ def _price_alignment_score(valor, mediana):
 
 
 
-def _resumo_imovel(price, aderencia_final, tipo_imovel, score_revenda_bairro, tem_captacao):
+def _resumo_imovel(price, aderencia_final, tipo_imovel, score_revenda_bairro, n_vendas_endereco):
     frases = []
     # Passo 2b (2026-10-01): componente de preço suspenso pra apartamento
     # (ver PESOS_PAINEL8_APARTAMENTO) — mensagem fixa em vez do zone/ratio
@@ -1074,13 +1095,13 @@ def _resumo_imovel(price, aderencia_final, tipo_imovel, score_revenda_bairro, te
         frases.append("Bate com a faixa de preço vencedora do bairro (revenda, 12m)")
     if score_revenda_bairro >= 70:
         frases.append("Bairro com liquidez de revenda alta")
-    if tem_captacao:
-        frases.append("Prédio com histórico de giro comprovado")
+    if n_vendas_endereco:
+        frases.append(f"Prédio com histórico de giro comprovado ({n_vendas_endereco} vendas em 3 anos)")
 
     return " · ".join(frases[:2])
 
 
-def _compute_imoveis_prioritarios(usn_records, bairros_out, addr_in_captacao_ativa):
+def _compute_imoveis_prioritarios(usn_records, bairros_out, captacao_n_vendas):
     out = []
     for u in usn_records:
         if u["valor"] is None or u["valor"] <= 0:
@@ -1120,8 +1141,11 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, addr_in_captacao_ati
                 dist = (lo - u["valor"]) if u["valor"] < lo else (u["valor"] - hi)
                 aderencia = max(0, 100 - (dist / band_width) * 100) if band_width > 0 else 50
 
-        tem_captacao = u["addr_key"] is not None and u["addr_key"] in addr_in_captacao_ativa
-        bonus = 100 if tem_captacao else 0
+        # Passo 3c (2026-10-05): bônus gradual pelo nº de vendas do
+        # endereço (ver _bonus_captacao) — antes era 100 ou 0.
+        n_vendas_endereco = captacao_n_vendas.get(u["addr_key"], 0) if u["addr_key"] is not None else 0
+        tem_captacao = n_vendas_endereco > 0
+        bonus = _bonus_captacao(n_vendas_endereco)
 
         if is_apto:
             final_score = (
@@ -1137,7 +1161,7 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, addr_in_captacao_ati
                 + PESOS_PAINEL8["captacao"] * bonus
             )
 
-        resumo = _resumo_imovel(price, aderencia, u.get("tipo_imovel"), b["score_revenda"], tem_captacao)
+        resumo = _resumo_imovel(price, aderencia, u.get("tipo_imovel"), b["score_revenda"], n_vendas_endereco)
 
         out.append({
             "bairro": u["bairro"], "endereco": u["addr_display"], "codigo": u["codigo"], "link": u["link"],
@@ -1150,6 +1174,11 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, addr_in_captacao_ati
             # apartamento"). area_band_reliability/profile_reliability (v1)
             # removidos daqui — não alimentam mais nada neste painel.
             "profile_adherence": _round(aderencia), "tem_captacao_ativa": tem_captacao,
+            "captacao_n_vendas": n_vendas_endereco, "captacao_bonus": bonus,
+            # Passo 3c: idade do anúncio (dias, vs horário da consulta) e
+            # selo "Anúncio antigo" — nunca exclui o imóvel de nenhuma conta.
+            "idade_dias": u.get("idade_dias"),
+            "anuncio_antigo": u.get("idade_dias") is not None and u["idade_dias"] > ANUNCIO_ANTIGO_DIAS,
             "final_score": _round(final_score, 2), "resumo": resumo,
         })
 
@@ -1207,6 +1236,8 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
             "valor_total_mediana": mediana_ref if is_apto else None,
             "desconto_pct": _round(desconto * 100, 1),
             "atencao": desconto >= VALOR_OPORTUNIDADE_ATENCAO_DESCONTO,
+            "idade_dias": im.get("idade_dias"),
+            "anuncio_antigo": im.get("anuncio_antigo", False),
         })
     achados.sort(key=lambda a: (-a["desconto_pct"], (a["endereco"] or "").lower(), a["codigo"] or ""))
 
@@ -1272,7 +1303,7 @@ def _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out):
         bo = bairros_out[b]
         groups.append({
             "bairro": b,
-            "flag_prioridade_maxima": bo["flag_prioridade_maxima"],
+            "selo_escassez_real": bo["selo_escassez_real"],
             # Passo 2 (2026-10-01): perfil migrado pra faixa de preço v2
             # (valor pago em revenda, por tipo) — v1 (area_band/
             # price_band/profile_quartos/profile_vagas/
@@ -1296,7 +1327,7 @@ def _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out):
         })
 
     groups.sort(key=lambda g: (
-        0 if g["flag_prioridade_maxima"] else 1,
+        0 if g["selo_escassez_real"] else (1 if g["perfil"]["estoque_fora_do_perfil"] else 2),
         -bairros_out[g["bairro"]]["volume_primary_year"],
         g["bairro"].lower(),
     ))
@@ -1380,8 +1411,18 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
         if r["addr_key"]:
             usn_by_addr_key.setdefault(r["addr_key"], []).append(r)
 
+    # Passo 3c: % do estoque do bairro com mais de 365 dias de cadastro
+    # (denominador = só anúncios com data de cadastro conhecida; None se
+    # nenhum tiver — ex.: export manual .xlsx não traz a data).
+    estoque_antigo_n, estoque_antigo_pct = {}, {}
+    for b in TARGETS:
+        com_data = [r for r in usn_by_bairro[b] if r.get("idade_dias") is not None]
+        antigos = sum(1 for r in com_data if r["idade_dias"] > ANUNCIO_ANTIGO_DIAS)
+        estoque_antigo_n[b] = antigos
+        estoque_antigo_pct[b] = _round(100 * antigos / len(com_data), 1) if com_data else None
+
     liquidez, captacao_ativa, captacao_unico, liquidez_meta = _compute_liquidez(itbi_records, usn_by_addr_key, years)
-    addr_in_captacao_ativa = {c["addr_key"] for c in captacao_ativa}
+    addr_in_captacao_ativa = {c["addr_key"]: c["n_vendas"] for c in captacao_ativa}
 
     # --- montagem preliminar por bairro (sem os campos que dependem de score cross-bairro) ---
     bairros_out = {}
@@ -1479,7 +1520,11 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
             # nesta rodada.
             "estoque_perfil_faixa_preco": perfil_preco_v2[b]["profile_sample_size_faixa_preco_v2"],
             "perfil_vencedor_faixa_preco_v2": perfil_preco_v2[b]["bandas"],
-            "estoque_fora_do_perfil": perfil_preco_v2[b]["estoque_fora_do_perfil"],
+            # Passo 3c: estoque_fora_do_perfil/selo_escassez_real são
+            # preenchidos mais abaixo (precisam do tercil de estoque
+            # total/demanda, calculado só depois de todos os bairros).
+            "estoque_antigo_365d": estoque_antigo_n[b],
+            "estoque_antigo_365d_pct": estoque_antigo_pct[b],
             "asking_median_valor": asking, "paid_median_valor_primary_year": paid_median,
             "centroid": list(centroids[b]) if centroids[b] else None,
             "stock_demand_ratio": round(ratio, 3), "price_gap_pct": price_gap_pct,
@@ -1540,6 +1585,11 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
         total_ratio_map[b] = (st / demand) if demand > 0 else (999 if st > 0 else 0)
     total_ratios_sorted = sorted(total_ratio_map.values())
     high_tercile = _tercile(total_ratios_sorted, 2 / 3)
+    # Passo 3c: limiar do selo "Escassez real" — terço mais baixo da razão
+    # estoque total / revendas 12m entre os 77 bairros (sempre sobre o
+    # universo inteiro, nunca recalculado por filtro de tela — ver
+    # raw.json constants.limiar_escassez_real).
+    limiar_escassez_real = _tercile(total_ratios_sorted, 1 / 3)
 
     for b in TARGETS:
         bairros_out[b]["score"] = _round(score_map[b])
@@ -1549,12 +1599,23 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
         bairros_out[b]["score_revenda"] = _round(score_revenda_map[b])
         bairros_out[b]["stock_total_demand_ratio"] = round(total_ratio_map[b], 3)
         bairros_out[b]["flag_saturacao_alta"] = total_ratio_map[b] >= high_tercile
-        # Passo 2 (2026-10-01): migrado de stock_matching_profile (v1,
-        # metragem) pra estoque_perfil_faixa_preco (v2, faixa de preço).
-        bairros_out[b]["flag_prioridade_maxima"] = (
-            bairros_out[b]["estoque_perfil_faixa_preco"] <= CAPTACAO_ESTRATEGICA_MAX_STOCK_MATCH
-            and bairros_out[b]["revenda_12m"] >= VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY
+        # Passo 3c (2026-10-05): "Prioridade Máxima" dividida em dois
+        # selos que NUNCA acendem juntos. Os dois só existem pra bairro
+        # com >= 100 revendas em 12m (mesma régua do Ranking, nada de
+        # amostra pequena) E com no máximo 2 anúncios dentro da faixa de
+        # preço v2:
+        #   - Escassez real: o bairro INTEIRO tem pouco anúncio frente à
+        #     demanda (estoque total / revendas 12m no terço mais baixo
+        #     dos 77 bairros — limiar_escassez_real).
+        #   - Estoque fora do perfil: tem estoque ativo suficiente no
+        #     bairro, mas quase nada na faixa de preço que de fato vende.
+        elegivel_selo = (
+            not bairros_out[b]["amostra_pequena_ranking"]
+            and bairros_out[b]["estoque_perfil_faixa_preco"] <= CAPTACAO_ESTRATEGICA_MAX_STOCK_MATCH
         )
+        escassez = elegivel_selo and total_ratio_map[b] <= limiar_escassez_real
+        bairros_out[b]["selo_escassez_real"] = escassez
+        bairros_out[b]["estoque_fora_do_perfil"] = elegivel_selo and not escassez and bairros_out[b]["stock_total"] > 0
 
     ranking = sorted(TARGETS, key=lambda b: -bairros_out[b]["score"])
 
@@ -1633,6 +1694,7 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
             "years": years,
             "primary_year": year_full,
             "inprogress_year": year_curr,
+            "limiar_escassez_real": limiar_escassez_real,
             **liquidez_meta,
         },
         "periodo_12m": periodo_12m_meta,

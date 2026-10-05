@@ -85,9 +85,15 @@ function badge(text, kind) {
   return el("span", { class: `badge ${kind}` }, text);
 }
 
-function reliabilityTag(rel) {
-  const label = { individual: "próprio bairro", regional: "estimativa regional", insufficient: "dado insuficiente" }[rel] || rel;
-  return el("span", { class: `reliability-tag ${rel}` }, label);
+// Passo 3c (2026-10-05): anúncio com mais de 365 dias de cadastro na
+// nonStop continua em todas as contas — só ganha este selo (ver
+// engine.py.ANUNCIO_ANTIGO_DIAS). idade_dias vem pronto do build.
+function anuncioAntigoBadge(idadeDias) {
+  const anos = idadeDias != null ? (idadeDias / 365).toFixed(1).replace(".", ",") : null;
+  return el("span", {
+    class: "badge warning",
+    title: idadeDias != null ? `Cadastrado na nonStop há ${fmtInt(idadeDias)} dias (${anos} anos)` : "Anúncio com mais de 365 dias",
+  }, "Anúncio antigo — validar disponibilidade");
 }
 
 // Interesse de busca no Google (Keyword Planner) — sinal PROSPECTIVO de
@@ -257,6 +263,7 @@ function mergeStaticMeta(computed) {
   computed.meta.total_itbi_rows_seen = SERVER_DATA.meta.total_itbi_rows_seen;
   computed.meta.total_itbi_rows_matched = SERVER_DATA.meta.total_itbi_rows_matched;
   computed.meta.usn = SERVER_DATA.meta.usn;
+  computed.meta.fontes = SERVER_DATA.meta.fontes;
   // Item 3 (2026-09-30): carteira_77 é estático (painel próprio, não
   // recalcula com filtro — ver README) e vem só do data.json original;
   // sem essa linha, computeEngine() (que não conhece esse campo) apagava
@@ -325,8 +332,17 @@ function renderFontesStatus() {
   const itbiData = f.itbi && f.itbi.arquivo_atualizado_em
     ? new Date(f.itbi.arquivo_atualizado_em).toLocaleDateString("pt-BR")
     : "—";
-  el_.appendChild(el("span", { class: "fonte-item" + (itbiStale ? " fonte-stale" : ""), title: itbiStale ? "Falha ao sincronizar com a Prefeitura — usando o último arquivo salvo em cache." : "Último mês de dado do ITBI e data do arquivo baixado da Prefeitura." },
-    `ITBI: ${f.itbi ? f.itbi.ultimo_mes_dado : "—"} (arquivo ${itbiData})${itbiStale ? " ⚠ dado antigo" : ""}`));
+  // Passo 3c (2026-10-05): rótulo explica que o último mês COMPLETO é
+  // "jun/2026" e que os meses seguintes ainda estão recebendo guias da
+  // Prefeitura — antes mostrava "ITBI: 2026-06", que parecia dado atrasado.
+  // Meses vêm de DATA.periodo_12m (fim + meses_incompletos), não de texto fixo.
+  const mesLongo = (ym) => { const [y, m] = ym.split("-").map(Number); return `${MES_ABREV[m - 1]}/${y}`; };
+  const p12 = DATA.periodo_12m || {};
+  const ateMes = f.itbi && f.itbi.ultimo_mes_dado ? mesLongo(f.itbi.ultimo_mes_dado) : "—";
+  const incompletos = (p12.meses_incompletos || []).map(mesLongo);
+  const itbiTexto = `ITBI: vendas até ${ateMes}${incompletos.length ? ` (${incompletos.map((m) => m.split("/")[0]).join("–")} ainda recebendo guias)` : ""} · arquivo ${itbiData}`;
+  el_.appendChild(el("span", { class: "fonte-item" + (itbiStale ? " fonte-stale" : ""), title: itbiStale ? "Falha ao sincronizar com a Prefeitura — usando o último arquivo salvo em cache." : `Último mês completo de dado do ITBI: ${ateMes}. ${incompletos.length ? "Meses incompletos (Prefeitura ainda registrando guias): " + incompletos.join(", ") + ". " : ""}Data do arquivo baixado da Prefeitura: ${itbiData}.` },
+    `${itbiTexto}${itbiStale ? " ⚠ dado antigo" : ""}`));
 
   const nsData = f.nonstop && f.nonstop.consultado_em
     ? new Date(f.nonstop.consultado_em).toLocaleString("pt-BR")
@@ -706,8 +722,11 @@ function renderVisaoGeral() {
   tiles.appendChild(statTile("Imóveis pontuados", fmtInt(DATA.imoveis_prioritarios.length)));
   tiles.appendChild(statTile("Endereços em Captação Ativa", fmtInt(DATA.meta.enderecos_captacao_ativa)));
   tiles.appendChild(statTile("Achados de Valor de Oportunidade", fmtInt(DATA.valor_oportunidade.imoveis.length)));
-  const prioritariosBairros = new Set(DATA.captacao_estrategica.filter((g) => g.flag_prioridade_maxima).map((g) => g.bairro));
-  tiles.appendChild(statTile("Bairros Prioridade Máxima", fmtInt(prioritariosBairros.size)));
+  // Passo 3c (2026-10-05): "Prioridade Máxima" virou dois selos separados.
+  const nEscassez = DATA.captacao_estrategica.filter((g) => g.selo_escassez_real).length;
+  const nForaPerfil = DATA.captacao_estrategica.filter((g) => g.perfil.estoque_fora_do_perfil).length;
+  tiles.appendChild(statTile("Bairros com escassez real", fmtInt(nEscassez)));
+  tiles.appendChild(statTile("Bairros com estoque fora do perfil", fmtInt(nForaPerfil)));
 
   const alertBox = document.getElementById("visao-alertas");
   alertBox.innerHTML = "";
@@ -802,7 +821,7 @@ function renderProntidao() {
     const body = el("div", { class: "rank-body" });
     const nameLine = el("div", { class: "rank-name" }, [
       name,
-      b.flag_prioridade_maxima ? badge("Prioridade Máxima", "gold") : null,
+      b.selo_escassez_real ? badge("Escassez real", "gold") : null,
       b.amostra_pequena_ranking ? badge("Amostra pequena", "neutral") : null,
       // Revisão 2026-10-01 (item 3 do ajuste da faixa de preço v2):
       // distingue "0 porque não há estoque nenhum" de "0 porque há
@@ -868,26 +887,23 @@ function renderPerfilContent(name) {
   tiles.appendChild(statTile("Todas as transferências (12m)", fmtInt(b.volume_12m)));
   box.appendChild(tiles);
 
+  // Passo 3c (2026-10-05), item 4: perfil migrado pra faixa de preço v2
+  // (valor total pago em revenda, 12m, por tipo de imóvel) — sai o perfil
+  // por metragem/dormitórios/vagas (v1), que herdava a distorção área
+  // construída do ITBI x área útil do anúncio. Nenhuma informação de
+  // tamanho é mais exibida aqui.
   const perfilBox = el("section", { class: "card", style: "margin:0 0 14px; padding:16px 18px;" });
-  perfilBox.appendChild(el("h2", { style: "font-size:14.5px" }, "Perfil vencedor (o que mais vendeu)"));
-  if (b.area_band) {
-    const line = el("div", { class: "small" }, [
-      `Metragem: ${fmtM2(b.area_band[0])}–${fmtM2(b.area_band[1])} `,
-      reliabilityTag(b.area_band_reliability),
-    ]);
-    perfilBox.appendChild(line);
-    if (b.area_band_neighbors.length) {
-      perfilBox.appendChild(el("div", { class: "small muted", style: "margin-top:4px" },
-        `Estimado a partir de: ${b.area_band_neighbors.map((n) => `${n.bairro} (${n.distancia_km}km, ${n.n_pares} transações)`).join(", ")}`));
-    }
-    perfilBox.appendChild(el("div", { class: "small", style: "margin-top:10px" }, [
-      `Dormitórios típicos: ${b.profile_quartos ?? "—"} · Vagas típicas: ${b.profile_vagas ?? "—"} `,
-      reliabilityTag(b.profile_reliability),
-      ` (amostra: ${fmtInt(b.profile_sample_size)})`,
-    ]));
-  } else {
-    perfilBox.appendChild(el("div", { class: "placeholder-block" }, "Amostra insuficiente para calcular um perfil vencedor, mesmo com estimativa regional."));
-  }
+  perfilBox.appendChild(el("h2", { style: "font-size:14.5px" }, `Perfil vencedor — faixa de preço paga em revenda (12m, ${periodo12mLabel()})`));
+  const faixaV2 = b.perfil_vencedor_faixa_preco_v2 || {};
+  const linhasPerfil = [["apartamento", "Apartamento"], ["casa", "Casa"]].map(([tipo, rotulo]) => {
+    const f = faixaV2[tipo];
+    return el("div", { class: "small", style: "margin-top:4px" }, f
+      ? `${rotulo}: ${fmtMoneyCompact(f[0])} – ${fmtMoneyCompact(f[1])} (P25–P75 do valor total pago)`
+      : `${rotulo}: sem vendas de revenda nos últimos 12 meses`);
+  });
+  linhasPerfil.forEach((l) => perfilBox.appendChild(l));
+  perfilBox.appendChild(el("div", { class: "small muted", style: "margin-top:8px" },
+    `Anúncios ativos dentro da faixa: ${fmtInt(b.estoque_perfil_faixa_preco)} de ${fmtInt(b.stock_total)}.`));
   box.appendChild(perfilBox);
 
   const stockBox = el("section", { class: "card", style: "margin:0 0 14px; padding:16px 18px;" });
@@ -896,20 +912,31 @@ function renderPerfilContent(name) {
   ]);
   // Passo 2 (2026-10-01): "Estoque no perfil vencedor" migrado pra faixa
   // de preço v2 (era metragem, v1 — ver scripts/engine.py.compute).
+  if (b.selo_escassez_real) stockHeader.appendChild(badge("Escassez real", "gold"));
   if (b.estoque_fora_do_perfil) stockHeader.appendChild(badge("Estoque fora do perfil", "warning"));
-  stockBox.appendChild(stockHeader);
-  barRows(stockBox, [
+  // barRows() limpa o container que recebe — por isso desenha numa caixa
+  // própria e só depois junta com o cabeçalho (antes o título e os selos
+  // deste bloco sumiam).
+  const stockBars = el("div", {});
+  barRows(stockBars, [
     { label: "Estoque total anunciado", value: b.stock_total, colorVar: "--series-blue" },
     { label: "Estoque no perfil vencedor (faixa de preço)", value: b.estoque_perfil_faixa_preco, colorVar: "--gold" },
   ], { maxOverride: Math.max(b.stock_total, 1) });
+  stockBox.appendChild(stockHeader);
+  stockBox.appendChild(stockBars);
   stockBox.appendChild(el("div", { class: "small muted", style: "margin-top:8px" },
     `Razão estoque no perfil / vendas de revenda (12m, ${periodo12mLabel()}): ${b.stock_demand_ratio >= 999 ? "∞ (sem demanda registrada)" : b.stock_demand_ratio.toFixed(2)}`));
+  // Passo 3c (2026-10-05): % do estoque com mais de 365 dias de cadastro.
+  stockBox.appendChild(el("div", { class: "small muted", style: "margin-top:4px" },
+    b.estoque_antigo_365d_pct == null
+      ? "Idade do estoque: sem data de cadastro na fonte."
+      : `Estoque com mais de 365 dias de cadastro: ${fmtPct(b.estoque_antigo_365d_pct)} (${fmtInt(b.estoque_antigo_365d)} de ${fmtInt(b.stock_total)} anúncios).`));
   box.appendChild(stockBox);
 
   const priceBox = el("section", { class: "card", style: "margin:0; padding:16px 18px;" });
   priceBox.appendChild(el("h2", { style: "font-size:14.5px" }, "Preço por m² — Pago × Pedido"));
   priceBox.appendChild(el("div", { class: "card-sub", style: "margin-bottom:10px" },
-    `Mediana de R$/m² pago (${anosRefLabel()}) × pedido (hoje), dentro do mesmo tipo de imóvel e faixa de metragem — nunca valor total, nunca tamanhos diferentes.`));
+    `Mediana de R$/m² pago (${anosRefLabel()}) × pedido (hoje), dentro do mesmo tipo de imóvel e faixa de metragem — nunca valor total, nunca tamanhos diferentes. Atenção: a faixa de metragem do lado PAGO é a área do cadastro do ITBI (inclui áreas comuns e vagas), não a área útil; o lado PEDIDO usa a área útil do anúncio. Por isso, em apartamento, os dois lados não são diretamente comparáveis (o gap só é calculado para casa).`));
   const segmentos = (b.preco_m2_segmentos || [])
     .filter((s) => s.mediana_pago_m2 != null || s.mediana_pedido_m2 != null)
     .sort((s1, s2) => (s2.n_transacoes_12m - s1.n_transacoes_12m) || cmpLower(s1.tipo_imovel, s2.tipo_imovel) || cmpLower(s1.faixa, s2.faixa));
@@ -1041,7 +1068,7 @@ function renderCaptacao() {
     const summary = el("summary", {}, [
       el("span", {}, [
         g.bairro,
-        g.flag_prioridade_maxima ? badge("Prioridade Máxima", "gold") : null,
+        g.selo_escassez_real ? badge("Escassez real", "gold") : null,
         // Passo 2 (2026-10-01): selo "Estoque fora do perfil" também aqui
         // (ver engine.py._compute_captacao_estrategica).
         g.perfil.estoque_fora_do_perfil ? badge("Estoque fora do perfil", "warning") : null,
@@ -1067,6 +1094,9 @@ function renderCaptacao() {
     const appendAddrRow = (container, e) => {
       const nameLine = [e.endereco, e.unico ? badge("Endereço único", "neutral") : null];
       if (e.tem_unidade_a_venda_hoje) nameLine.push(badge("Já anunciado hoje", "warning"));
+      // Passo 3c: algum anúncio ativo desse endereço tem mais de 365 dias.
+      const unidadeAntiga = (e.unidades_a_venda_hoje || []).find((u) => u.anuncio_antigo);
+      if (unidadeAntiga) nameLine.push(anuncioAntigoBadge(unidadeAntiga.idade_dias));
       let metaLine = `${e.n_vendas} venda${e.n_vendas === 1 ? "" : "s"}${e.area_min != null ? ` · ${fmtM2(e.area_min)}${e.area_max !== e.area_min ? "–" + fmtM2(e.area_max) : ""}` : ""}`;
       const row = el("div", { class: "addr-row" }, [
         el("div", {}, [
@@ -1083,6 +1113,7 @@ function renderCaptacao() {
             ...e.unidades_a_venda_hoje.flatMap((u, i) => [
               i > 0 ? ", " : null,
               u.link ? el("a", { href: u.link, target: "_blank", rel: "noopener" }, u.codigo || "ver") : (u.codigo || "—"),
+              u.anuncio_antigo ? ` (${fmtInt(u.idade_dias)} dias)` : null,
             ]),
           ]),
         ]);
@@ -1130,7 +1161,7 @@ function imovelRow(im, i) {
         el("div", { class: "meta-line" }, im.bairro),
         el("span", { class: "score-tag" }, `Score ${fmtInt(im.final_score)}`),
       ]),
-      el("div", { style: "font-weight:600; margin:4px 0" }, im.endereco || "(endereço não informado)"),
+      el("div", { style: "font-weight:600; margin:4px 0" }, [im.endereco || "(endereço não informado)", im.anuncio_antigo ? " " : null, im.anuncio_antigo ? anuncioAntigoBadge(im.idade_dias) : null]),
       el("div", { class: "metrics" }, [
         el("span", {}, ["Valor ", el("b", {}, fmtMoneyCompact(im.valor))]),
         el("span", {}, ["Área ", el("b", {}, fmtM2(im.area))]),
@@ -1153,7 +1184,7 @@ function renderPrioritarios() {
   const top = DATA.imoveis_prioritarios.slice(0, 50);
   top.forEach((im, i) => box.appendChild(imovelRow(im, i)));
   box.appendChild(el("div", { class: "note methodology" },
-    `Mostrando os 50 melhores de ${DATA.imoveis_prioritarios.length} imóveis pontuados. Fórmula (casa): 35% liquidez de revenda do bairro + 30% alinhamento de preço (R$/m² do anúncio × mediana paga do mesmo tipo de imóvel e faixa de metragem) + 25% aderência à faixa de preço vencedora do bairro (valor pago em revenda, 12m, por tipo) + 10% bônus de captação ativa. Apartamento: componente de preço suspenso (aguardando calibração de área) — peso redistribuído entre liquidez (50%), aderência (~35,7%) e captação (~14,3%).`));
+    `Mostrando os 50 melhores de ${DATA.imoveis_prioritarios.length} imóveis pontuados. Fórmula (casa): 35% liquidez de revenda do bairro + 30% alinhamento de preço (R$/m² do anúncio × mediana paga do mesmo tipo de imóvel e faixa de metragem) + 25% aderência à faixa de preço vencedora do bairro (valor pago em revenda, 12m, por tipo) + 10% bônus de captação ativa (gradual pelo nº de vendas no endereço em 3 anos: 2 vendas = 40, 3 = 60, 4 = 80, 5 ou mais = 100). Apartamento: componente de preço suspenso (aguardando calibração de área) — peso redistribuído entre liquidez (50%), aderência (~35,7%) e captação (~14,3%).`));
 }
 
 // ---------------------------------------------------------------------------
@@ -1205,11 +1236,18 @@ function renderEstoqueDemanda() {
       // Passo 2 (2026-10-01): migrado pra faixa de preço v2 (era metragem, v1).
       { key: "estoque_perfil_faixa_preco", label: "Estoque no perfil (faixa de preço)" },
       { key: "stock_demand_ratio", label: "Cobertura", fmt: (v) => (v >= 999 ? "∞" : v.toFixed(3)) },
+      // Passo 3c (2026-10-05): % do estoque do bairro com mais de 365 dias
+      // de cadastro na nonStop.
+      {
+        key: "estoque_antigo_365d_pct", label: "Estoque com +365 dias",
+        fmt: (v, r) => (v == null ? "—" : `${fmtPct(v)} (${fmtInt(r.estoque_antigo_365d)})`),
+      },
       {
         key: "sinal", label: "Sinal", sortable: false, render: (r) => {
           const wrap = el("div", {});
           if (r.flag_oportunidade) wrap.appendChild(badge("Oportunidade", "gold"));
           if (r.flag_alerta) wrap.appendChild(badge("Alerta preço", "critical"));
+          if (r.selo_escassez_real) wrap.appendChild(badge("Escassez real", "gold"));
           if (r.estoque_fora_do_perfil) wrap.appendChild(badge("Estoque fora do perfil", "warning"));
           // Passo 3b (2026-10-01), item d pedido pelo usuário: mesmo selo já
           // usado no Ranking/Prontidão (< 100 revendas em 12m) — cobertura
@@ -1254,7 +1292,7 @@ function toggleEstoqueDetalhe(bairro, linkEl) {
   } else {
     listings.forEach((r) => {
       const row = el("div", { class: "mini-listing-row" }, [
-        el("div", {}, `${r.addrDisplay || "(endereço não informado)"} · ${fmtM2(r.area)} · ${r.quartos ?? "—"} dorm`),
+        el("div", {}, [`${r.addrDisplay || "(endereço não informado)"} · ${fmtM2(r.area)} · ${r.quartos ?? "—"} dorm`, (r.idadeDias != null && r.idadeDias > RAW.constants.anuncio_antigo_dias) ? " " : null, (r.idadeDias != null && r.idadeDias > RAW.constants.anuncio_antigo_dias) ? anuncioAntigoBadge(r.idadeDias) : null]),
         el("div", {}, [fmtMoneyCompact(r.valor), " ", r.link ? el("a", { href: r.link, target: "_blank", rel: "noopener" }, "Ver ↗") : null]),
       ]);
       box.appendChild(row);
@@ -1287,6 +1325,7 @@ function renderValorOportunidade() {
         key: "desconto_pct", label: "Desconto", render: (r) => el("div", {}, [
           fmtPct(r.desconto_pct) + " ",
           r.atencao ? badge("Atenção", "critical") : null,
+          r.anuncio_antigo ? anuncioAntigoBadge(r.idade_dias) : null,
         ]),
       },
       {

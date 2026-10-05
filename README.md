@@ -1976,3 +1976,37 @@ pra depois):
   de prontidão, com revenda/tendência/giro/estoque/tag de busca — gerado
   por `scripts/exportar_shortlist_google_ads.py` (lê `site/data.json`
   direto, não reparseia ITBI).
+
+## Passo 3c (2026-10-05) — decisões de mercado da auditoria
+
+- **Anúncio antigo**: `created_at` (data de cadastro da nonStop) vira
+  `idade_dias` (medida contra o horário da consulta, `meta.usn.consultado_em`,
+  igual nos dois motores). Mais de 365 dias (`engine.ANUNCIO_ANTIGO_DIAS`)
+  continua em TODAS as contas e ganha o selo "Anúncio antigo — validar
+  disponibilidade" (Imóveis Prioritários, Por Bairro/Região, Valor de
+  Oportunidade, Captação Ativa, drill-down do Estoque × Demanda). Por
+  bairro: `estoque_antigo_365d` / `estoque_antigo_365d_pct` (coluna
+  "Estoque com +365 dias" do Estoque × Demanda e linha no Perfil por
+  Bairro). A deduplicação continua mantendo o anúncio MAIS RECENTE do
+  grupo (um anúncio antigo republicado aparece como recente).
+- **"Prioridade Máxima" dividida em dois selos exclusivos** (campos
+  `selo_escassez_real` e `estoque_fora_do_perfil`; `flag_prioridade_maxima`
+  deixou de existir). Só acendem com >= 100 revendas em 12m
+  (`amostra_pequena_ranking` falso) e <= 2 anúncios na faixa de preço v2.
+  Escassez real = estoque total / revendas 12m <= `meta.limiar_escassez_real`
+  (terço mais baixo dos 77 bairros, fixo no build — não recalcula com filtro
+  de tela); Estoque fora do perfil = o resto, com estoque > 0.
+- **Bônus de captação** (10% do Painel 8): gradual pelo nº de vendas no
+  endereço — 2 = 40, 3 = 60, 4 = 80, 5+ = 100 (`engine._bonus_captacao`).
+  Campos novos por imóvel: `captacao_n_vendas`, `captacao_bonus`.
+- **Perfil por Bairro** migrado pra faixa de preço v2 (por tipo); nenhum
+  painel lê mais os campos v1 (metragem) — `validate_build` check 6 varre o
+  `app.js`. Os campos v1 seguem em `data.json` como obsoletos (remoção só
+  com aprovação). A faixa de metragem do lado PAGO no bloco "Preço por m²"
+  do Perfil é rotulada como "área do cadastro do ITBI (inclui áreas comuns
+  e vagas)".
+- `validate_build`: 10 checagens (nova: `check_selos_idade_bonus` — selos
+  exclusivos e só com 100+ revendas, anúncio antigo nunca excluído,
+  `anuncio_antigo` coerente com `idade_dias`, bônus na escala).
+- `output/anuncios_acima_40mil_por_m2_2026-10-05.csv`: listagem pontual (só
+  leitura) dos anúncios ativos acima de R$ 40 mil/m².
