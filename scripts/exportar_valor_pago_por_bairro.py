@@ -50,11 +50,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import cascata_completa as cc
 import clean_itbi
+import engine
 import tradutor_bairro as tb
 from normalize import excel_serial_to_ym, median, percentile
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT_CSV = ROOT / "output" / "valor_pago_por_bairro.csv"
+OUT_FAIXA_CSV = ROOT / "output" / "faixa_valor_pago_por_bairro.csv"
 
 MIN_AMOSTRA = 10  # mesmo limiar já usado em engine.py (MIN_TRANSACOES_PRECO_M2_12M)
 ANO_MINIMO = 2024  # item 1 da revisão: descarta transação real anterior a isso (guia atrasada)
@@ -144,6 +146,52 @@ def checar_consistencia_com_carteira_77(revenda_resolvida):
     print(f"[export] OK — consistente com carteira_77 em revenda_12m, {len(c77['bairros'])} bairros.")
 
 
+def exportar_faixa_adaptativa(revenda_resolvida):
+    """Proteção de amostra (2026-10-06): faixa de valor pago ATUAL por
+    bairro+tipo — a mesma do perfil vencedor v2 do dashboard: 12 meses se
+    houver >= 30 vendas limpas, senão 24, senão 36 (cortada em jan/2024, o
+    início do histórico completo); abaixo de 30 mesmo assim sai com
+    `poucas_vendas`. Camada limpa única, sem nenhum outro corte. O CSV por
+    ano (valor_pago_por_bairro.csv) continua sendo a série histórica."""
+    data = json.loads((ROOT / "site" / "data.json").read_text(encoding="utf-8"))
+    fim = tuple(int(x) for x in data["carteira_77"]["periodo_12m"]["fim"].split("-"))
+    y, m = map(int, data["carteira_77"]["periodo_12m"]["inicio"].split("-"))
+    periodo = []
+    while (y, m) <= fim:
+        periodo.append((y, m))
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    janelas = engine.janelas_meses(periodo, (min(data["meta"]["years"]), 1))
+    conj = {w: set(v) for w, v in janelas.items()}
+    vals = {}
+    for r in revenda_resolvida:
+        tipo = TIPO_POR_USO.get(r.get("uso_code"))
+        if tipo is None or r.get("day") is None:
+            continue
+        if clean_itbi.motivo_valor_sujo(r["valor"], r.get("base_calculo")) is not None:
+            continue
+        ym = excel_serial_to_ym(r["day"])
+        for w in janelas:
+            if ym in conj[w]:
+                vals.setdefault((r["bairro"], tipo), {w2: [] for w2 in janelas})[w].append(r["valor"])
+    linhas = []
+    for (bairro, tipo), por_janela in sorted(vals.items()):
+        w, poucas = engine.escolher_janela({k: len(v) for k, v in por_janela.items()})
+        v = por_janela[w]
+        meta = engine._meta_janela(janelas, w, len(v), poucas)
+        linhas.append({
+            "bairro": bairro, "tipo": tipo, "janela_meses": w, "meses_com_dado": meta["meses_com_dado"],
+            "periodo_inicio": meta["periodo_inicio"], "periodo_fim": meta["periodo_fim"],
+            "n_vendas_limpas": len(v),
+            "p25": round(percentile(25, v), 2), "mediana": round(median(v), 2), "p75": round(percentile(75, v), 2),
+            "poucas_vendas": poucas,
+        })
+    with open(OUT_FAIXA_CSV, "w", newline="", encoding="utf-8") as f:
+        w_ = csv.DictWriter(f, fieldnames=list(linhas[0].keys()))
+        w_.writeheader()
+        w_.writerows(linhas)
+    print(f"[export] {OUT_FAIXA_CSV} escrito ({len(linhas)} linhas)")
+
+
 def main():
     revenda_resolvida, stats = resolver_revenda_todos_anos()
 
@@ -203,6 +251,7 @@ def main():
 
     print(f"[export] {OUT_CSV} escrito ({len(linhas)} linhas)")
 
+    exportar_faixa_adaptativa(revenda_resolvida)
     checar_consistencia_com_carteira_77(revenda_resolvida)
 
 

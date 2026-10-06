@@ -76,6 +76,17 @@ function fmtMesAno(ym) {
   const [y, m] = ym.split("-").map(Number);
   return `${MES_ABREV[m - 1]}/${String(y).slice(2)}`;
 }
+// Proteção de amostra das faixas de preço (2026-10-06): cada faixa informa o
+// período usado (12, 24 ou 36 meses; o histórico completo do ITBI só começa em
+// jan/2024, então "36 meses" = o que existe desde lá) e, abaixo de 30 vendas
+// limpas mesmo no período maior, o selo "poucas vendas".
+function faixaPeriodoLabel(meta) {
+  if (!meta) return "";
+  const mesmoNominal = meta.meses_com_dado === meta.janela_meses;
+  const meses = mesmoNominal ? `${meta.janela_meses} meses` : `${meta.meses_com_dado} meses, todo o histórico disponível`;
+  return `${fmtMesAno(meta.periodo_inicio)}–${fmtMesAno(meta.periodo_fim)} · ${meses} · ${fmtInt(meta.n_vendas_limpas)} vendas limpas`;
+}
+
 function periodo12mLabel() {
   const p = DATA.periodo_12m;
   return `${fmtMesAno(p.inicio)}–${fmtMesAno(p.fim)}`;
@@ -893,15 +904,20 @@ function renderPerfilContent(name) {
   // construída do ITBI x área útil do anúncio. Nenhuma informação de
   // tamanho é mais exibida aqui.
   const perfilBox = el("section", { class: "card", style: "margin:0 0 14px; padding:16px 18px;" });
-  perfilBox.appendChild(el("h2", { style: "font-size:14.5px" }, `Perfil vencedor — faixa de preço paga em revenda (12m, ${periodo12mLabel()})`));
+  perfilBox.appendChild(el("h2", { style: "font-size:14.5px" }, "Perfil vencedor — faixa de preço paga em revenda"));
   const faixaV2 = b.perfil_vencedor_faixa_preco_v2 || {};
-  const linhasPerfil = [["apartamento", "Apartamento"], ["casa", "Casa"]].map(([tipo, rotulo]) => {
+  const metasV2 = b.perfil_vencedor_faixa_preco_v2_meta || {};
+  [["apartamento", "Apartamento"], ["casa", "Casa"]].forEach(([tipo, rotulo]) => {
     const f = faixaV2[tipo];
-    return el("div", { class: "small", style: "margin-top:4px" }, f
-      ? `${rotulo}: ${fmtMoneyCompact(f[0])} – ${fmtMoneyCompact(f[1])} (P25–P75 do valor total pago)`
-      : `${rotulo}: sem vendas de revenda nos últimos 12 meses`);
+    const m = metasV2[tipo];
+    const linha = el("div", { class: "small", style: "margin-top:6px" }, [
+      f ? `${rotulo}: ${fmtMoneyCompact(f[0])} – ${fmtMoneyCompact(f[1])} (P25–P75 do valor total pago) ` : `${rotulo}: sem vendas de revenda no período `,
+      m && m.poucas_vendas ? badge("Poucas vendas — fora das notas", "neutral") : null,
+    ]);
+    perfilBox.appendChild(linha);
+    // Período realmente usado nessa faixa (12, 24 ou 36 meses).
+    if (m) perfilBox.appendChild(el("div", { class: "small muted" }, `Período usado: ${faixaPeriodoLabel(m)}`));
   });
-  linhasPerfil.forEach((l) => perfilBox.appendChild(l));
   perfilBox.appendChild(el("div", { class: "small muted", style: "margin-top:8px" },
     `Anúncios da rede nonStop dentro da faixa: ${fmtInt(b.estoque_perfil_faixa_preco)} de ${fmtInt(b.stock_total)}.`));
   box.appendChild(perfilBox);
@@ -1083,12 +1099,17 @@ function renderCaptacao() {
     // dormitórios/vagas (v1). v2 não tem conceito de dormitórios/vagas
     // típicos (é só faixa de preço).
     const faixa = g.perfil.faixa_preco || {};
-    const partes = [];
-    if (faixa.apartamento) partes.push(`Apartamento ${fmtMoneyCompact(faixa.apartamento[0])}–${fmtMoneyCompact(faixa.apartamento[1])}`);
-    if (faixa.casa) partes.push(`Casa ${fmtMoneyCompact(faixa.casa[0])}–${fmtMoneyCompact(faixa.casa[1])}`);
+    const metas = g.perfil.faixa_meta || {};
+    const parte = (tipo, rotulo) => {
+      if (!faixa[tipo]) return null;
+      const m = metas[tipo];
+      const base = `${rotulo} ${fmtMoneyCompact(faixa[tipo][0])}–${fmtMoneyCompact(faixa[tipo][1])}`;
+      return m ? `${base} (${faixaPeriodoLabel(m)}${m.poucas_vendas ? " — POUCAS VENDAS, fora das notas" : ""})` : base;
+    };
+    const partes = [parte("apartamento", "Apartamento"), parte("casa", "Casa")].filter(Boolean);
     if (partes.length) {
       details.appendChild(el("div", { class: "profile-line" },
-        `Perfil vencedor (faixa de preço paga em revenda, 12m): ${partes.join(" · ")}`));
+        `Perfil vencedor (faixa de preço paga em revenda): ${partes.join(" · ")}`));
     }
 
     const appendAddrRow = (container, e) => {
@@ -1219,7 +1240,7 @@ function renderPrioritarios() {
   const top = DATA.imoveis_prioritarios.slice(0, 50);
   top.forEach((im, i) => box.appendChild(imovelRow(im, i)));
   box.appendChild(el("div", { class: "note methodology" },
-    `Mostrando os 50 melhores de ${DATA.imoveis_prioritarios.length} imóveis pontuados. Fórmula (casa): 35% liquidez de revenda do bairro + 30% alinhamento de preço (R$/m² do anúncio × mediana paga do mesmo tipo de imóvel e faixa de metragem) + 25% aderência à faixa de preço vencedora do bairro (valor pago em revenda, 12m, por tipo) + 10% bônus de captação ativa (híbrido: prédio com 10+ unidades no IPTU usa o giro — vendas em 3 anos ÷ unidades: menos de 7% = 40, 7–10% = 60, 10–15% = 80, 15% ou mais = 100; prédio com menos de 10 unidades, casa ou endereço sem casamento com o IPTU usa o nº de vendas: 2 = 40, 3 = 60, 4 = 80, 5 ou mais = 100; bônus acima de 60 exige pelo menos 3 vendas). Apartamento: componente de preço suspenso (aguardando calibração de área) — peso redistribuído entre liquidez (50%), aderência (~35,7%) e captação (~14,3%).`));
+    `Mostrando os 50 melhores de ${DATA.imoveis_prioritarios.length} imóveis pontuados. Fórmula (casa): 35% liquidez de revenda do bairro + 30% alinhamento de preço (R$/m² do anúncio × mediana paga do mesmo tipo de imóvel e faixa de metragem) + 25% aderência à faixa de preço vencedora do bairro (valor pago em revenda, 12m, por tipo) + 10% bônus de captação ativa (híbrido: prédio com 10+ unidades no IPTU usa o giro — vendas em 3 anos ÷ unidades: menos de 7% = 40, 7–10% = 60, 10–15% = 80, 15% ou mais = 100; prédio com menos de 10 unidades, casa ou endereço sem casamento com o IPTU usa o nº de vendas: 2 = 40, 3 = 60, 4 = 80, 5 ou mais = 100; bônus acima de 60 exige pelo menos 3 vendas). Apartamento: componente de preço suspenso (aguardando calibração de área) — peso redistribuído entre liquidez (50%), aderência (~35,7%) e captação (~14,3%). Se a faixa de preço do tipo no bairro tem menos de 30 vendas limpas (mesmo em 36 meses), a aderência fica ausente e o peso dela também é redistribuído entre os componentes restantes.`));
 }
 
 // ---------------------------------------------------------------------------
@@ -1397,14 +1418,19 @@ function renderPrecoM2() {
     columns: [
       { key: "bairro", label: "Bairro" },
       { key: "faixa", label: "Faixa de metragem" },
-      { key: "valor_total_mediana", label: "Valor total pago (mediana, revenda 12m)", fmt: (v) => (v == null ? "—" : fmtMoneyCompact(v)) },
+      { key: "valor_total_mediana", label: "Valor total pago (mediana, revenda)", fmt: (v) => (v == null ? "—" : fmtMoneyCompact(v)) },
       { key: "valor_total_p25", label: "P25", fmt: (v) => (v == null ? "—" : fmtMoneyCompact(v)) },
       { key: "valor_total_p75", label: "P75", fmt: (v) => (v == null ? "—" : fmtMoneyCompact(v)) },
-      { key: "n_vendas_revenda_12m", label: "Vendas revenda (12m)", fmt: (v) => fmtInt(v) },
+      { key: "n_vendas_revenda_12m", label: "Vendas limpas no período", fmt: (v) => fmtInt(v) },
+      {
+        key: "janela_meses", label: "Período usado", sortable: false,
+        render: (r) => el("span", { title: faixaPeriodoLabel({ janela_meses: r.janela_meses, meses_com_dado: r.meses_com_dado, periodo_inicio: r.periodo_inicio, periodo_fim: r.periodo_fim, n_vendas_limpas: r.n_vendas_revenda_12m }) },
+          `${fmtMesAno(r.periodo_inicio)}–${fmtMesAno(r.periodo_fim)} (${r.meses_com_dado === r.janela_meses ? r.janela_meses : r.meses_com_dado} meses)`),
+      },
       { key: "n_anuncios", label: "Anúncios hoje" },
       {
         key: "amostra_pequena", label: "Amostra", sortable: false,
-        render: (r) => (r.amostra_pequena ? badge("Amostra pequena", "neutral") : badge("Confiável", "gold")),
+        render: (r) => (r.poucas_vendas ? badge("Poucas vendas", "neutral") : badge("Confiável", "gold")),
       },
     ],
     rows,

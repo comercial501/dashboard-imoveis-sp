@@ -247,6 +247,32 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   // só sobre REVENDA LIMPA (is_revenda + is_clean_sale) — ver nota
   // equivalente em scripts/engine.py._is_revenda_limpa.
   const isRevendaLimpa = (r) => !!r.isRevenda && !!r.isCleanSale;
+
+  // Proteção de amostra das faixas de preço (2026-10-06) — espelha
+  // scripts/engine.py (janelas_meses / escolher_janela / _meta_janela):
+  // 12 meses se houver >= C.perfil_min_vendas_faixa vendas limpas no
+  // bairro+tipo; senão 24; senão 36; abaixo disso "poucas vendas" (a faixa
+  // aparece, mas não entra nas notas). Janelas terminam em C.fim_janela_12m
+  // e são cortadas em C.inicio_dados (histórico completo).
+  const JANELAS = C.perfil_janelas_meses;
+  const ymGe = (a, b) => a[0] * 12 + a[1] >= b[0] * 12 + b[1];
+  const janelasMeses = {};
+  {
+    const meses = [C.fim_janela_12m];
+    for (let i = 1; i < Math.max(...JANELAS); i++) meses.push(ymAddMonths(meses[meses.length - 1], -1));
+    for (const w of JANELAS) janelasMeses[w] = meses.slice(0, w).filter((m) => ymGe(m, C.inicio_dados)).reverse();
+  }
+  const janelasSet = {};
+  for (const w of JANELAS) janelasSet[w] = new Set(janelasMeses[w].map(ymKey));
+  const escolherJanela = (contagens) => {
+    for (const w of JANELAS) if (contagens[w] >= C.perfil_min_vendas_faixa) return [w, false];
+    return [Math.max(...JANELAS), true];
+  };
+  const ymFmt = ([y, m]) => `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}`;
+  const metaJanela = (w, n, poucas) => {
+    const ms = janelasMeses[w];
+    return { janela_meses: w, meses_com_dado: ms.length, periodo_inicio: ymFmt(ms[0]), periodo_fim: ymFmt(ms[ms.length - 1]), n_vendas_limpas: n, poucas_vendas: poucas };
+  };
   const CAPTACAO_MIN_VENDAS_FAIXA = C.captacao_min_vendas_faixa;
 
   // --- 1. Agregação ITBI por bairro/ano + pares (área,valor) ---
@@ -382,12 +408,21 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     const pago = {}, pedido = {}, valorTotal = {};
     for (const r of itbiRecords) {
       if (!(r.bairro in yearlyCount) || r.tipoImovel !== "apartamento") continue;
-      if (r.day == null || (C.hoje_serial - r.day) < 0 || (C.hoje_serial - r.day) > C.janela_preco_m2_dias) continue;
       const f = faixaMetragem(r.area, C.faixas_metragem);
       if (f == null) continue;
       const key = `${r.bairro}\u0001${f}`;
-      if (r.isCleanSale) (pago[key] ||= []).push(round(r.valor / r.area, 2));
-      if (isRevendaLimpa(r)) (valorTotal[key] ||= []).push(r.valor);
+      if (r.day != null && (C.hoje_serial - r.day) >= 0 && (C.hoje_serial - r.day) <= C.janela_preco_m2_dias && r.isCleanSale) {
+        (pago[key] ||= []).push(round(r.valor / r.area, 2));
+      }
+      if (r.day != null && isRevendaLimpa(r)) {
+        const k = ymKey(excelSerialToYm(r.day));
+        for (const w of JANELAS) {
+          if (janelasSet[w].has(k)) {
+            valorTotal[key] ||= Object.fromEntries(JANELAS.map((w2) => [w2, []]));
+            valorTotal[key][w].push(r.valor);
+          }
+        }
+      }
     }
     for (const r of usnRecords) {
       if (!(r.bairro in yearlyCount) || r.tipoImovel !== "apartamento") continue;
@@ -401,8 +436,16 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       for (const [, , faixa] of C.faixas_metragem) {
         const key = `${bairro}\u0001${faixa}`;
         const pagoVals = pago[key] || [];
-        const valorTotalVals = valorTotal[key] || [];
-        if (!pagoVals.length && !valorTotalVals.length && !(key in pedido)) continue;
+        const porJanela = valorTotal[key];
+        if (!pagoVals.length && !porJanela && !(key in pedido)) continue;
+        let janelaUsada, poucas, valorTotalVals;
+        if (porJanela) {
+          [janelaUsada, poucas] = escolherJanela(Object.fromEntries(JANELAS.map((w) => [w, porJanela[w].length])));
+          valorTotalVals = porJanela[janelaUsada];
+        } else {
+          janelaUsada = Math.max(...JANELAS); poucas = true; valorTotalVals = [];
+        }
+        const metaJ = metaJanela(janelaUsada, valorTotalVals.length, poucas);
 
         const valorTotalLimpos = valorTotalVals; // camada limpa única: sem corte extra
         const valorTotalMediana = valorTotalLimpos.length ? round(median(valorTotalLimpos), 2) : null;
@@ -414,8 +457,10 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
           mediana_pago_m2: null, mediana_pedido_m2: null, gap_pct: null,
           valor_total_mediana: valorTotalMediana, valor_total_p25: valorTotalP25, valor_total_p75: valorTotalP75,
           n_vendas_revenda_12m: valorTotalVals.length,
+          janela_meses: metaJ.janela_meses, meses_com_dado: metaJ.meses_com_dado,
+          periodo_inicio: metaJ.periodo_inicio, periodo_fim: metaJ.periodo_fim, poucas_vendas: poucas,
           n_transacoes_12m: pagoVals.length, n_anuncios: (pedido[key] || []).length,
-          amostra_pequena: valorTotalVals.length < C.min_transacoes_preco_m2_12m,
+          amostra_pequena: poucas,
         });
       }
     }
@@ -681,34 +726,43 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   // scripts/engine.py._compute_perfil_vencedor_faixa_preco_v2.
   const PERFIL_PRECO_V2_TIPOS = ["apartamento", "casa"];
   const perfilPrecoV2 = {};
+  // (bairro, tipo) -> {janela: [valores]} (cumulativo 12 ⊂ 24 ⊂ 36), numa passada só.
+  const valsV2 = {};
+  TARGETS.forEach((b) => PERFIL_PRECO_V2_TIPOS.forEach((t) => (valsV2[`${b}\u0001${t}`] = Object.fromEntries(JANELAS.map((w) => [w, []])))));
+  for (const r of itbiRecords) {
+    // Camada limpa única (2026-10-05): só revenda limpa (is_revenda + is_clean_sale).
+    if (!isRevendaLimpa(r) || r.day == null) continue;
+    const alvo = valsV2[`${r.bairro}\u0001${r.tipoImovel}`];
+    if (!alvo) continue;
+    const k = ymKey(excelSerialToYm(r.day));
+    for (const w of JANELAS) if (janelasSet[w].has(k)) alvo[w].push(r.valor);
+  }
   TARGETS.forEach((b) => {
-    const valoresPorTipo = { apartamento: [], casa: [] };
-    perfilPrecoV2[b] = { bandas: {}, profile_sample_size_faixa_preco_v2: 0 };
-    for (const r of itbiRecords) {
-      // Camada limpa única (2026-10-05): só revenda limpa (is_revenda + is_clean_sale).
-      if (r.bairro !== b || !isRevendaLimpa(r) || r.day == null) continue;
-      if (!PERFIL_PRECO_V2_TIPOS.includes(r.tipoImovel)) continue;
-      if (!periodoSet.has(ymKey(excelSerialToYm(r.day)))) continue;
-      valoresPorTipo[r.tipoImovel].push(r.valor);
-    }
-    const bandas = {};
+    const bandas = {}, faixaMeta = {}, confiavel = {};
     for (const tipo of PERFIL_PRECO_V2_TIPOS) {
-      const valores = valoresPorTipo[tipo];
-      if (!valores.length) {
-        bandas[tipo] = null;
-        continue;
-      }
-      const valoresOk = valores; // camada limpa única: sem corte extra
-      bandas[tipo] = [round(percentile(25, valoresOk), 2), round(percentile(75, valoresOk), 2)];
+      const porJanela = valsV2[`${b}\u0001${tipo}`];
+      const [w, poucas] = escolherJanela(Object.fromEntries(JANELAS.map((w2) => [w2, porJanela[w2].length])));
+      const valores = porJanela[w];
+      faixaMeta[tipo] = metaJanela(w, valores.length, poucas);
+      confiavel[tipo] = valores.length > 0 && !poucas;
+      bandas[tipo] = valores.length ? [round(percentile(25, valores), 2), round(percentile(75, valores), 2)] : null;
     }
     const ownStock = usnByBairro[b];
-    const inBandV2 = ownStock.filter((r) => {
+    const inBandV2 = [], inBandNota = [];
+    for (const r of ownStock) {
       const banda = bandas[r.tipoImovel];
-      return banda && r.valor != null && r.valor >= banda[0] && r.valor <= banda[1];
-    });
+      if (banda && r.valor != null && r.valor >= banda[0] && r.valor <= banda[1]) {
+        inBandV2.push(r);
+        if (confiavel[r.tipoImovel]) inBandNota.push(r);
+      }
+    }
+    const temConfiavel = PERFIL_PRECO_V2_TIPOS.some((t) => confiavel[t]);
     perfilPrecoV2[b] = {
       bandas,
+      faixa_meta: faixaMeta,
+      faixa_confiavel: temConfiavel,
       profile_sample_size_faixa_preco_v2: inBandV2.length,
+      estoque_perfil_faixa_preco_nota: temConfiavel ? inBandNota.length : null,
       // Passo 2 (2026-10-01): lista real dos anúncios dentro da faixa —
       // alimenta o drill-down "Ver lista completa" do Estoque×Demanda
       // (ver _matchingListingsByBairro), que antes usava a lista v1
@@ -906,6 +960,9 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       // equivalente em scripts/engine.py.compute.
       estoque_perfil_faixa_preco: perfilPrecoV2[b].profile_sample_size_faixa_preco_v2,
       perfil_vencedor_faixa_preco_v2: perfilPrecoV2[b].bandas,
+      perfil_vencedor_faixa_preco_v2_meta: perfilPrecoV2[b].faixa_meta,
+      perfil_faixa_confiavel: perfilPrecoV2[b].faixa_confiavel,
+      estoque_perfil_faixa_preco_nota: perfilPrecoV2[b].estoque_perfil_faixa_preco_nota,
       // Passo 3c: selos preenchidos no loop de flags (precisam do estoque
       // total/demanda de todos os bairros) — ver engine.py.compute.
       estoque_fora_do_perfil: false, selo_escassez_real: false,
@@ -964,7 +1021,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     // que nunca acendem juntos — ver nota equivalente em engine.py.compute.
     // limiar_escassez_real vem fixo do build (universo dos 77), nunca
     // recalculado pelo escopo do filtro.
-    const elegivelSelo = !bo.amostra_pequena_ranking && bo.estoque_perfil_faixa_preco <= C.captacao_estrategica_max_stock_match;
+    const elegivelSelo = !bo.amostra_pequena_ranking && bo.perfil_faixa_confiavel && bo.estoque_perfil_faixa_preco <= C.captacao_estrategica_max_stock_match;
     const escassez = elegivelSelo && totalRatioMapScope[b] <= C.limiar_escassez_real;
     bo.selo_escassez_real = escassez;
     bo.estoque_fora_do_perfil = elegivelSelo && !escassez && bo.stock_total > 0;
@@ -981,15 +1038,17 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     const s = 100 - (0.7 - ratio) * 200;
     return { score: Math.max(30, s), zone: "cautela", ratio };
   };
-  // Passo 2b (2026-10-01): pesos redistribuídos pra apartamento (sem o
-  // componente de preço) — mesma derivação de scripts/engine.py.PESOS_
-  // PAINEL8_APARTAMENTO, calculada aqui a partir de C.pesos_painel8 (não
-  // precisa de constante nova em raw.json).
-  const pesosPainel8AptoSoma = C.pesos_painel8.revenda + C.pesos_painel8.aderencia + C.pesos_painel8.captacao;
-  const pesosPainel8Apartamento = {
-    revenda: C.pesos_painel8.revenda / pesosPainel8AptoSoma,
-    aderencia: C.pesos_painel8.aderencia / pesosPainel8AptoSoma,
-    captacao: C.pesos_painel8.captacao / pesosPainel8AptoSoma,
+  // Pesos do Painel 8 só dos componentes DISPONÍVEIS, redistribuídos
+  // proporcionalmente — espelha scripts/engine.py.pesos_painel8: preço some
+  // em apartamento (Passo 2b) e a aderência some quando a faixa de preço do
+  // tipo não tem 30 vendas limpas (2026-10-06).
+  const pesosPainel8 = (temPreco, temAderencia) => {
+    const ativos = {};
+    for (const [k, v] of Object.entries(C.pesos_painel8)) {
+      if ((k !== "preco" || temPreco) && (k !== "aderencia" || temAderencia)) ativos[k] = v;
+    }
+    const soma = Object.values(ativos).reduce((x, y) => x + y, 0);
+    return Object.fromEntries(Object.entries(ativos).map(([k, v]) => [k, v / soma]));
   };
 
   const bonusPorVendas = (nVendas) => {
@@ -1031,7 +1090,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     }
     // Passo 2b: aderência agora é faixa de preço v2 — sem conceito de
     // "estimativa regional" (era reliability de área, v1).
-    if (aderenciaFinal >= 80) frases.push("Bate com a faixa de preço vencedora do bairro (revenda, 12m)");
+    if (aderenciaFinal != null && aderenciaFinal >= 80) frases.push("Bate com a faixa de preço vencedora do bairro (revenda, 12m)");
     if (scoreRevendaBairro >= 70) frases.push("Bairro com liquidez de revenda alta");
     if (nVendasEndereco) frases.push(`Prédio com histórico de giro comprovado (${nVendasEndereco} vendas em 3 anos)`);
     return frases.slice(0, 2).join(" · ");
@@ -1058,8 +1117,12 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
 
     // Passo 2b: aderência migrada de area_band (v1) pra faixa de preço v2.
     const faixaV2 = (b.perfil_vencedor_faixa_preco_v2 || {})[u.tipoImovel];
-    let aderencia = 50;
-    if (faixaV2 && u.valor != null) {
+    const metaFaixa = (b.perfil_vencedor_faixa_preco_v2_meta || {})[u.tipoImovel] || {};
+    // Proteção de amostra (2026-10-06): faixa sem 30 vendas limpas = aderência AUSENTE.
+    const faixaConfiavel = !!faixaV2 && !(metaFaixa.poucas_vendas ?? true);
+    let aderencia = null;
+    if (faixaConfiavel && u.valor != null) {
+      aderencia = 50;
       const [lo, hi] = faixaV2;
       if (u.valor >= lo && u.valor <= hi) aderencia = 100;
       else {
@@ -1075,10 +1138,9 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     const temCaptacao = nVendasEndereco > 0;
     const unidadesEndereco = u.addrKey != null && raw.unidades_endereco ? (raw.unidades_endereco[String(u.addrKey)] ?? null) : null;
     const { bonus, regua, giro } = bonusCaptacaoHibrido(nVendasEndereco, unidadesEndereco, u.tipoImovel);
-    const finalScore = isApto
-      ? pesosPainel8Apartamento.revenda * b.score_revenda + pesosPainel8Apartamento.aderencia * aderencia + pesosPainel8Apartamento.captacao * bonus
-      : C.pesos_painel8.revenda * b.score_revenda + C.pesos_painel8.preco * price.score
-        + C.pesos_painel8.aderencia * aderencia + C.pesos_painel8.captacao * bonus;
+    const pesos = pesosPainel8(!isApto, aderencia != null);
+    const componentes = { revenda: b.score_revenda, preco: price.score, aderencia, captacao: bonus };
+    const finalScore = Object.keys(pesos).reduce((acc, k) => acc + pesos[k] * componentes[k], 0);
 
     imoveisPrioritarios.push({
       bairro: u.bairro, endereco: u.addrDisplay, codigo: u.codigo, link: u.link,
@@ -1102,7 +1164,10 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   // Etapa 2, revisão 2026-10-01: f2 agora usa estoque_perfil_faixa_preco
   // (faixa de preço) em vez de stock_matching_profile (metragem) — ver
   // nota equivalente em scripts/engine.py.compute.
-  const stockMatchScope = {}; scope.forEach((b) => (stockMatchScope[b] = bairrosOut[b].estoque_perfil_faixa_preco));
+  // Proteção de amostra (2026-10-06): f2 só usa faixas confiáveis; bairro sem
+  // nenhuma = dado ausente (f2 undefined) e o peso é redistribuído (ver engine.py).
+  const stockMatchScope = {};
+  scope.forEach((b) => { if (bairrosOut[b].estoque_perfil_faixa_preco_nota != null) stockMatchScope[b] = bairrosOut[b].estoque_perfil_faixa_preco_nota; });
   const f2MapScope = normalize0to100(stockMatchScope);
   const f4Counts = {}; scope.forEach((b) => (f4Counts[b] = 0));
   for (const c of captacaoAtiva) if (f4Counts[c.bairro] != null) f4Counts[c.bairro]++;
@@ -1173,8 +1238,10 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       f6 = (100 * achadosBairro) / estoqueEleg;
     }
 
-    const prontidao = C.pesos_prontidao.f1 * f1 + C.pesos_prontidao.f2 * f2 + C.pesos_prontidao.f3 * f3
-      + C.pesos_prontidao.f4 * f4 + C.pesos_prontidao.f5 * f5 + C.pesos_prontidao.f6 * f6;
+    const fatores = { f1, f2, f3, f4, f5, f6 };
+    const disponiveis = Object.entries(fatores).filter(([, v]) => v != null);
+    const somaPesos = disponiveis.reduce((acc, [k]) => acc + C.pesos_prontidao[k], 0);
+    const prontidao = disponiveis.reduce((acc, [k, v]) => acc + C.pesos_prontidao[k] * v, 0) / somaPesos;
     bo.prontidao_campanha = round(prontidao);
   });
 
@@ -1220,6 +1287,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       // nota equivalente em scripts/engine.py._compute_captacao_estrategica.
       perfil: {
         faixa_preco: bo.perfil_vencedor_faixa_preco_v2,
+        faixa_meta: bo.perfil_vencedor_faixa_preco_v2_meta,
         estoque_perfil_faixa_preco: bo.estoque_perfil_faixa_preco,
         estoque_fora_do_perfil: bo.estoque_fora_do_perfil,
       },

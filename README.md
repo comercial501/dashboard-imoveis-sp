@@ -2073,7 +2073,7 @@ pra depois):
 - Texto do endereço da Captação (grafia de anúncios nonStop) alinhado entre
   Python e JS: o ÚLTIMO anúncio com grafia vence nos dois lados.
 
-## Camada limpa única de preço (2026-10-05) — AGUARDA APROVAÇÃO PRA MERGE
+## Camada limpa única de preço (2026-10-05, aprovada em 2026-10-06; tag `pos-camada-limpa`)
 
 Uma só regra de limpeza de preço do ITBI pro dashboard inteiro
 (`clean_itbi.build_clean_layer` / `motivo_valor_sujo`):
@@ -2104,3 +2104,23 @@ do mesmo prédio, abaixo de 50% da base 98–100% estão muito abaixo das
 vizinhas; 50–60%: 82%; 60–70%: 55%; 70–80%: 35% (ruído natural ~7%).
 Cortes: 50% tira 848 guias (2,2%), 60% tira 1.271 (3,3%), 70% tira 1.975
 (5,1%). Trocar é mudar `SUBDECLARACAO_LIMITE` e rodar o build.
+
+### Proteção de amostra das faixas de preço (2026-10-06)
+
+Sem cortar vendas, amplia o PERÍODO: a faixa de preço de cada bairro+tipo
+(perfil vencedor v2) e de cada bairro+faixa de metragem (painel "Preço por
+m²") usa **12 meses** se houver >= 30 vendas limpas; senão **24**; senão
+**36**. O histórico completo do ITBI só existe desde jan/2024 (guias de 2023
+e antes são só pagamentos atrasados), então a janela de 36 meses é cortada em
+jan/2024 (30 meses). Com < 30 mesmo assim: a faixa aparece com o selo
+"poucas vendas" e **não entra nas notas** — f2 do Prontidão (bairro sem
+nenhuma faixa confiável = f2 ausente, peso redistribuído) e aderência do
+Painel 8 (aderência ausente, peso redistribuído entre os componentes
+restantes; `pesos_painel8()`). Selos de estoque exigem ao menos uma faixa
+confiável. Cada faixa informa o período usado
+(`perfil_vencedor_faixa_preco_v2_meta`, `janela_meses`/`periodo_inicio`/
+`periodo_fim` no Preço por m²); o painel Preço por m² passou a usar os 12
+meses-calendário do período (jul/25–jun/26), não "365 dias a partir de hoje".
+`output/faixa_valor_pago_por_bairro.csv` traz a mesma faixa por janela
+adaptativa; `valor_pago_por_bairro.csv` segue como série por ano.
+`validate_build`: 13 checagens (nova `check_faixas_amostra`).

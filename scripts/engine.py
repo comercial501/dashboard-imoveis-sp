@@ -158,17 +158,9 @@ def _bonus_captacao(n_vendas):
 PESOS_PAINEL8 = {"revenda": 0.35, "preco": 0.30, "aderencia": 0.25, "captacao": 0.10}
 PESOS_PRONTIDAO = {"f1": 0.15, "f2": 0.20, "f3": 0.15, "f4": 0.15, "f5": 0.25, "f6": 0.10}
 
-# Passo 2b (2026-10-01): componente de preço do Painel 8 suspenso pra
-# apartamento (faixa_metragem() comparava área construída do ITBI x área
-# útil do anúncio — mesma distorção do backlog de calibração). Peso de
-# "preco" redistribuído PROPORCIONALMENTE entre os 3 componentes
-# restantes, só pra apartamento — casa usa PESOS_PAINEL8 normalmente.
-_PESOS_PAINEL8_APTO_SOMA = PESOS_PAINEL8["revenda"] + PESOS_PAINEL8["aderencia"] + PESOS_PAINEL8["captacao"]
-PESOS_PAINEL8_APARTAMENTO = {
-    "revenda": PESOS_PAINEL8["revenda"] / _PESOS_PAINEL8_APTO_SOMA,
-    "aderencia": PESOS_PAINEL8["aderencia"] / _PESOS_PAINEL8_APTO_SOMA,
-    "captacao": PESOS_PAINEL8["captacao"] / _PESOS_PAINEL8_APTO_SOMA,
-}
+# Componentes ausentes (preço suspenso em apartamento — Passo 2b; aderência sem
+# faixa confiável — 2026-10-06) têm o peso redistribuído proporcionalmente:
+# ver pesos_painel8().
 
 
 
@@ -526,44 +518,98 @@ def _aggregate_usn(usn_records):
 # ---------------------------------------------------------------------------
 PERFIL_PRECO_V2_TIPOS = ("apartamento", "casa")
 
+# Proteção de amostra das faixas de preço (2026-10-06): sem cortar vendas,
+# amplia o PERÍODO — 12 meses se houver >= PERFIL_MIN_VENDAS_FAIXA vendas
+# limpas no bairro+tipo; senão 24; senão 36. Se mesmo com 36 meses houver
+# menos que isso, a faixa é exibida com o selo "poucas vendas" e NÃO entra
+# nas notas (f2 do Prontidão, aderência do Painel 8): dado ausente, peso
+# redistribuído. O ITBI carregado só tem histórico completo desde jan do
+# primeiro ano (guias de 2023 e antes são só pagamentos atrasados), então
+# a janela de "36 meses" é cortada em jan/AAAA — na prática ~30 meses.
+PERFIL_MIN_VENDAS_FAIXA = 30
+PERFIL_JANELAS_MESES = (12, 24, 36)
 
-def _compute_perfil_vencedor_faixa_preco_v2(itbi_records, periodo_12m, usn_by_bairro):
-    periodo_set = set(periodo_12m)
-    valores_por_bairro_tipo = {b: {t: [] for t in PERFIL_PRECO_V2_TIPOS} for b in TARGETS}
+
+def janelas_meses(periodo_12m, inicio_dados):
+    """{12: [(a,m)...], 24: [...], 36: [...]} (cada lista em ordem crescente),
+    todas terminando no último mês de `periodo_12m` e cortadas em
+    `inicio_dados` (primeiro mês com histórico completo)."""
+    fim = periodo_12m[-1]
+    meses = [fim]
+    for _ in range(max(PERFIL_JANELAS_MESES) - 1):
+        meses.append(ym_add_months(meses[-1], -1))
+    return {w: sorted(m for m in meses[:w] if m >= inicio_dados) for w in PERFIL_JANELAS_MESES}
+
+
+def escolher_janela(contagens):
+    """contagens: {12: n, 24: n, 36: n} de vendas limpas por janela.
+    Retorna (janela_meses, poucas_vendas)."""
+    for w in PERFIL_JANELAS_MESES:
+        if contagens[w] >= PERFIL_MIN_VENDAS_FAIXA:
+            return w, False
+    return max(PERFIL_JANELAS_MESES), True
+
+
+def _meta_janela(janelas, w, n, poucas):
+    meses = janelas[w]
+    return {
+        "janela_meses": w, "meses_com_dado": len(meses),
+        "periodo_inicio": f"{meses[0][0]:04d}-{meses[0][1]:02d}",
+        "periodo_fim": f"{meses[-1][0]:04d}-{meses[-1][1]:02d}",
+        "n_vendas_limpas": n, "poucas_vendas": poucas,
+    }
+
+
+def _compute_perfil_vencedor_faixa_preco_v2(itbi_records, periodo_12m, usn_by_bairro, inicio_dados):
+    janelas = janelas_meses(periodo_12m, inicio_dados)
+    conj = {w: set(janelas[w]) for w in janelas}
+    # (bairro, tipo) -> {janela: [valores]} (cumulativo: 12 ⊂ 24 ⊂ 36)
+    vals = {(b, t): {w: [] for w in janelas} for b in TARGETS for t in PERFIL_PRECO_V2_TIPOS}
     for r in itbi_records:
         # Camada limpa única (2026-10-05): só revenda limpa (is_revenda +
-        # is_clean_sale), e P25-P75 SEM nenhum corte extra (IQR saiu).
+        # is_clean_sale), e P25-P75 SEM nenhum corte extra.
         if not _is_revenda_limpa(r):
             continue
         b = r["bairro"]
         tipo = r.get("tipo_imovel")
-        if b not in valores_por_bairro_tipo or tipo not in PERFIL_PRECO_V2_TIPOS:
+        if (b, tipo) not in vals or r["day"] is None:
             continue
-        if r["day"] is None:
-            continue
-        if excel_serial_to_ym(r["day"]) not in periodo_set:
-            continue
-        valores_por_bairro_tipo[b][tipo].append(r["valor"])
+        ym = excel_serial_to_ym(r["day"])
+        for w in janelas:
+            if ym in conj[w]:
+                vals[(b, tipo)][w].append(r["valor"])
 
     out = {}
     for b in TARGETS:
-        bandas = {}
+        bandas, meta, confiavel = {}, {}, {}
         for tipo in PERFIL_PRECO_V2_TIPOS:
-            valores = valores_por_bairro_tipo[b][tipo]
-            if not valores:
-                bandas[tipo] = None
-                continue
-            bandas[tipo] = [_round(percentile(25, valores), 2), _round(percentile(75, valores), 2)]
+            por_janela = vals[(b, tipo)]
+            w, poucas = escolher_janela({k: len(v) for k, v in por_janela.items()})
+            valores = por_janela[w]
+            meta[tipo] = _meta_janela(janelas, w, len(valores), poucas)
+            confiavel[tipo] = bool(valores) and not poucas
+            bandas[tipo] = (
+                [_round(percentile(25, valores), 2), _round(percentile(75, valores), 2)] if valores else None
+            )
 
         own_stock = usn_by_bairro[b]
-        in_band = []
+        in_band, in_band_nota = [], []
         for r in own_stock:
-            banda = bandas.get(r.get("tipo_imovel"))
+            tipo = r.get("tipo_imovel")
+            banda = bandas.get(tipo)
             if banda and r["valor"] is not None and banda[0] <= r["valor"] <= banda[1]:
                 in_band.append(r)
+                if confiavel[tipo]:
+                    in_band_nota.append(r)
+        tem_confiavel = any(confiavel.values())
         out[b] = {
             "bandas": bandas,
+            "faixa_meta": meta,
+            "faixa_confiavel": tem_confiavel,
             "profile_sample_size_faixa_preco_v2": len(in_band),
+            # só faixas confiáveis (>= 30 vendas limpas); None se o bairro não
+            # tem nenhuma — dado ausente pro f2 do Prontidão.
+            "estoque_perfil_faixa_preco_nota": len(in_band_nota) if tem_confiavel else None,
         }
     return out
 
@@ -948,7 +994,7 @@ def _compute_preco_m2(itbi_records, usn_records, hoje_serial):
     return out
 
 
-def _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial):
+def _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial, periodo_12m, inicio_dados):
     """Painel dedicado "Preço por m² — Pago × Pedido" (Etapa 4, 2026-09-29):
     diferente de `_compute_preco_m2` (que faz pool de 3 anos pras 5
     comparações da Etapa 3), aqui TUDO — inclusive a mediana paga — é
@@ -969,21 +1015,31 @@ def _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial):
     em qualquer outro lugar do motor que mostre R$/m² de casa.
     `mediana_pago_m2`/`mediana_pedido_m2`/`gap_pct` ficam sempre None
     agora (suspensos); os campos novos `valor_total_*`/`n_vendas_revenda`
-    são aditivos."""
-    pago = {}  # (bairro, faixa) -> [valor_m2, ...] só dos últimos 12 meses (mantido só por compatibilidade de schema)
-    valor_total = {}  # (bairro, faixa) -> [valor, ...] revenda, últimos 12 meses
+    são aditivos.
+
+    Proteção de amostra (2026-10-06): o valor total pago de cada
+    bairro+faixa de metragem usa 12 meses (mesmo período do resto do
+    dashboard — periodo_12m, não "365 dias a partir de hoje") se houver
+    >= PERFIL_MIN_VENDAS_FAIXA vendas limpas; senão 24; senão 36. Com
+    menos de 30 mesmo em 36 meses a linha sai com `poucas_vendas` (e
+    amostra_pequena). Cada linha informa a janela usada."""
+    janelas = janelas_meses(periodo_12m, inicio_dados)
+    conj = {w: set(janelas[w]) for w in janelas}
+    pago = {}  # (bairro, faixa) -> [valor_m2, ...] só dos últimos 365 dias (mantido só por compatibilidade de schema)
+    valor_total = {}  # (bairro, faixa) -> {janela: [valor, ...]} revenda limpa, cumulativo 12 ⊂ 24 ⊂ 36
     for r in itbi_records:
         if r["bairro"] not in TARGETS or r["tipo_imovel"] != "apartamento":
-            continue
-        if r["day"] is None or not (0 <= (hoje_serial - r["day"]) <= JANELA_PRECO_M2_DIAS):
             continue
         f = faixa_metragem(r["area"])
         if f is None:
             continue
-        if r["is_clean_sale"]:
+        if r["day"] is not None and 0 <= (hoje_serial - r["day"]) <= JANELA_PRECO_M2_DIAS and r["is_clean_sale"]:
             pago.setdefault((r["bairro"], f), []).append(r["valor_m2"])
-        if _is_revenda_limpa(r):
-            valor_total.setdefault((r["bairro"], f), []).append(r["valor"])
+        if r["day"] is not None and _is_revenda_limpa(r):
+            ym = excel_serial_to_ym(r["day"])
+            for w in janelas:
+                if ym in conj[w]:
+                    valor_total.setdefault((r["bairro"], f), {w2: [] for w2 in janelas})[w].append(r["valor"])
 
     pedido = {}  # (bairro, faixa) -> [valor_m2, ...] (estoque atual, sem janela de tempo — não tem "data da venda")
     for r in usn_records:
@@ -1001,14 +1057,19 @@ def _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial):
         for _lo, _hi, f in FAIXAS_METRAGEM:
             key = (bairro, f)
             pago_vals = pago.get(key, [])
-            valor_total_vals = valor_total.get(key, [])
-            if not pago_vals and not valor_total_vals and key not in pedido:
+            por_janela = valor_total.get(key)
+            if not pago_vals and not por_janela and key not in pedido:
                 continue
 
-            valor_total_limpos = valor_total_vals  # camada limpa única: sem corte extra
-            valor_total_mediana = _round(median(valor_total_limpos), 2) if valor_total_limpos else None
-            valor_total_p25 = _round(percentile(25, valor_total_limpos), 2) if valor_total_limpos else None
-            valor_total_p75 = _round(percentile(75, valor_total_limpos), 2) if valor_total_limpos else None
+            if por_janela:
+                w, poucas = escolher_janela({k: len(v) for k, v in por_janela.items()})
+                valor_total_vals = por_janela[w]
+            else:
+                w, poucas, valor_total_vals = max(PERFIL_JANELAS_MESES), True, []
+            meta = _meta_janela(janelas, w, len(valor_total_vals), poucas)
+            valor_total_mediana = _round(median(valor_total_vals), 2) if valor_total_vals else None
+            valor_total_p25 = _round(percentile(25, valor_total_vals), 2) if valor_total_vals else None
+            valor_total_p75 = _round(percentile(75, valor_total_vals), 2) if valor_total_vals else None
 
             out.append({
                 "bairro": bairro, "faixa": f,
@@ -1018,9 +1079,12 @@ def _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial):
                 "mediana_pago_m2": None, "mediana_pedido_m2": None, "gap_pct": None,
                 "valor_total_mediana": valor_total_mediana,
                 "valor_total_p25": valor_total_p25, "valor_total_p75": valor_total_p75,
-                "n_vendas_revenda_12m": len(valor_total_vals),
+                "n_vendas_revenda_12m": len(valor_total_vals),  # nome antigo: agora = vendas na janela usada
+                "janela_meses": meta["janela_meses"], "meses_com_dado": meta["meses_com_dado"],
+                "periodo_inicio": meta["periodo_inicio"], "periodo_fim": meta["periodo_fim"],
+                "poucas_vendas": poucas,
                 "n_transacoes_12m": len(pago_vals), "n_anuncios": len(pedido.get(key, [])),
-                "amostra_pequena": len(valor_total_vals) < MIN_TRANSACOES_PRECO_M2_12M,
+                "amostra_pequena": poucas,
             })
     return out
 
@@ -1128,10 +1192,23 @@ def _price_alignment_score(valor, mediana):
 
 
 
+def pesos_painel8(tem_preco, tem_aderencia):
+    """Pesos do Painel 8 só dos componentes DISPONÍVEIS, redistribuídos
+    proporcionalmente (somam 1): preço some em apartamento (suspenso) e a
+    aderência some quando a faixa de preço do tipo não tem 30 vendas
+    limpas. Com os dois presentes = PESOS_PAINEL8 original."""
+    ativos = {
+        k: v for k, v in PESOS_PAINEL8.items()
+        if (k != "preco" or tem_preco) and (k != "aderencia" or tem_aderencia)
+    }
+    soma = sum(ativos.values())
+    return {k: v / soma for k, v in ativos.items()}
+
+
 def _resumo_imovel(price, aderencia_final, tipo_imovel, score_revenda_bairro, n_vendas_endereco):
     frases = []
     # Passo 2b (2026-10-01): componente de preço suspenso pra apartamento
-    # (ver PESOS_PAINEL8_APARTAMENTO) — mensagem fixa em vez do zone/ratio
+    # (ver pesos_painel8) — mensagem fixa em vez do zone/ratio
     # de R$/m², que não existe mais pra esse tipo.
     if tipo_imovel == "apartamento":
         frases.append("Comparação indisponível para apartamentos: aguardando calibração de área")
@@ -1147,7 +1224,7 @@ def _resumo_imovel(price, aderencia_final, tipo_imovel, score_revenda_bairro, n_
     # Passo 2b: aderência agora é faixa de preço v2 (valor pago em
     # revenda, por tipo) — não tem mais conceito de "estimativa regional"
     # (esse era um reliability de área, v1).
-    if aderencia_final >= 80:
+    if aderencia_final is not None and aderencia_final >= 80:
         frases.append("Bate com a faixa de preço vencedora do bairro (revenda, 12m)")
     if score_revenda_bairro >= 70:
         frases.append("Bairro com liquidez de revenda alta")
@@ -1172,7 +1249,7 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, captacao_n_vendas, u
         # mediana, que bucketiza por faixa_metragem() (área CONSTRUÍDA do
         # segmento ITBI x área ÚTIL do anúncio — mesma distorção do
         # backlog de calibração). Sem lookup nenhum até ter um fator de
-        # calibração; peso redistribuído (PESOS_PAINEL8_APARTAMENTO,
+        # calibração; peso redistribuído (pesos_painel8,
         # abaixo). Casa não muda (R$/m², faixa_metragem mantida).
         if is_apto:
             price = {"score": None, "zone": "indisponivel_apartamento", "ratio": None}
@@ -1187,8 +1264,14 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, captacao_n_vendas, u
         # (v1); v2 não tem conceito de dormitórios/vagas típicos nem de
         # confiança regional, então a pontuação é direta (sem multiplicador).
         faixa_v2 = (b.get("perfil_vencedor_faixa_preco_v2") or {}).get(u.get("tipo_imovel"))
-        aderencia = 50
-        if faixa_v2 and u["valor"] is not None:
+        meta_faixa = (b.get("perfil_vencedor_faixa_preco_v2_meta") or {}).get(u.get("tipo_imovel")) or {}
+        # Proteção de amostra (2026-10-06): faixa sem 30 vendas limpas (mesmo
+        # com 36 meses) ou inexistente = aderência AUSENTE (None); o peso
+        # dela é redistribuído entre os outros componentes do imóvel.
+        faixa_confiavel = bool(faixa_v2) and not meta_faixa.get("poucas_vendas", True)
+        aderencia = None
+        if faixa_confiavel and u["valor"] is not None:
+            aderencia = 50
             lo, hi = faixa_v2
             if lo <= u["valor"] <= hi:
                 aderencia = 100
@@ -1204,19 +1287,12 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, captacao_n_vendas, u
         unidades_endereco = unidades_por_endereco.get(u["addr_key"]) if u["addr_key"] is not None else None
         bonus, regua, giro = _bonus_captacao_hibrido(n_vendas_endereco, unidades_endereco, u.get("tipo_imovel"))
 
-        if is_apto:
-            final_score = (
-                PESOS_PAINEL8_APARTAMENTO["revenda"] * b["score_revenda"]
-                + PESOS_PAINEL8_APARTAMENTO["aderencia"] * aderencia
-                + PESOS_PAINEL8_APARTAMENTO["captacao"] * bonus
-            )
-        else:
-            final_score = (
-                PESOS_PAINEL8["revenda"] * b["score_revenda"]
-                + PESOS_PAINEL8["preco"] * price["score"]
-                + PESOS_PAINEL8["aderencia"] * aderencia
-                + PESOS_PAINEL8["captacao"] * bonus
-            )
+        # Componente ausente (preço suspenso em apartamento; aderência sem
+        # faixa confiável) = peso redistribuído proporcionalmente entre os
+        # que existem (ver pesos_painel8).
+        pesos = pesos_painel8(tem_preco=not is_apto, tem_aderencia=aderencia is not None)
+        componentes = {"revenda": b["score_revenda"], "preco": price["score"], "aderencia": aderencia, "captacao": bonus}
+        final_score = sum(pesos[k] * componentes[k] for k in pesos)
 
         resumo = _resumo_imovel(price, aderencia, u.get("tipo_imovel"), b["score_revenda"], n_vendas_endereco)
 
@@ -1374,6 +1450,7 @@ def _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out):
             # relatório, item 1a).
             "perfil": {
                 "faixa_preco": bo["perfil_vencedor_faixa_preco_v2"],
+                "faixa_meta": bo["perfil_vencedor_faixa_preco_v2_meta"],
                 "estoque_perfil_faixa_preco": bo["estoque_perfil_faixa_preco"],
                 "estoque_fora_do_perfil": bo["estoque_fora_do_perfil"],
             },
@@ -1467,10 +1544,11 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
 
     usn_by_bairro, centroids, stock_total, asking_median = _aggregate_usn(usn_records)
     profile = _compute_profile(pairs_all_years, usn_by_bairro, centroids)
-    perfil_preco_v2 = _compute_perfil_vencedor_faixa_preco_v2(itbi_records, periodo_12m_externo[0], usn_by_bairro)
+    inicio_dados = (min(years), 1)
+    perfil_preco_v2 = _compute_perfil_vencedor_faixa_preco_v2(itbi_records, periodo_12m_externo[0], usn_by_bairro, inicio_dados)
     hoje_serial = today_excel_serial()
     preco_m2 = _compute_preco_m2(itbi_records, usn_records, hoje_serial)
-    preco_m2_painel = _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial)
+    preco_m2_painel = _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial, periodo_12m_externo[0], inicio_dados)
 
     usn_by_addr_key = {}
     for r in usn_records:
@@ -1586,6 +1664,13 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
             # nesta rodada.
             "estoque_perfil_faixa_preco": perfil_preco_v2[b]["profile_sample_size_faixa_preco_v2"],
             "perfil_vencedor_faixa_preco_v2": perfil_preco_v2[b]["bandas"],
+            # Proteção de amostra: período usado por tipo (12/24/36 meses),
+            # nº de vendas limpas e selo "poucas vendas"; faixa_confiavel =
+            # algum tipo com >= 30 vendas; _nota = estoque só em faixas
+            # confiáveis (None se nenhuma) — usado pelo f2 do Prontidão.
+            "perfil_vencedor_faixa_preco_v2_meta": perfil_preco_v2[b]["faixa_meta"],
+            "perfil_faixa_confiavel": perfil_preco_v2[b]["faixa_confiavel"],
+            "estoque_perfil_faixa_preco_nota": perfil_preco_v2[b]["estoque_perfil_faixa_preco_nota"],
             # Passo 3c: estoque_fora_do_perfil/selo_escassez_real são
             # preenchidos mais abaixo (precisam do tercil de estoque
             # total/demanda, calculado só depois de todos os bairros).
@@ -1677,6 +1762,7 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
         #     bairro, mas quase nada na faixa de preço que de fato vende.
         elegivel_selo = (
             not bairros_out[b]["amostra_pequena_ranking"]
+            and bairros_out[b]["perfil_faixa_confiavel"]
             and bairros_out[b]["estoque_perfil_faixa_preco"] <= CAPTACAO_ESTRATEGICA_MAX_STOCK_MATCH
         )
         escassez = elegivel_selo and total_ratio_map[b] <= limiar_escassez_real
@@ -1692,7 +1778,14 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
     # Etapa 2, revisão 2026-10-01: f2 agora usa estoque_perfil_faixa_preco
     # (faixa de preço, valor total) em vez de stock_matching_profile
     # (metragem) — ver nota em _compute_profile/bairros_out acima.
-    f2_map = normalize_0_100({b: bairros_out[b]["estoque_perfil_faixa_preco"] for b in TARGETS})
+    # Proteção de amostra (2026-10-06): o f2 só usa faixas CONFIÁVEIS (>= 30
+    # vendas limpas em até 36 meses). Bairro sem nenhuma faixa confiável =
+    # dado ausente (f2 None) — o peso do f2 é redistribuído entre os outros
+    # fatores, proporcionalmente, só pra esse bairro.
+    f2_map = normalize_0_100({
+        b: bairros_out[b]["estoque_perfil_faixa_preco_nota"] for b in TARGETS
+        if bairros_out[b]["estoque_perfil_faixa_preco_nota"] is not None
+    })
     f4_counts = {b: 0 for b in TARGETS}
     for c in captacao_ativa:
         f4_counts[c["bairro"]] += 1
@@ -1704,7 +1797,7 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
 
     for b in TARGETS:
         f1 = bairros_out[b]["score"]
-        f2 = f2_map[b]
+        f2 = f2_map.get(b)  # None = dado ausente
         gap = bairros_out[b]["price_gap_pct"]
         f3 = max(0, 100 - abs(gap) * 2) if gap is not None else 50
         f4 = f4_map[b]
@@ -1736,10 +1829,10 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
             achados_bairro = achados_by_bairro_count.get(b, 0)
             f6 = 100 * achados_bairro / estoque_eleg
 
-        prontidao = (
-            PESOS_PRONTIDAO["f1"] * f1 + PESOS_PRONTIDAO["f2"] * f2 + PESOS_PRONTIDAO["f3"] * f3
-            + PESOS_PRONTIDAO["f4"] * f4 + PESOS_PRONTIDAO["f5"] * f5 + PESOS_PRONTIDAO["f6"] * f6
-        )
+        fatores = {"f1": f1, "f2": f2, "f3": f3, "f4": f4, "f5": f5, "f6": f6}
+        disponiveis = {k: v for k, v in fatores.items() if v is not None}
+        soma_pesos = sum(PESOS_PRONTIDAO[k] for k in disponiveis)
+        prontidao = sum(PESOS_PRONTIDAO[k] * v for k, v in disponiveis.items()) / soma_pesos
         bairros_out[b]["prontidao_campanha"] = _round(prontidao)
 
     # Etapa 2, revisão 2026-10-01: mesma regra de amostra mínima do
