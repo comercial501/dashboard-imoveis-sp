@@ -74,6 +74,19 @@ VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY = 10
 # Rodada A (2026-10-06): apartamento é comparado com a mediana paga no MESMO
 # PRÉDIO (camada limpa, mesmo endereço), só em prédio homogêneo.
 VALOR_OPORT_APTO_MIN_VENDAS = 4
+# Rodada A2 (2026-10-06): venda antiga é atualizada pro preço de hoje pela
+# variação da mediana de R$/m² de revenda limpa do bairro+tipo (do mês da
+# venda até o último mês completo). A mediana de UM mês oscila demais — testado
+# nos dados: Itaim Bibi apartamento, ~40 vendas/mês, teve mediana de R$ 13,9 mil/m²
+# em jun/2026 contra ~R$ 9 mil nos outros meses, o que inflaria todas as vendas
+# antigas em 50% — então o índice usa uma janela de W meses (3, 6 ou 12 — a menor
+# com >= 100 vendas, pelo volume dos últimos 12 meses) centrada no mês e ajustada
+# pra caber nos dados. Bairro+tipo sem volume pra 12 meses (a maioria das casas)
+# usa a variação da cidade inteira, do mesmo tipo (janela de 6 meses).
+INDICE_TEMPO_JANELAS = (3, 6, 12)
+INDICE_TEMPO_MIN_VENDAS = 100
+INDICE_TEMPO_MIN_VENDAS_JANELA = 10  # janela de um mês antigo com menos que isso usa a variação da cidade
+INDICE_TEMPO_JANELA_CIDADE = 6
 VALOR_OPORT_APTO_MAX_P75_P25 = 1.25
 CAPTACAO_ESTRATEGICA_MAX_STOCK_MATCH = 2
 CAPTACAO_ESTRATEGICA_MIN_ENDERECOS = 5
@@ -1348,15 +1361,124 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, captacao_n_vendas, u
 # ---------------------------------------------------------------------------
 # 7. Painel 10 — Valor de Oportunidade
 # ---------------------------------------------------------------------------
-def _compute_predio_stats(itbi_records):
+def _ym_idx(ym):
+    return ym[0] * 12 + ym[1] - 1
+
+
+def _compute_indice_tempo(itbi_records, periodo_12m, inicio_dados):
+    """Rodada A2: fator de atualização por (bairro, tipo) e mês da venda.
+    fator(mês) = índice(último mês completo) ÷ índice(mês), onde índice(mês) =
+    mediana de R$/m² das revendas limpas na janela de W meses em volta do mês
+    (ver INDICE_TEMPO_*). Fator do último mês = 1. Janela do mês com poucas
+    vendas (ou bairro+tipo sem volume pra nenhuma janela) usa a variação da
+    cidade inteira (mesmo tipo, janela de INDICE_TEMPO_JANELA_CIDADE meses).
+    Retorna {"mes_base": (a,m), "i0", "i1", "bairro_tipo": {(b,tipo): {"janela": W|None,
+    "fator": {i: f}, "n_fallback": n}}, "cidade": {tipo: {i: f}}}."""
+    i0, i1 = _ym_idx(inicio_dados), _ym_idx(periodo_12m[-1])
+    por_bt, por_cidade = {}, {}
+    for r in itbi_records:
+        if r["bairro"] not in TARGETS or r["tipo_imovel"] not in ("apartamento", "casa"):
+            continue
+        if not _is_revenda_limpa(r) or r["day"] is None or not r.get("valor_m2"):
+            continue
+        i = _ym_idx(excel_serial_to_ym(r["day"]))
+        if i < i0 or i > i1:
+            continue
+        por_bt.setdefault((r["bairro"], r["tipo_imovel"]), {}).setdefault(i, []).append(r["valor_m2"])
+        por_cidade.setdefault(r["tipo_imovel"], {}).setdefault(i, []).append(r["valor_m2"])
+
+    def janela(i, w):
+        lo = i - w // 2
+        hi = lo + w - 1
+        if lo < i0:
+            lo, hi = i0, i0 + w - 1
+        if hi > i1:
+            hi, lo = i1, i1 - w + 1
+        return lo, hi
+
+    def valores(por_mes, lo, hi):
+        out = []
+        for j in range(lo, hi + 1):
+            out.extend(por_mes.get(j, []))
+        return out
+
+    def serie(por_mes, w):
+        """{i: (indice, n)} pra todos os meses i0..i1 com a janela w."""
+        res = {}
+        for i in range(i0, i1 + 1):
+            v = valores(por_mes, *janela(i, w))
+            res[i] = (median(v) if v else None, len(v))
+        return res
+
+    cidade = {}
+    for tipo, por_mes in por_cidade.items():
+        sr = serie(por_mes, INDICE_TEMPO_JANELA_CIDADE)
+        base = sr[i1][0]
+        cidade[tipo] = {i: (base / v[0] if v[0] else 1.0) for i, v in sr.items()}
+
+    bt = {}
+    for (bairro, tipo), por_mes in por_bt.items():
+        total12 = sum(len(por_mes.get(j, [])) for j in range(i1 - 11, i1 + 1))
+        w = next((w for w in INDICE_TEMPO_JANELAS if total12 / 12 * w >= INDICE_TEMPO_MIN_VENDAS), None)
+        if w is None:
+            bt[(bairro, tipo)] = {"janela": None, "fator": dict(cidade[tipo]), "n_fallback": i1 - i0 + 1}
+            continue
+        sr = serie(por_mes, w)
+        base = sr[i1][0]
+        fator, n_fb = {}, 0
+        for i, (v, n) in sr.items():
+            if v and base and n >= INDICE_TEMPO_MIN_VENDAS_JANELA:
+                fator[i] = base / v
+            else:
+                fator[i] = cidade[tipo][i]
+                n_fb += 1
+        bt[(bairro, tipo)] = {"janela": w, "fator": fator, "n_fallback": n_fb}
+    return {"mes_base": periodo_12m[-1], "i0": i0, "i1": i1, "bairro_tipo": bt, "cidade": cidade}
+
+
+def _fator_tempo(indice, bairro, tipo, day):
+    """Fator pra atualizar o preço de uma venda (data serial `day`) pro mês
+    base. Sem data = 1,0; depois do mês base = 1,0; antes do início dos dados =
+    fator do primeiro mês."""
+    if day is None:
+        return 1.0
+    i = _ym_idx(excel_serial_to_ym(day))
+    if i >= indice["i1"]:
+        return 1.0
+    i = max(i, indice["i0"])
+    e = indice["bairro_tipo"].get((bairro, tipo))
+    tabela = e["fator"] if e else indice["cidade"].get(tipo)
+    return tabela[i] if tabela else 1.0
+
+
+def _compute_casa_ref_corrigida(itbi_records, indice):
+    """Rodada A2: mediana de R$/m² paga por (bairro, faixa de metragem) pra
+    CASA, com cada venda atualizada pro mês base — o MESMO conjunto de vendas
+    de _compute_preco_m2 (is_clean_sale, com faixa de metragem)."""
+    grupos = {}
+    for r in itbi_records:
+        if not r["is_clean_sale"] or r["bairro"] not in TARGETS or r["tipo_imovel"] != "casa":
+            continue
+        f = faixa_metragem(r["area"])
+        if f is None or not r.get("valor_m2"):
+            continue
+        grupos.setdefault((r["bairro"], f), []).append(r["valor_m2"] * _fator_tempo(indice, r["bairro"], "casa", r["day"]))
+    return {k: _round(median(v), 2) for k, v in grupos.items()}
+
+
+def _compute_predio_stats(itbi_records, indice=None):
     """Rodada A: mediana paga por PRÉDIO (addr_key), só apartamento e só
     revenda limpa, sem janela de tempo (tudo o que a base tem). Prédio com
     menos de VALOR_OPORT_APTO_MIN_VENDAS vendas fica de fora. "Homogêneo" =
-    P75 ÷ P25 <= VALOR_OPORT_APTO_MAX_P75_P25 (unidades parecidas em preço)."""
+    P75 ÷ P25 <= VALOR_OPORT_APTO_MAX_P75_P25 (unidades parecidas em preço).
+    Rodada A2: com `indice`, cada venda é atualizada pro preço de hoje (ver
+    _compute_indice_tempo); sem `indice`, valores brutos (usado só pra mostrar
+    o "antes" da correção)."""
     por_predio = {}
     for r in itbi_records:
         if r["addr_key"] and r["tipo_imovel"] == "apartamento" and _is_revenda_limpa(r):
-            por_predio.setdefault(r["addr_key"], []).append(r["valor"])
+            f = _fator_tempo(indice, r["bairro"], "apartamento", r["day"]) if indice else 1.0
+            por_predio.setdefault(r["addr_key"], []).append(r["valor"] * f)
     out = {}
     for addr_key, vals in por_predio.items():
         if len(vals) < VALOR_OPORT_APTO_MIN_VENDAS:
@@ -1371,7 +1493,21 @@ def _compute_predio_stats(itbi_records):
     return out
 
 
-def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out, predio_stats):
+def _resumo_indices(indice):
+    """Fatores de atualização por bairro+tipo e mês ("AAAA-MM": fator), pra auditar na tela
+    e conferir Python x navegador."""
+    def fmt(i):
+        return f"{i // 12:04d}-{i % 12 + 1:02d}"
+    out = {}
+    for (b, t), e in sorted(indice["bairro_tipo"].items()):
+        out.setdefault(b, {})[t] = {
+            "janela_meses": e["janela"], "meses_com_variacao_da_cidade": e["n_fallback"],
+            "fator": {fmt(i): _round(f, 4) for i, f in sorted(e["fator"].items())},
+        }
+    return out
+
+
+def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out, predio_stats, predio_stats_bruto, casa_ref, indice):
     # Etapa 3 (2026-09-29): desconto compara R$/m² do anúncio contra a
     # mediana R$/m² do MESMO tipo de imóvel + faixa de metragem no bairro
     # — não mais o valor total contra a mediana de TODOS os tamanhos do
@@ -1382,6 +1518,7 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out, predio_stats)
     # None nesse caso) substitui o antigo gate por volume do bairro
     # inteiro — a regra de amostra agora é por segmento, não por bairro.
     achados = []
+    resumo_corr = {t: {"elegiveis": 0, "acima": 0, "achados_bruto": 0, "elegiveis_bruto": 0, "acima_bruto": 0} for t in ("casa", "apartamento")}
     elegivel_by_bairro = {}  # só casa — é o que o f6 da Prontidão sempre usou
     elegivel_apto_by_bairro = {}
     for im in imoveis_prioritarios:
@@ -1397,7 +1534,11 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out, predio_stats)
         # Rodada A (2026-10-06): apartamento volta, mas comparado com a
         # mediana paga no MESMO PRÉDIO (valor total, não por metragem) e só
         # se o prédio for homogêneo (>= 4 revendas limpas e P75÷P25 <= 1,25).
+        # Rodada A2: a mediana de referência usa vendas atualizadas pro preço
+        # de hoje (ver _compute_indice_tempo); mediana_bruta é a mesma conta sem
+        # a atualização, guardada só pra mostrar o "antes × depois".
         predio = None
+        mediana_bruta = None
         if is_apto:
             predio = predio_stats.get(im.get("addr_key"))
             if predio is not None and predio["homogeneo"] and im.get("valor"):
@@ -1406,11 +1547,28 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out, predio_stats)
             else:
                 mediana_ref = None
                 valor_ref = None
+            pb = predio_stats_bruto.get(im.get("addr_key"))
+            if pb is not None and pb["homogeneo"] and im.get("valor"):
+                mediana_bruta = pb["mediana"]
         else:
-            mediana_ref = _lookup_mediana_pago_m2(b["preco_m2_segmentos"], im.get("tipo_imovel"), im.get("area"))
+            mediana_bruta = _lookup_mediana_pago_m2(b["preco_m2_segmentos"], im.get("tipo_imovel"), im.get("area"))
             valor_ref = (im["valor"] / im["area"]) if im.get("area") else None
+            if mediana_bruta is not None and valor_ref is not None:
+                mediana_ref = casa_ref.get((im["bairro"], faixa_metragem(im["area"])), mediana_bruta)
+            else:
+                mediana_ref = None
+        tipo_k = "apartamento" if is_apto else "casa"
+        if mediana_bruta is not None and im.get("valor") and (valor_ref is not None or is_apto):
+            vb = im["valor"] if is_apto else valor_ref
+            c = resumo_corr[tipo_k]
+            c["elegiveis_bruto"] += 1
+            c["acima_bruto"] += vb > mediana_bruta
+            c["achados_bruto"] += (1 - vb / mediana_bruta) >= VALOR_OPORTUNIDADE_MIN_DESCONTO
         if mediana_ref is None or valor_ref is None:
             continue
+        c = resumo_corr[tipo_k]
+        c["elegiveis"] += 1
+        c["acima"] += valor_ref > mediana_ref
         if is_apto:
             elegivel_apto_by_bairro[im["bairro"]] = elegivel_apto_by_bairro.get(im["bairro"], 0) + 1
         else:
@@ -1426,6 +1584,8 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out, predio_stats)
             "valor_m2": None if is_apto else _round(valor_ref, 2),
             "mediana_pago_m2": None if is_apto else mediana_ref,
             "valor_total_mediana": _round(mediana_ref, 2) if is_apto else None,
+            "mediana_sem_correcao": _round(mediana_bruta, 2) if mediana_bruta is not None else None,
+            "desconto_sem_correcao_pct": _round((1 - (im["valor"] if is_apto else valor_ref) / mediana_bruta) * 100, 1) if mediana_bruta else None,
             "comparacao": "predio" if is_apto else "m2",
             "n_vendas_predio": predio["n"] if is_apto else None,
             "razao_p75_p25_predio": _round(predio["razao"], 2) if is_apto else None,
@@ -1458,6 +1618,10 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out, predio_stats)
     # recalcular elegibilidade com um critério diferente (achado real: até
     # 2026-09-29 o f6 usava o gate antigo por volume do bairro inteiro,
     # inconsistente com o gate por segmento usado aqui).
+    for t, c in resumo_corr.items():
+        c["achados"] = sum(1 for a in achados if a["tipo_imovel"] == t)
+        c["pct_acima"] = _round(100 * c["acima"] / c["elegiveis"], 1) if c["elegiveis"] else None
+        c["pct_acima_bruto"] = _round(100 * c["acima_bruto"] / c["elegiveis_bruto"], 1) if c["elegiveis_bruto"] else None
     n_predios = len(predio_stats)
     n_homog = sum(1 for p in predio_stats.values() if p["homogeneo"])
     n_homog_com_anuncio = len({im.get("addr_key") for im in imoveis_prioritarios
@@ -1473,6 +1637,12 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out, predio_stats)
             "predios_homogeneos_com_anuncio": n_homog_com_anuncio,
             "anuncios_apto_comparaveis": sum(elegivel_apto_by_bairro.values()),
             "achados_apto": sum(1 for a in achados if a["tipo_imovel"] == "apartamento"),
+            "predios_homogeneos_sem_correcao": sum(1 for p in predio_stats_bruto.values() if p["homogeneo"]),
+        },
+        "correcao_tempo": {
+            "mes_base": f"{indice['mes_base'][0]:04d}-{indice['mes_base'][1]:02d}",
+            "resumo": resumo_corr,
+            "indices": _resumo_indices(indice),
         },
     }
 
@@ -1902,8 +2072,11 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
 
         bairros_out[b]["_f1_f5"] = (f1, f2, f4, f5)
 
-    predio_stats = _compute_predio_stats(itbi_records)
-    valor_oportunidade = _compute_valor_oportunidade(imoveis_prioritarios, bairros_out, predio_stats)
+    indice_tempo = _compute_indice_tempo(itbi_records, periodo_12m_externo[0], inicio_dados)
+    predio_stats = _compute_predio_stats(itbi_records, indice_tempo)
+    predio_stats_bruto = _compute_predio_stats(itbi_records)
+    casa_ref = _compute_casa_ref_corrigida(itbi_records, indice_tempo)
+    valor_oportunidade = _compute_valor_oportunidade(imoveis_prioritarios, bairros_out, predio_stats, predio_stats_bruto, casa_ref, indice_tempo)
     achados_by_bairro_count = {}
     for a in valor_oportunidade["imoveis"]:
         if a["tipo_imovel"] == "apartamento":

@@ -2252,3 +2252,33 @@ adaptativa; `valor_pago_por_bairro.csv` segue como série por ano.
 - Checks do build: agora **16** (15 = Rodada A; 16 = histórico). `scripts/test_rotina.py`
   ganhou os testes do histórico (idempotência, mudança de preço, saída, volta, arquivo
   corrompido) e os alertas dos dois checks novos.
+
+## Rodada A2 (2026-10-06) — vendas antigas atualizadas pro preço de hoje
+
+O Valor de Oportunidade comparava o anúncio de hoje com vendas de até 3 anos atrás.
+Agora cada venda é **atualizada para o preço do último mês completo** (jun/2026) pela
+variação da mediana de R$/m² de revenda limpa do **mesmo bairro e tipo** no ITBI, do
+mês da venda até o mês base. Vale para casas e apartamentos (`engine._compute_indice_tempo`,
+`_fator_tempo`, espelho no `engine.js`):
+
+- Casa: a mediana de R$/m² do segmento (bairro + faixa de metragem) é refeita com cada
+  venda atualizada (mesmo conjunto de vendas e mesma regra de amostra de antes).
+  `mediana_pago_m2` passa a ser a corrigida; `mediana_sem_correcao` guarda a de antes.
+- Apartamento: o valor de cada venda do prédio é multiplicado pelo fator; o teste de
+  prédio homogêneo (P75 ÷ P25 <= 1,25, 4+ vendas) passa a usar os valores já atualizados.
+  `valor_total_mediana` é a corrigida; `mediana_sem_correcao` a de antes (vazia se o
+  prédio só ficou homogêneo depois da atualização).
+- **Índice**: mediana de R$/m² numa janela de W meses em volta do mês (ajustada pra
+  caber nos dados), fator = índice do mês base ÷ índice do mês. W = 3, 6 ou 12 (a menor
+  com 100+ vendas nos últimos 12 meses). Decisão minha, diferente de "mês a mês": a
+  mediana de um mês só oscila demais (Itaim Bibi apartamento teve R$ 13,9 mil/m² em
+  jun/2026 contra ~R$ 9 mil nos outros meses, o que inflaria todas as vendas antigas em
+  50%). Bairro+tipo sem volume (66 das 77 casas, 26 apartamentos) usa a variação da
+  cidade inteira do mesmo tipo (janela de 6 meses).
+- Vendas sem data ou depois do mês base: fator 1,0; antes de jan/2024: fator de jan/2024.
+- `valor_oportunidade.correcao_tempo` (mês base, resumo antes × depois, os fatores de
+  cada bairro+tipo e mês) vai no `data.json`; a tela mostra "sem a atualização: ..." e o
+  nº de achados sem a correção. Só o Valor de Oportunidade muda — o alinhamento de preço
+  do Painel 8, alertas e Ranking continuam como estavam.
+- `validate_build` check 15 confere: mês base = último mês completo, fator do mês base =
+  1,0, todos os fatores entre 0,5 e 2,0, séries suficientes, resumo = lista.

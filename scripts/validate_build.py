@@ -794,6 +794,9 @@ def check_buscas_google(data):
     print(f"[validate_build] OK 14/16 — buscas do Google por bairro: {len(com)} bairros com data própria (de {datas[0][:10]} a {datas[-1][:10]}), {n_frescos} frescos.")
 
 
+FATOR_TEMPO_MIN, FATOR_TEMPO_MAX = 0.5, 2.0  # atualização de preço além disso = índice quebrado (ruído de amostra)
+
+
 def check_rodada_a(data):
     """Rodada A (2026-10-06): (a) Prontidão — pesos sem f3 somam 100% e a nota
     de cada bairro confere com a recomputação pelos 5 fatores; (b) Valor de
@@ -832,6 +835,36 @@ def check_rodada_a(data):
     if meta_apto.get("achados_apto") != n_apto:
         divergencias.append(f"meta_apto.achados_apto={meta_apto.get('achados_apto')} mas há {n_apto} achados de apartamento")
 
+    # Rodada A2: atualização das vendas pro preço de hoje.
+    corr = data["valor_oportunidade"].get("correcao_tempo")
+    if not corr:
+        divergencias.append("valor_oportunidade.correcao_tempo ausente")
+    else:
+        fim = data["periodo_12m"]["fim"]
+        if corr["mes_base"] != fim:
+            divergencias.append(f"mês base da correção {corr['mes_base']} != último mês completo {fim}")
+        n_series = 0
+        for b, tipos in corr["indices"].items():
+            for t, e in tipos.items():
+                n_series += 1
+                fatores = e["fator"]
+                if fatores.get(corr["mes_base"]) != 1.0:
+                    divergencias.append(f"{b}/{t}: fator do mês base é {fatores.get(corr['mes_base'])}, deveria ser 1,0")
+                ruins = [m for m, f in fatores.items() if not (FATOR_TEMPO_MIN <= f <= FATOR_TEMPO_MAX)]
+                if ruins:
+                    divergencias.append(f"{b}/{t}: fator fora de {FATOR_TEMPO_MIN}-{FATOR_TEMPO_MAX} em {len(ruins)} mês(es), ex. {ruins[0]}={fatores[ruins[0]]}")
+        if n_series < 140:
+            divergencias.append(f"só {n_series} séries de correção (bairro+tipo) — esperado ~150")
+        for a in data["valor_oportunidade"]["imoveis"]:
+            # apartamento pode não ter "sem correção" (prédio que só ficou homogêneo depois de atualizar as vendas)
+            if a["tipo_imovel"] == "casa" and (a.get("mediana_sem_correcao") is None or a.get("desconto_sem_correcao_pct") is None):
+                divergencias.append(f"{a['codigo']}: casa sem a mediana sem correção (precisa pra mostrar antes × depois)")
+                break
+        for t in ("casa", "apartamento"):
+            r = corr["resumo"][t]
+            if r["achados"] != sum(1 for a in data["valor_oportunidade"]["imoveis"] if a["tipo_imovel"] == t):
+                divergencias.append(f"resumo da correção ({t}): achados {r['achados']} não bate com a lista")
+
     top = data.get("captacao_top30")
     if not isinstance(top, list) or len(top) > engine.CAPTACAO_TOP_N:
         divergencias.append(f"captacao_top30 deveria ser uma lista de até {engine.CAPTACAO_TOP_N}")
@@ -845,7 +878,7 @@ def check_rodada_a(data):
     if divergencias:
         linhas = "\n".join(f"  - {d}" for d in divergencias[:20])
         raise ValidationError(f"Rodada A — {len(divergencias)} divergência(s):\n{linhas}")
-    print(f"[validate_build] OK 15/16 — Rodada A: Prontidão com 5 fatores (pesos {pesos}); {n_apto} achados de apartamento todos pelo prédio homogêneo (>= 4 vendas, P75/P25 <= 1,25); Top 30 da Captação com {len(top)} endereços na ordem certa.")
+    print(f"[validate_build] OK 15/16 — Rodada A/A2: Prontidão com 5 fatores (pesos {pesos}); {n_apto} achados de apartamento todos pelo prédio homogêneo (>= 4 vendas, P75/P25 <= 1,25); Top 30 da Captação com {len(top)} endereços na ordem certa; vendas atualizadas pro preço de {corr['mes_base']} ({n_series} séries bairro+tipo, fator do mês base = 1,0).")
 
 
 def check_historico_anuncios(historico, data):

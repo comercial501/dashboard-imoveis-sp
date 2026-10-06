@@ -44,6 +44,9 @@ JS_PARIDADE = """()=>{
   for(const a of S.valor_oportunidade.imoveis){const b=vj.get(a.codigo); if(!b||!eq(a.desconto_pct,b.desconto_pct)||a.n_vendas_predio!==b.n_vendas_predio||a.atencao!==b.atencao) dv++;}
   if(S.valor_oportunidade.imoveis.length!==J.valor_oportunidade.imoveis.length) dv+=Math.abs(S.valor_oportunidade.imoveis.length-J.valor_oportunidade.imoveis.length);
   out.valor_oportunidade={achados:S.valor_oportunidade.imoveis.length,achados_apto:S.valor_oportunidade.imoveis.filter(a=>a.tipo_imovel==="apartamento").length,divergencias:dv,meta_apto:JSON.stringify(S.valor_oportunidade.meta_apto)===JSON.stringify(J.valor_oportunidade.meta_apto)};
+  let dci=0, nci=0; const IS=S.valor_oportunidade.correcao_tempo.indices, IJ=J.valor_oportunidade.correcao_tempo.indices;
+  for(const b in IS){ for(const t in IS[b]){ const x=IS[b][t], y=(IJ[b]||{})[t]; if(!y||x.janela_meses!==y.janela_meses){dci++;continue;} for(const m in x.fator){nci++; if(Math.abs(x.fator[m]-y.fator[m])>0.0006) dci++; } } }
+  out.correcao_tempo={fatores:nci,divergencias:dci,resumo_igual:JSON.stringify(S.valor_oportunidade.correcao_tempo.resumo)===JSON.stringify(J.valor_oportunidade.correcao_tempo.resumo)};
   const k=(t)=>t.map(e=>[e.bairro,e.endereco,e.n_vendas,Math.round(e.preco_mediana),e.tipo_imovel].join("|")).join(";"); /* addr_key no JS é índice interno, não o texto do Python */
   out.top30={n:S.captacao_top30.length,igual:k(S.captacao_top30)===k(J.captacao_top30)};
   const ck=(c)=>[c.bairro,c.endereco,c.n_vendas,Math.round(c.preco_mediana/10)*10].join("|"); /* preço arredondado: Python x JS diferem em 0,01 */ const cs=(l)=>{const m=new Map(); l.forEach(c=>{const x=ck(c); (m.get(x)||m.set(x,[]).get(x)).push(c.tipo_imovel);}); m.forEach(v=>v.sort()); return m;};
@@ -107,9 +110,9 @@ def main():
     print(json.dumps({"cabecalho": cab, "paridade": par, "aviso_dado_parado": aviso, "paginas_pdf": paginas}, ensure_ascii=False, indent=1))
     print("ERROS DE CONSOLE:", len(erros), erros[:5])
     div = (par["bairros"]["divergencias"] + par["painel8"]["divergencias"] + par["preco_m2"]["divergencias"]
-           + par["valor_oportunidade"]["divergencias"] + par["captacao_tipo"]["divergencias"])
+           + par["valor_oportunidade"]["divergencias"] + par["captacao_tipo"]["divergencias"] + par["correcao_tempo"]["divergencias"])
     ok = (not erros and div == 0 and par["prontidao_top10_igual"] and par["top30"]["igual"]
-          and par["valor_oportunidade"]["meta_apto"])
+          and par["valor_oportunidade"]["meta_apto"] and par["correcao_tempo"]["resumo_igual"])
     print("RESULTADO:", "OK" if ok else "FALHOU")
     return 0 if ok else 1
 

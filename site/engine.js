@@ -1194,17 +1194,97 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   // Rodada A (2026-10-06): apartamento comparado com a mediana paga no
   // MESMO PRÉDIO (revenda limpa, mesmo endereço), só em prédio homogêneo —
   // ver scripts/engine.py._compute_predio_stats.
-  const prediosPorEndereco = {};
+  // Rodada A2: venda antiga atualizada pro preço de hoje pela variação da
+  // mediana de R$/m² de revenda limpa do bairro+tipo (ver
+  // scripts/engine.py._compute_indice_tempo).
+  const ymIdx = (ym) => ym[0] * 12 + ym[1] - 1;
+  const i0 = ymIdx(C.inicio_dados), i1 = ymIdx(C.fim_janela_12m);
+  const porBT = {}, porCidade = {};
   for (const r of itbiRecords) {
-    if (r.addrKey != null && r.tipoImovel === "apartamento" && isRevendaLimpa(r)) (prediosPorEndereco[r.addrKey] ||= []).push(r.valor);
+    if (!(r.bairro in yearlyCount) || (r.tipoImovel !== "apartamento" && r.tipoImovel !== "casa")) continue;
+    if (!isRevendaLimpa(r) || r.day == null || !r.area) continue;
+    const vm = round(r.valor / r.area, 2);
+    if (!vm) continue;
+    const i = ymIdx(excelSerialToYm(r.day));
+    if (i < i0 || i > i1) continue;
+    const kbt = `${r.bairro}\u0001${r.tipoImovel}`;
+    ((porBT[kbt] ||= {})[i] ||= []).push(vm);
+    ((porCidade[r.tipoImovel] ||= {})[i] ||= []).push(vm);
   }
-  const predioStats = {};
-  for (const [k, vals] of Object.entries(prediosPorEndereco)) {
-    if (vals.length < C.valor_oport_apto_min_vendas) continue;
-    const p25 = percentile(25, vals), p75 = percentile(75, vals);
-    const razao = p25 ? p75 / p25 : null;
-    predioStats[k] = { n: vals.length, mediana: median(vals), razao, homogeneo: razao != null && razao <= C.valor_oport_apto_max_p75_p25 };
+  const janelaIdx = (i, w) => {
+    let lo = i - Math.floor(w / 2), hi = lo + w - 1;
+    if (lo < i0) { lo = i0; hi = i0 + w - 1; }
+    if (hi > i1) { hi = i1; lo = i1 - w + 1; }
+    return [lo, hi];
+  };
+  const valoresJanela = (porMes, lo, hi) => { const out = []; for (let j = lo; j <= hi; j++) if (porMes[j]) out.push(...porMes[j]); return out; };
+  const serieIdx = (porMes, w) => {
+    const res = {};
+    for (let i = i0; i <= i1; i++) { const v = valoresJanela(porMes, ...janelaIdx(i, w)); res[i] = [v.length ? median(v) : null, v.length]; }
+    return res;
+  };
+  const cidadeFator = {};
+  for (const [tipo, porMes] of Object.entries(porCidade)) {
+    const sr = serieIdx(porMes, C.indice_tempo_janela_cidade), base = sr[i1][0];
+    cidadeFator[tipo] = {};
+    for (const i of Object.keys(sr)) cidadeFator[tipo][i] = sr[i][0] ? base / sr[i][0] : 1.0;
   }
+  const indiceBT = {};
+  for (const [k, porMes] of Object.entries(porBT)) {
+    const tipo = k.split("\u0001")[1];
+    let total12 = 0;
+    for (let j = i1 - 11; j <= i1; j++) total12 += (porMes[j] || []).length;
+    const w = C.indice_tempo_janelas.find((w) => (total12 / 12) * w >= C.indice_tempo_min_vendas);
+    if (w === undefined) { indiceBT[k] = { janela: null, fator: { ...cidadeFator[tipo] }, n_fallback: i1 - i0 + 1 }; continue; }
+    const sr = serieIdx(porMes, w), base = sr[i1][0];
+    const fator = {}; let nFb = 0;
+    for (const i of Object.keys(sr)) {
+      const [v, n] = sr[i];
+      if (v && base && n >= C.indice_tempo_min_vendas_janela) fator[i] = base / v;
+      else { fator[i] = cidadeFator[tipo][i]; nFb++; }
+    }
+    indiceBT[k] = { janela: w, fator, n_fallback: nFb };
+  }
+  const fatorTempo = (bairro, tipo, day) => {
+    if (day == null) return 1.0;
+    let i = ymIdx(excelSerialToYm(day));
+    if (i >= i1) return 1.0;
+    i = Math.max(i, i0);
+    const e = indiceBT[`${bairro}\u0001${tipo}`];
+    const tab = e ? e.fator : cidadeFator[tipo];
+    return tab ? tab[i] : 1.0;
+  };
+
+  // Rodada A (2026-10-06): apartamento comparado com a mediana paga no
+  // MESMO PRÉDIO (revenda limpa, mesmo endereço), só em prédio homogêneo —
+  // ver scripts/engine.py._compute_predio_stats.
+  const calcPredios = (corrigir) => {
+    const por = {};
+    for (const r of itbiRecords) {
+      if (r.addrKey != null && r.tipoImovel === "apartamento" && isRevendaLimpa(r)) (por[r.addrKey] ||= []).push(corrigir ? r.valor * fatorTempo(r.bairro, "apartamento", r.day) : r.valor);
+    }
+    const st = {};
+    for (const [k, vals] of Object.entries(por)) {
+      if (vals.length < C.valor_oport_apto_min_vendas) continue;
+      const p25 = percentile(25, vals), p75 = percentile(75, vals);
+      const razao = p25 ? p75 / p25 : null;
+      st[k] = { n: vals.length, mediana: median(vals), razao, homogeneo: razao != null && razao <= C.valor_oport_apto_max_p75_p25 };
+    }
+    return st;
+  };
+  const predioStats = calcPredios(true), predioStatsBruto = calcPredios(false);
+  const casaGrupos = {};
+  for (const r of itbiRecords) {
+    if (!r.isCleanSale || !(r.bairro in yearlyCount) || r.tipoImovel !== "casa") continue;
+    const f = faixaMetragem(r.area, C.faixas_metragem);
+    if (f == null || !r.area) continue;
+    const vm = round(r.valor / r.area, 2);
+    if (!vm) continue;
+    (casaGrupos[`${r.bairro}\u0001${f}`] ||= []).push(vm * fatorTempo(r.bairro, "casa", r.day));
+  }
+  const casaRef = {};
+  for (const [k, v] of Object.entries(casaGrupos)) casaRef[k] = round(median(v), 2);
+  const resumoCorr = { casa: { elegiveis: 0, acima: 0, achados_bruto: 0, elegiveis_bruto: 0, acima_bruto: 0 }, apartamento: { elegiveis: 0, acima: 0, achados_bruto: 0, elegiveis_bruto: 0, acima_bruto: 0 } };
   const valorOportunidadeImoveis = [];
   const elegivelByBairro = {};  // só casa (f6 da Prontidão)
   const elegivelAptoByBairro = {};
@@ -1212,18 +1292,33 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     const b = bairrosOut[im.bairro];
     const isApto = im.tipo_imovel === "apartamento";
     let predio = null;
-    // Passo 2b (2026-10-01): comparação suspensa pra apartamento — ver
-    // nota equivalente em scripts/engine.py._compute_valor_oportunidade.
-    let medianaRef, valorRef;
+    // Rodada A2: mediana corrigida pro preço de hoje; medianaBruta = sem a
+    // correção (só pro "antes × depois") — ver scripts/engine.py.
+    let medianaRef = null, valorRef = null, medianaBruta = null;
     if (isApto) {
       predio = predioStats[im.addr_key] || null;
       if (predio && predio.homogeneo && im.valor) { medianaRef = predio.mediana; valorRef = im.valor; }
-      else { medianaRef = null; valorRef = null; }
+      const pb = predioStatsBruto[im.addr_key];
+      if (pb && pb.homogeneo && im.valor) medianaBruta = pb.mediana;
     } else {
-      medianaRef = lookupMedianaPagoM2(b.preco_m2_segmentos, im.tipo_imovel, im.area);
+      medianaBruta = lookupMedianaPagoM2(b.preco_m2_segmentos, im.tipo_imovel, im.area);
       valorRef = im.area ? im.valor / im.area : null;
+      if (medianaBruta != null && valorRef != null) {
+        const cr = casaRef[`${im.bairro}\u0001${faixaMetragem(im.area, C.faixas_metragem)}`];
+        medianaRef = cr != null ? cr : medianaBruta;
+      }
+    }
+    const tipoK = isApto ? "apartamento" : "casa";
+    if (medianaBruta != null && im.valor && (valorRef != null || isApto)) {
+      const vb = isApto ? im.valor : valorRef;
+      const c = resumoCorr[tipoK];
+      c.elegiveis_bruto++;
+      if (vb > medianaBruta) c.acima_bruto++;
+      if (1 - vb / medianaBruta >= C.valor_oportunidade_min_desconto) c.achados_bruto++;
     }
     if (medianaRef == null || valorRef == null) continue;
+    resumoCorr[tipoK].elegiveis++;
+    if (valorRef > medianaRef) resumoCorr[tipoK].acima++;
     const alvoElegivel = isApto ? elegivelAptoByBairro : elegivelByBairro;
     alvoElegivel[im.bairro] = (alvoElegivel[im.bairro] || 0) + 1;
     const ratio = valorRef / medianaRef, desconto = 1 - ratio;
@@ -1233,6 +1328,8 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
       valor: im.valor, area: im.area, tipo_imovel: im.tipo_imovel, faixa: faixaMetragem(im.area, C.faixas_metragem),
       valor_m2: isApto ? null : round(valorRef, 2), mediana_pago_m2: isApto ? null : medianaRef,
       valor_total_mediana: isApto ? round(medianaRef, 2) : null,
+      mediana_sem_correcao: medianaBruta != null ? round(medianaBruta, 2) : null,
+      desconto_sem_correcao_pct: medianaBruta ? round((1 - (isApto ? im.valor : valorRef) / medianaBruta) * 100, 1) : null,
       comparacao: isApto ? "predio" : "m2",
       n_vendas_predio: isApto ? predio.n : null,
       razao_p75_p25_predio: isApto ? round(predio.razao, 2) : null,
@@ -1375,6 +1472,31 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
         predios_homogeneos_com_anuncio: new Set(imoveisPrioritarios.filter((im) => im.tipo_imovel === "apartamento" && predioStats[im.addr_key] && predioStats[im.addr_key].homogeneo).map((im) => im.addr_key)).size,
         anuncios_apto_comparaveis: Object.values(elegivelAptoByBairro).reduce((a, n) => a + n, 0),
         achados_apto: valorOportunidadeImoveis.filter((a) => a.tipo_imovel === "apartamento").length,
+        predios_homogeneos_sem_correcao: Object.values(predioStatsBruto).filter((p) => p.homogeneo).length,
+      },
+      correcao_tempo: {
+        mes_base: `${String(C.fim_janela_12m[0]).padStart(4, "0")}-${String(C.fim_janela_12m[1]).padStart(2, "0")}`,
+        resumo: (() => {
+          for (const t of ["casa", "apartamento"]) {
+            const c = resumoCorr[t];
+            c.achados = valorOportunidadeImoveis.filter((a) => a.tipo_imovel === t).length;
+            c.pct_acima = c.elegiveis ? round((100 * c.acima) / c.elegiveis, 1) : null;
+            c.pct_acima_bruto = c.elegiveis_bruto ? round((100 * c.acima_bruto) / c.elegiveis_bruto, 1) : null;
+          }
+          return resumoCorr;
+        })(),
+        indices: (() => {
+          const fmt = (i) => `${String(Math.floor(i / 12)).padStart(4, "0")}-${String((i % 12) + 1).padStart(2, "0")}`;
+          const out = {};
+          for (const k of Object.keys(indiceBT).sort()) {
+            const [b, t] = k.split("\u0001"), e = indiceBT[k];
+            (out[b] ||= {})[t] = {
+              janela_meses: e.janela, meses_com_variacao_da_cidade: e.n_fallback,
+              fator: Object.fromEntries(Object.keys(e.fator).map(Number).sort((a, c) => a - c).map((i) => [fmt(i), round(e.fator[i], 4)])),
+            };
+          }
+          return out;
+        })(),
       },
     },
     captacao_estrategica: captacaoEstrategica,

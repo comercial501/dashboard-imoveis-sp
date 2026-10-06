@@ -1550,6 +1550,12 @@ function toggleEstoqueDetalhe(bairro, linkEl) {
 // ---------------------------------------------------------------------------
 // Valor de Oportunidade (Painel 10)
 // ---------------------------------------------------------------------------
+// "2026-06" -> "jun/2026"
+function fmtMesAno(ym) {
+  const [a, m] = ym.split("-");
+  return `${["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][Number(m) - 1]}/${a}`;
+}
+
 function renderValorOportunidade() {
   const todos = DATA.valor_oportunidade.imoveis;
   const nCasa = todos.filter((r) => r.tipo_imovel !== "apartamento").length;
@@ -1565,11 +1571,15 @@ function renderValorOportunidade() {
     tog.appendChild(b);
   });
   const meta = DATA.valor_oportunidade.meta_apto || {};
-  document.getElementById("vo-nota").textContent = modo === "casa"
+  const corr = DATA.valor_oportunidade.correcao_tempo;
+  const notaCorr = corr
+    ? ` Vendas antigas são atualizadas para os preços de ${fmtMesAno(corr.mes_base)} pela variação da mediana de R$/m² de revenda do mesmo bairro e tipo, do mês da venda até ${fmtMesAno(corr.mes_base)}. Sem essa atualização haveria ${fmtInt(corr.resumo.casa.achados_bruto)} achado(s) de casa e ${fmtInt(corr.resumo.apartamento.achados_bruto)} de apartamento.`
+    : "";
+  document.getElementById("vo-nota").textContent = (modo === "casa"
     ? "Casa: desconto do R$/m² do anúncio contra a mediana de R$/m² paga em imóveis do mesmo tipo e faixa de metragem no bairro (segmento com 10+ vendas pagas em 12 meses)."
     : (modo === "apartamento"
       ? `Apartamento: preço do anúncio contra a mediana paga no MESMO PRÉDIO (revendas limpas do mesmo endereço). Só entram prédios com 4+ revendas limpas e preços parecidos entre si (P75 ÷ P25 de até 1,25) — hoje ${fmtInt(meta.predios_homogeneos || 0)} prédios passam nesse teste (de ${fmtInt(meta.predios_com_minimo_de_vendas || 0)} com 4+ vendas), ${fmtInt(meta.predios_homogeneos_com_anuncio || 0)} deles com algum apartamento anunciado.`
-      : "Casas pelo R$/m² do segmento; apartamentos pela mediana paga no mesmo prédio (prédios com 4+ revendas limpas e preços parecidos entre si).");
+      : "Casas pelo R$/m² do segmento; apartamentos pela mediana paga no mesmo prédio (prédios com 4+ revendas limpas e preços parecidos entre si).")) + notaCorr;
 
   const colBairro = { key: "bairro", label: "Bairro" };
   const colEnd = { key: "endereco", label: "Endereço", key2: "desc" };
@@ -1588,16 +1598,21 @@ function renderValorOportunidade() {
     key: "tipo_imovel", label: "Tipo · Faixa", sortable: false,
     render: (r) => el("div", {}, `${r.tipo_imovel === "casa" ? "Casa" : "Apartamento"} · ${r.faixa}`),
   };
+  const mesBase = DATA.valor_oportunidade.correcao_tempo ? fmtMesAno(DATA.valor_oportunidade.correcao_tempo.mes_base) : "";
   const comparadoCom = (r) => el("div", {}, [
     fmtMoneyCompact(r.valor_total_mediana),
-    el("div", { class: "small muted" }, `comparado com ${fmtInt(r.n_vendas_predio)} venda${r.n_vendas_predio === 1 ? "" : "s"} no mesmo prédio`),
+    el("div", { class: "small muted" }, `comparado com ${fmtInt(r.n_vendas_predio)} venda${r.n_vendas_predio === 1 ? "" : "s"} no mesmo prédio, atualizadas para ${mesBase}`),
+    r.mediana_sem_correcao != null ? el("div", { class: "small muted" }, `sem a atualização: ${fmtMoneyCompact(r.mediana_sem_correcao)} (${fmtPct(r.desconto_sem_correcao_pct)} de desconto)`) : null,
   ]);
   let columns, rows;
   if (modo === "casa") {
     rows = todos.filter((r) => r.tipo_imovel !== "apartamento");
     columns = [colBairro, colEnd, colTipoFaixa,
       { key: "valor_m2", label: "R$/m² anúncio", fmt: (v) => fmtMoneyCompact(v) },
-      { key: "mediana_pago_m2", label: "R$/m² mediana (mesmo tipo/faixa)", fmt: (v) => fmtMoneyCompact(v) },
+      {
+        key: "mediana_pago_m2", label: `R$/m² mediana (mesmo tipo/faixa, atualizada para ${mesBase})`,
+        render: (r) => el("div", {}, [fmtMoneyCompact(r.mediana_pago_m2), r.mediana_sem_correcao != null ? el("div", { class: "small muted" }, `sem a atualização: ${fmtMoneyCompact(r.mediana_sem_correcao)}`) : null]),
+      },
       descontoCol, linkCol];
   } else if (modo === "apartamento") {
     rows = todos.filter((r) => r.tipo_imovel === "apartamento");
