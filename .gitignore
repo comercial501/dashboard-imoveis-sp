@@ -32,3 +32,8 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
+
+# Cloudflare Pages (Rodada B): pasta montada na hora do envio + cache do wrangler
+cloudflare-dist/
+.wrangler/
+node_modules/

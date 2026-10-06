@@ -72,6 +72,25 @@ jobs:
             git push
           fi
 
+      # --- Cloudflare Pages (Rodada B) ------------------------------------------
+      # Publica a pasta do site depois de uma atualização bem-sucedida, pro acesso
+      # pelo celular (com login). Se faltar configuração, pula; se falhar, não
+      # derruba a atualização dos dados (o aviso "Dados sem atualização há X horas"
+      # aparece no site se a versão da Cloudflare ficar pra trás).
+      - name: Publicar na Cloudflare Pages
+        id: cloudflare
+        if: ${{ success() && !inputs.testar_alerta }}
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ secrets.CLOUDFLARE_PAGES_PROJECT }}
+        run: ./scripts/publicar_cloudflare.sh
+
+      - name: Avisar se a publicação na Cloudflare falhou
+        if: ${{ steps.cloudflare.outcome == 'failure' }}
+        run: echo "::warning::A publicação na Cloudflare Pages falhou — os dados do GitHub estão atualizados, mas o acesso pelo celular pode estar atrasado. Veja o passo anterior."
+
       # --- Rotina de conferência (Passo 5) ---------------------------------
       # Travou (check de segurança, formato novo do ITBI, nonStop fora...):
       # cria na hora a Issue "⚠ Atualização travada" com o motivo em português.

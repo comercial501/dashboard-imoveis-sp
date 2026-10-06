@@ -1,0 +1,24 @@
+name: Publicar na Cloudflare (manual)
+
+# Envia o site que já está no repositório pra Cloudflare Pages, SEM rodar o build
+# (usado pra testar a configuração da Cloudflare sem esperar a atualização diária).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publicar:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Publicar na Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ secrets.CLOUDFLARE_PAGES_PROJECT }}
+        run: ./scripts/publicar_cloudflare.sh

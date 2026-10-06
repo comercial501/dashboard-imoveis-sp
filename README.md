@@ -2321,3 +2321,34 @@ minha: 200 (com 100 a Vila Mariana casa ainda passava — tinha 115 vendas na me
 com menos de 200 e série "da cidade" que não esteja marcada em todos os meses. Efeito: 60 séries (de 152)
 tinham índice próprio, 35 passam a ter (apartamentos em geral viram janela de 6/12 meses; casas só em
 Tatuapé, Ipiranga e as de maior volume).
+
+## Rodada B (2026-10-06) — acesso pelo celular, Cloudflare Pages (branch `rodada-b-cloudflare`)
+
+- **O dashboard é 100% estático**: `index.html` + `app.js` + `engine.js` + `styles.css` +
+  `data.json` + `raw.json` (carregados com `fetch` relativo; o recálculo dos filtros roda no
+  navegador). O único recurso de fora é a fonte do Google Fonts. `site/serve_no_cache.py` só
+  serve arquivos (sem rota dinâmica) — o Tailscale continua igual, nada aqui mexe nele.
+- **Publicação**: `scripts/publicar_cloudflare.sh` (chamado no fim do `build-data.yml`, só
+  depois de uma atualização bem-sucedida, e pelo `publicar-cloudflare.yml` manual) monta
+  `cloudflare-dist/` com `scripts/preparar_pasta_cloudflare.py` (só os 6 arquivos acima +
+  `_headers`: nenhum CSV, histórico de anúncios nem log vai pra Cloudflare) e envia com
+  `wrangler pages deploy`. Sem os 3 segredos (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
+  `CLOUDFLARE_PAGES_PROJECT`) pula sem erro. Falha de envio não derruba a atualização dos dados
+  (aviso no log; o aviso de "dados sem atualização há X horas" aparece no site se ficar atrasado).
+- **Trava de login em duas camadas**: (1) aplicativo do Cloudflare Access (login por código no
+  e-mail, lista de e-mails) cobrindo `NOME.pages.dev` e `*.NOME.pages.dev` — o "Enable access
+  policy" do próprio Pages só protege as PRÉVIAS, não a produção; (2) `functions/_middleware.js`
+  confere a assinatura do token do Access (`Cf-Access-Jwt-Assertion`: emissor, aplicativo, validade)
+  antes de entregar QUALQUER arquivo; sem as variáveis `TEAM_DOMAIN`/`POLICY_AUD` responde 503.
+  Testes: `node scripts/test_cloudflare_trava.mjs` (22 casos, sem rede) e
+  `python3 scripts/preparar_pasta_cloudflare.py && node scripts/test_cloudflare_e2e.mjs`
+  (no motor real do Cloudflare via `wrangler pages dev`, com servidor de chaves falso);
+  `scripts/testar_acesso_anonimo.py <endereços>` testa os endereços reais sem login.
+- Limites do Pages: 25 MiB por arquivo (raw.json tem ~14,8 MiB; o preparo avisa a partir de
+  20 MiB) e 20.000 arquivos.
+- **Tamanho do repositório** (medido em 06/10/2026 num clone espelho): 55 MiB no total, dos
+  quais 25 MiB são o cadastro do IPTU; `raw.json` (63 versões) ocupa 16 MiB e `data.json` (66
+  versões) 12 MiB já compactados. Custo medido de um commit diário dos dois (22,5 MB brutos):
+  12 a 330 KiB no repositório (o primeiro par inteiro custa 2,7 MiB compactado). Projeção de 12
+  meses: ~40 a 130 MiB a mais (repositório de ~100–190 MiB), longe do 1 GiB recomendado pelo GitHub.
+- Passo a passo para quem vai configurar a Cloudflare: `docs/cloudflare-passo-a-passo.md`.
