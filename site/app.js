@@ -1,4 +1,4 @@
-// Torre de Controle — Investimento Imobiliário SP
+// Torre de Controle — Inteligência de mercado · Compra e venda · São Paulo
 // Consome site/data.json (gerado por scripts/build_data.py). Sem build step,
 // sem dependências externas — abrir via um servidor estático local
 // (ex: `python3 -m http.server` dentro de site/) por causa de fetch() + file://.
@@ -340,7 +340,6 @@ function renderAll() {
   renderMapa();
   renderCaptacao();
   renderPrioritarios();
-  renderPorBairro();
   renderValorOportunidade();
   renderEstoqueDemanda();
   renderPrecoM2();
@@ -449,9 +448,8 @@ const PANELS = [
   { id: "mapa", label: "Mapa" },
   { id: "captacao", label: "Captação Ativa" },
   { id: "prioritarios", label: "Imóveis Prioritários" },
-  { id: "por-bairro", label: "Por Bairro/Região" },
   { id: "valor-oportunidade", label: "Valor de Oportunidade" },
-  { id: "preco-m2", label: "Preço por m²" },
+  { id: "preco-m2", label: "Valor pago por bairro" },
   { id: "carteira-77", label: "Carteira 77" },
 ];
 
@@ -500,8 +498,8 @@ document.addEventListener("DOMContentLoaded", () => showPanel("visao-geral"));
 // isola só aquele grupo antes de imprimir.
 // ---------------------------------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("pdf-btn");
-  if (btn) btn.addEventListener("click", () => printFullDashboard());
+  const btn = document.getElementById("pdf-completo-link");
+  if (btn) btn.addEventListener("click", (e) => { e.preventDefault(); printFullDashboard(); });
 });
 
 function expandAllCaptacao(root = document) {
@@ -612,6 +610,16 @@ function filtrosResumoLabel() {
   return parts.join(" · ");
 }
 
+// Filtros locais do painel (Imóveis Prioritários, Captação Ativa) no
+// cabeçalho do PDF daquele painel — o PDF sai com o que está na tela.
+function filtrosLocaisLabel(panelId) {
+  const p = [];
+  if (panelId === "prioritarios" && LOCAL.prioritariosBairro) p.push(`bairro: ${LOCAL.prioritariosBairro}`);
+  if (panelId === "captacao") p.push(...captacaoFiltrosTexto());
+  if (panelId === "valor-oportunidade") p.push(`tipo: ${{ casa: "só casas", apartamento: "só apartamentos", ambos: "casas e apartamentos" }[LOCAL.vo]}`);
+  return p.length ? ` · Filtros do painel: ${p.join(" · ")}` : "";
+}
+
 async function printPage(panelId, label) {
   // Mesmo motivo do printFullDashboard: garante engine.js/raw.json
   // carregados (Estoque × Demanda) antes de imprimir qualquer página.
@@ -621,7 +629,7 @@ async function printPage(panelId, label) {
   const metaEl = document.getElementById(`print-meta-${panelId}`);
   if (metaEl) {
     // PDF: hora do clique, sempre em horário de Brasília; mais a data de atualização dos dados.
-    metaEl.textContent = `PDF gerado em ${fmtDataHoraBR(new Date().toISOString())} (Brasília) · Dados atualizados em ${fmtDataHoraBR(DATA.generated_at_iso || DATA.generated_at)} · Período dos dados: ${periodo12mLabel()} · Filtros aplicados: ${filtrosResumoLabel()}`;
+    metaEl.textContent = `PDF gerado em ${fmtDataHoraBR(new Date().toISOString())} (Brasília) · Dados atualizados em ${fmtDataHoraBR(DATA.generated_at_iso || DATA.generated_at)} · Período dos dados: ${periodo12mLabel()} · Filtros aplicados: ${filtrosResumoLabel()}${filtrosLocaisLabel(panelId)}`;
   }
 
   const isCaptacao = panelId === "captacao";
@@ -1123,14 +1131,186 @@ function renderMapa() {
 // ---------------------------------------------------------------------------
 // Captação Ativa Estratégica (Painel 7)
 // ---------------------------------------------------------------------------
+const CAPTACAO_FAIXAS_VALOR = [
+  { id: "", label: "Todas as faixas de valor" },
+  { id: "ate500", label: "Até R$ 500 mil", min: 0, max: 500000 },
+  { id: "500-1m", label: "R$ 500 mil a R$ 1 mi", min: 500000, max: 1000000 },
+  { id: "1-2m", label: "R$ 1 mi a R$ 2 mi", min: 1000000, max: 2000000 },
+  { id: "2-4m", label: "R$ 2 mi a R$ 4 mi", min: 2000000, max: 4000000 },
+  { id: "4m+", label: "Acima de R$ 4 mi", min: 4000000, max: Infinity },
+];
+
+function captacaoFiltroAtivo() {
+  const f = LOCAL.captacao;
+  return !!(f.bairro || f.faixa || f.tipo || f.semUnidade || f.minVendas > 1);
+}
+
+// Textos dos filtros ativos (tela e cabeçalho do PDF).
+function captacaoFiltrosTexto() {
+  const f = LOCAL.captacao, t = [];
+  if (f.bairro) t.push(`bairro: ${f.bairro}`);
+  if (f.faixa) t.push(`valor pago (mediana do endereço): ${CAPTACAO_FAIXAS_VALOR.find((x) => x.id === f.faixa).label}`);
+  if (f.tipo) t.push(`tipo: ${f.tipo === "casa" ? "casa" : "apartamento"}`);
+  if (f.semUnidade) t.push("sem unidade anunciada hoje");
+  if (f.minVendas > 1) t.push(`mínimo de ${f.minVendas} revendas limpas`);
+  return t;
+}
+
+function captacaoPassaFiltro(e, bairro) {
+  const f = LOCAL.captacao;
+  if (f.bairro && bairro !== f.bairro) return false;
+  if (f.faixa) {
+    const fx = CAPTACAO_FAIXAS_VALOR.find((x) => x.id === f.faixa);
+    if (!(e.preco_mediana >= fx.min && e.preco_mediana < fx.max)) return false;
+  }
+  if (f.tipo && e.tipo_imovel !== f.tipo) return false;
+  if (f.semUnidade && e.tem_unidade_a_venda_hoje) return false;
+  if (e.n_vendas < f.minVendas) return false;
+  return true;
+}
+
+// Linha de um endereço (usada nos grupos por bairro e no Top 30).
+function appendCaptacaoAddrRow(container, e, mostrarBairro = false) {
+  const nameLine = [e.endereco, e.unico ? badge("Endereço único", "neutral") : null];
+  if (e.tem_unidade_a_venda_hoje) nameLine.push(badge("Já anunciado hoje", "warning"));
+  // Passo 3c: algum anúncio ativo desse endereço tem mais de 365 dias.
+  const unidadeAntiga = (e.unidades_a_venda_hoje || []).find((u) => u.anuncio_antigo);
+  if (unidadeAntiga) nameLine.push(anuncioAntigoBadge(unidadeAntiga.idade_dias));
+  // Captação limpa (2026-10-05): n_vendas = só revenda limpa (compra e
+  // venda, 100%, uso residencial, valor dentro do padrão — mesma base do
+  // Carteira 77). Planta e valores fora do padrão aparecem à parte e
+  // nunca entram no preço. A metragem é a ÁREA DO CADASTRO do ITBI
+  // (inclui áreas comuns e vagas), não a área útil.
+  const partesMeta = [];
+  if (mostrarBairro) partesMeta.push(e.bairro);
+  if (e.tipo_imovel) partesMeta.push(e.tipo_imovel === "casa" ? "casa" : "apartamento");
+  partesMeta.push(`${e.n_vendas} revenda${e.n_vendas === 1 ? "" : "s"} limpa${e.n_vendas === 1 ? "" : "s"}`);
+  if (e.area_min != null) {
+    partesMeta.push(`área do cadastro ${fmtM2(e.area_min)}${e.area_max !== e.area_min ? "–" + fmtM2(e.area_max) : ""}`);
+  }
+  if (e.n_planta) partesMeta.push(`+${fmtInt(e.n_planta)} na planta (fora do preço)`);
+  if (e.n_valor_fora_padrao) partesMeta.push(`${fmtInt(e.n_valor_fora_padrao)} revenda${e.n_valor_fora_padrao === 1 ? "" : "s"} com valor fora do padrão ignorada${e.n_valor_fora_padrao === 1 ? "" : "s"}`);
+  const metaLine = partesMeta.join(" · ");
+  // Preço: mediana; faixa P25–P75 só com 4+ revendas limpas (senão "poucas vendas").
+  const precoNodes = [el("div", { style: "white-space:nowrap" }, `mediana ${fmtMoneyCompact(e.preco_mediana)}`)];
+  precoNodes.push(e.poucas_vendas
+    ? el("div", { class: "small muted" }, "poucas vendas")
+    : el("div", { class: "small muted", style: "white-space:nowrap" }, `P25–P75: ${fmtMoneyCompact(e.preco_p25)} – ${fmtMoneyCompact(e.preco_p75)}`));
+  const row = el("div", { class: "addr-row" }, [
+    el("div", {}, [
+      el("div", { class: "addr-name" }, nameLine),
+      el("div", { class: "addr-meta" }, metaLine),
+    ]),
+    el("div", { class: "addr-price", style: "text-align:right" }, precoNodes),
+  ]);
+  container.appendChild(row);
+  if (e.tem_unidade_a_venda_hoje && e.unidades_a_venda_hoje && e.unidades_a_venda_hoje.length) {
+    const links = el("div", { class: "addr-row", style: "padding-top:0; padding-bottom:10px" }, [
+      el("div", { class: "small muted" }, [
+        "Unidade(s) já anunciada(s) nesse endereço: ",
+        ...e.unidades_a_venda_hoje.flatMap((u, i) => [
+          i > 0 ? ", " : null,
+          u.link ? el("a", { href: u.link, target: "_blank", rel: "noopener" }, u.codigo || "ver") : (u.codigo || "—"),
+          u.anuncio_antigo ? ` (${fmtInt(u.idade_dias)} dias)` : null,
+        ]),
+      ]),
+    ]);
+    container.appendChild(links);
+  }
+}
+
 function renderCaptacao() {
+  const f = LOCAL.captacao;
+  const bar = document.getElementById("captacao-filtros");
+  bar.innerHTML = "";
+  const campo = (rotulo, ctrl) => el("label", { class: "local-filtro-campo" }, [el("span", { class: "small muted" }, rotulo), ctrl]);
+  const aoMudar = () => renderCaptacaoLista();
+
+  const selBairro = el("select", { class: "bairro-select" }, [el("option", { value: "" }, "Todos os bairros")]);
+  [...DATA.captacao_estrategica].sort((a, b) => a.bairro.localeCompare(b.bairro, "pt-BR"))
+    .forEach((g) => selBairro.appendChild(el("option", { value: g.bairro }, `${g.bairro} (${g.enderecos.length})`)));
+  if (![...selBairro.options].some((o) => o.value === f.bairro)) f.bairro = "";
+  selBairro.value = f.bairro;
+  selBairro.onchange = () => { f.bairro = selBairro.value; aoMudar(); };
+
+  const selFaixa = el("select", { class: "bairro-select" }, CAPTACAO_FAIXAS_VALOR.map((x) => el("option", { value: x.id }, x.label)));
+  selFaixa.value = f.faixa;
+  selFaixa.onchange = () => { f.faixa = selFaixa.value; aoMudar(); };
+
+  const selTipo = el("select", { class: "bairro-select" }, [
+    el("option", { value: "" }, "Apartamento e casa"), el("option", { value: "apartamento" }, "Só apartamento"), el("option", { value: "casa" }, "Só casa"),
+  ]);
+  selTipo.value = f.tipo;
+  selTipo.onchange = () => { f.tipo = selTipo.value; aoMudar(); };
+
+  const chkSem = el("input", { type: "checkbox" });
+  chkSem.checked = f.semUnidade;
+  chkSem.onchange = () => { f.semUnidade = chkSem.checked; aoMudar(); };
+
+  const selMin = el("select", { class: "bairro-select" }, [1, 2, 3, 4, 5, 6, 8, 10].map((n) => el("option", { value: String(n) }, n === 1 ? "Qualquer nº" : `${n} ou mais`)));
+  selMin.value = String(f.minVendas);
+  selMin.onchange = () => { f.minVendas = Number(selMin.value); aoMudar(); };
+
+  bar.appendChild(campo("Bairro", selBairro));
+  bar.appendChild(campo("Valor pago (mediana do endereço)", selFaixa));
+  bar.appendChild(campo("Tipo", selTipo));
+  bar.appendChild(campo("Nº de revendas limpas", selMin));
+  bar.appendChild(el("label", { class: "local-filtro-campo local-filtro-check" }, [chkSem, el("span", {}, "Sem unidade anunciada hoje")]));
+  const limpar = el("a", { href: "#", class: "small", id: "captacao-limpar" }, "Limpar filtros");
+  limpar.onclick = (ev) => {
+    ev.preventDefault();
+    LOCAL.captacao = { bairro: "", faixa: "", tipo: "", semUnidade: false, minVendas: 1 };
+    renderCaptacao();
+  };
+  bar.appendChild(limpar);
+
+  renderCaptacaoTop30();
+  renderCaptacaoLista();
+}
+
+function renderCaptacaoTop30() {
+  const box = document.getElementById("captacao-top30");
+  box.innerHTML = "";
+  const lista = DATA.captacao_top30 || [];
+  box.appendChild(el("h3", { class: "captacao-top30-titulo" }, `Top ${lista.length || 30} da semana`));
+  box.appendChild(el("div", { class: "note methodology" },
+    `Critério: os endereços com mais revendas limpas no período dos dados (${DATA.meta.years[0]}–hoje) que NÃO têm nenhuma unidade anunciada hoje na rede nonStop (endereço único, com 1 só revenda, fica de fora). Na ordem: primeiro os endereços de bairros com o selo "Pouco estoque na rede", depois pelo nº de revendas limpas. Esta lista não muda com os filtros abaixo — ela é sempre a pauta da semana.`));
+  if (!lista.length) {
+    box.appendChild(el("div", { class: "placeholder-block" }, "Nenhum endereço atende ao critério com os filtros de bairro/preço da barra lateral."));
+    return;
+  }
+  lista.forEach((e, i) => {
+    const wrap = el("div", { class: "top30-item" });
+    wrap.appendChild(el("div", { class: "top30-pos" }, String(i + 1)));
+    const corpo = el("div", { class: "top30-corpo" });
+    if (e.selo_escassez_real) corpo.appendChild(el("div", { class: "small" }, [badge("Pouco estoque na rede", "gold")]));
+    appendCaptacaoAddrRow(corpo, e, true);
+    wrap.appendChild(corpo);
+    box.appendChild(wrap);
+  });
+}
+
+function renderCaptacaoLista() {
   const box = document.getElementById("captacao-list");
   box.innerHTML = "";
   if (!DATA.captacao_estrategica.length) {
     box.appendChild(el("div", { class: "placeholder-block" }, "Nenhum endereço elegível para captação ativa no momento."));
     return;
   }
-  DATA.captacao_estrategica.forEach((g) => {
+  const filtrado = captacaoFiltroAtivo();
+  const grupos = DATA.captacao_estrategica
+    .map((g) => ({ g, enderecos: g.enderecos.filter((e) => captacaoPassaFiltro(e, g.bairro)) }))
+    .filter((x) => x.enderecos.length);
+  const totalEnd = grupos.reduce((a, x) => a + x.enderecos.length, 0);
+  box.appendChild(el("div", { class: "small muted", style: "margin:6px 0 10px" },
+    filtrado
+      ? `${fmtInt(totalEnd)} endereço${totalEnd === 1 ? "" : "s"} em ${grupos.length} bairro${grupos.length === 1 ? "" : "s"} com os filtros: ${captacaoFiltrosTexto().join(" · ")}.`
+      : `${fmtInt(totalEnd)} endereços em ${grupos.length} bairros.`));
+  if (!grupos.length) {
+    box.appendChild(el("div", { class: "placeholder-block" }, "Nenhum endereço com esses filtros. Tente afrouxar algum deles."));
+    return;
+  }
+  grupos.forEach(({ g, enderecos }) => {
     const details = el("details", { class: "captacao-group" });
     const pdfLink = el("a", { href: "#", class: "captacao-pdf-link" }, "Baixar PDF ↓");
     pdfLink.addEventListener("click", (ev) => {
@@ -1147,7 +1327,9 @@ function renderCaptacao() {
         g.perfil.estoque_fora_do_perfil ? badge("Estoque da rede fora do perfil", "warning") : null,
         searchInterestBadge(DATA.bairros[g.bairro]), pdfLink,
       ]),
-      el("span", { class: "n" }, `${g.enderecos.length} endereço${g.enderecos.length === 1 ? "" : "s"}`),
+      el("span", { class: "n" }, filtrado && enderecos.length !== g.enderecos.length
+        ? `${enderecos.length} de ${g.enderecos.length} endereços`
+        : `${enderecos.length} endereço${enderecos.length === 1 ? "" : "s"}`),
     ]);
     details.appendChild(summary);
 
@@ -1169,72 +1351,25 @@ function renderCaptacao() {
         `Perfil vencedor (faixa de preço paga em revenda): ${partes.join(" · ")}`));
     }
 
-    const appendAddrRow = (container, e) => {
-      const nameLine = [e.endereco, e.unico ? badge("Endereço único", "neutral") : null];
-      if (e.tem_unidade_a_venda_hoje) nameLine.push(badge("Já anunciado hoje", "warning"));
-      // Passo 3c: algum anúncio ativo desse endereço tem mais de 365 dias.
-      const unidadeAntiga = (e.unidades_a_venda_hoje || []).find((u) => u.anuncio_antigo);
-      if (unidadeAntiga) nameLine.push(anuncioAntigoBadge(unidadeAntiga.idade_dias));
-      // Captação limpa (2026-10-05): n_vendas = só revenda limpa (compra e
-      // venda, 100%, uso residencial, valor dentro do padrão — mesma base do
-      // Carteira 77). Planta e valores fora do padrão aparecem à parte e
-      // nunca entram no preço. A metragem é a ÁREA DO CADASTRO do ITBI
-      // (inclui áreas comuns e vagas), não a área útil.
-      const partesMeta = [`${e.n_vendas} revenda${e.n_vendas === 1 ? "" : "s"} limpa${e.n_vendas === 1 ? "" : "s"}`];
-      if (e.area_min != null) {
-        partesMeta.push(`área do cadastro ${fmtM2(e.area_min)}${e.area_max !== e.area_min ? "–" + fmtM2(e.area_max) : ""}`);
-      }
-      if (e.n_planta) partesMeta.push(`+${fmtInt(e.n_planta)} na planta (fora do preço)`);
-      if (e.n_valor_fora_padrao) partesMeta.push(`${fmtInt(e.n_valor_fora_padrao)} revenda${e.n_valor_fora_padrao === 1 ? "" : "s"} com valor fora do padrão ignorada${e.n_valor_fora_padrao === 1 ? "" : "s"}`);
-      const metaLine = partesMeta.join(" · ");
-      // Preço: mediana; faixa P25–P75 só com 4+ revendas limpas (senão "poucas vendas").
-      const precoNodes = [el("div", { style: "white-space:nowrap" }, `mediana ${fmtMoneyCompact(e.preco_mediana)}`)];
-      precoNodes.push(e.poucas_vendas
-        ? el("div", { class: "small muted" }, "poucas vendas")
-        : el("div", { class: "small muted", style: "white-space:nowrap" }, `P25–P75: ${fmtMoneyCompact(e.preco_p25)} – ${fmtMoneyCompact(e.preco_p75)}`));
-      const row = el("div", { class: "addr-row" }, [
-        el("div", {}, [
-          el("div", { class: "addr-name" }, nameLine),
-          el("div", { class: "addr-meta" }, metaLine),
-        ]),
-        el("div", { class: "addr-price", style: "text-align:right" }, precoNodes),
-      ]);
-      container.appendChild(row);
-      if (e.tem_unidade_a_venda_hoje && e.unidades_a_venda_hoje && e.unidades_a_venda_hoje.length) {
-        const links = el("div", { class: "addr-row", style: "padding-top:0; padding-bottom:10px" }, [
-          el("div", { class: "small muted" }, [
-            "Unidade(s) já anunciada(s) nesse endereço: ",
-            ...e.unidades_a_venda_hoje.flatMap((u, i) => [
-              i > 0 ? ", " : null,
-              u.link ? el("a", { href: u.link, target: "_blank", rel: "noopener" }, u.codigo || "ver") : (u.codigo || "—"),
-              u.anuncio_antigo ? ` (${fmtInt(u.idade_dias)} dias)` : null,
-            ]),
-          ]),
-        ]);
-        container.appendChild(links);
-      }
-    };
-
     // Bairros com muitos endereços elegíveis (ex: Jardim Paulista, Vila
     // Mariana) deixavam o grupo expandido gigante. Mostra só os 15 mais
     // líquidos (topo da ordenação já existente — sem anúncio ativo hoje
     // primeiro, mais vendas primeiro) e esconde o resto atrás de "ver
     // todos", do mais quente pro mais frio.
     const TOP_N = 15;
-    const top = g.enderecos.slice(0, TOP_N);
-    const rest = g.enderecos.slice(TOP_N);
-    top.forEach((e) => appendAddrRow(details, e));
+    enderecos.slice(0, TOP_N).forEach((e) => appendCaptacaoAddrRow(details, e));
+    const rest = enderecos.slice(TOP_N);
 
     if (rest.length) {
       const restBox = el("div", { class: "captacao-rest", style: "display:none" });
-      rest.forEach((e) => appendAddrRow(restBox, e));
-      const toggle = el("a", { href: "#", class: "captacao-toggle" }, `Ver todos os ${g.enderecos.length} endereços (do mais quente ao mais frio) ↓`);
+      rest.forEach((e) => appendCaptacaoAddrRow(restBox, e));
+      const toggle = el("a", { href: "#", class: "captacao-toggle" }, `Ver todos os ${enderecos.length} endereços (do mais quente ao mais frio) ↓`);
       toggle.addEventListener("click", (ev) => {
         ev.preventDefault();
         const showing = restBox.style.display !== "none";
         restBox.style.display = showing ? "none" : "";
         toggle.textContent = showing
-          ? `Ver todos os ${g.enderecos.length} endereços (do mais quente ao mais frio) ↓`
+          ? `Ver todos os ${enderecos.length} endereços (do mais quente ao mais frio) ↓`
           : `Mostrar só os ${TOP_N} mais líquidos ↑`;
       });
       details.appendChild(toggle);
@@ -1291,38 +1426,32 @@ function imovelRow(im, i) {
   return item;
 }
 
+// Filtros locais por painel (Rodada A): valem só dentro do painel e entram
+// no cabeçalho do PDF "Baixar esta página" daquele painel.
+const LOCAL = { prioritariosBairro: "", vo: "ambos", captacao: { bairro: "", faixa: "", tipo: "", semUnidade: false, minVendas: 1 } };
+
 function renderPrioritarios() {
   const box = document.getElementById("prioritarios-table");
-  box.innerHTML = "";
-  const top = DATA.imoveis_prioritarios.slice(0, 50);
-  top.forEach((im, i) => box.appendChild(imovelRow(im, i)));
-  box.appendChild(el("div", { class: "note methodology" },
-    `Mostrando os 50 melhores de ${DATA.imoveis_prioritarios.length} imóveis pontuados. Fórmula (casa): 35% liquidez de revenda do bairro + 30% alinhamento de preço (R$/m² do anúncio × mediana paga do mesmo tipo de imóvel e faixa de metragem) + 25% aderência à faixa de preço vencedora do bairro (valor pago em revenda, 12m, por tipo) + 10% bônus de captação ativa (híbrido: prédio com 10+ unidades no IPTU usa o giro — vendas em 3 anos ÷ unidades: menos de 7% = 40, 7–10% = 60, 10–15% = 80, 15% ou mais = 100; prédio com menos de 10 unidades, casa ou endereço sem casamento com o IPTU usa o nº de vendas: 2 = 40, 3 = 60, 4 = 80, 5 ou mais = 100; bônus acima de 60 exige pelo menos 3 vendas). Apartamento: componente de preço suspenso (aguardando calibração de área) — peso redistribuído entre liquidez (50%), aderência (~35,7%) e captação (~14,3%). Se a faixa de preço do tipo no bairro tem menos de 30 vendas limpas (mesmo em 36 meses), a aderência fica ausente e o peso dela também é redistribuído entre os componentes restantes.`));
-}
-
-// ---------------------------------------------------------------------------
-// Por Bairro/Região (Painel 9)
-// ---------------------------------------------------------------------------
-function renderPorBairro() {
-  const select = document.getElementById("porbairro-select");
-  const prev = select.value;
+  const select = document.getElementById("prioritarios-bairro");
+  const prev = LOCAL.prioritariosBairro;
   select.innerHTML = "";
+  select.appendChild(el("option", { value: "" }, "Todos os bairros (50 melhores)"));
   DATA.ranking.forEach((name) => {
     const n = DATA.imoveis_prioritarios.filter((im) => im.bairro === name).length;
     if (n > 0) select.appendChild(el("option", { value: name }, `${name} (${n})`));
   });
   const values = [...select.options].map((o) => o.value);
-  select.value = values.includes(prev) ? prev : values[0] || "";
-  select.onchange = () => renderPorBairroContent(select.value);
-  if (select.options.length) renderPorBairroContent(select.value);
-  else document.getElementById("porbairro-content").innerHTML = "";
-}
+  LOCAL.prioritariosBairro = values.includes(prev) ? prev : "";
+  select.value = LOCAL.prioritariosBairro;
+  select.onchange = () => { LOCAL.prioritariosBairro = select.value; renderPrioritarios(); };
 
-function renderPorBairroContent(name) {
-  const box = document.getElementById("porbairro-content");
   box.innerHTML = "";
-  const items = DATA.imoveis_prioritarios.filter((im) => im.bairro === name);
-  items.forEach((im, i) => box.appendChild(imovelRow(im, i)));
+  const bairro = LOCAL.prioritariosBairro;
+  const lista = bairro ? DATA.imoveis_prioritarios.filter((im) => im.bairro === bairro) : DATA.imoveis_prioritarios.slice(0, 50);
+  lista.forEach((im, i) => box.appendChild(imovelRow(im, i)));
+  box.appendChild(el("div", { class: "note methodology" },
+    (bairro ? `Mostrando os ${lista.length} imóveis pontuados em ${bairro}. ` : `Mostrando os 50 melhores de ${DATA.imoveis_prioritarios.length} imóveis pontuados. `) +
+    `Fórmula (casa): 35% liquidez de revenda do bairro + 30% alinhamento de preço (R$/m² do anúncio × mediana paga do mesmo tipo de imóvel e faixa de metragem) + 25% aderência à faixa de preço vencedora do bairro (valor pago em revenda, 12m, por tipo) + 10% bônus de captação ativa (híbrido: prédio com 10+ unidades no IPTU usa o giro — vendas em 3 anos ÷ unidades: menos de 7% = 40, 7–10% = 60, 10–15% = 80, 15% ou mais = 100; prédio com menos de 10 unidades, casa ou endereço sem casamento com o IPTU usa o nº de vendas: 2 = 40, 3 = 60, 4 = 80, 5 ou mais = 100; bônus acima de 60 exige pelo menos 3 vendas). Apartamento: componente de preço suspenso (aguardando calibração de área) — peso redistribuído entre liquidez (50%), aderência (~35,7%) e captação (~14,3%). Se a faixa de preço do tipo no bairro tem menos de 30 vendas limpas (mesmo em 36 meses), a aderência fica ausente e o peso dela também é redistribuído entre os componentes restantes.`));
 }
 
 // ---------------------------------------------------------------------------
@@ -1422,32 +1551,80 @@ function toggleEstoqueDetalhe(bairro, linkEl) {
 // Valor de Oportunidade (Painel 10)
 // ---------------------------------------------------------------------------
 function renderValorOportunidade() {
-  const rows = DATA.valor_oportunidade.imoveis;
-  sortableTable(document.getElementById("valor-oportunidade-table"), {
-    initialSortKey: "desconto_pct",
-    columns: [
-      { key: "bairro", label: "Bairro" },
-      { key: "endereco", label: "Endereço", key2: "desc" },
-      {
-        key: "tipo_imovel", label: "Tipo · Faixa", sortable: false,
-        render: (r) => el("div", {}, `${r.tipo_imovel === "casa" ? "Casa" : "Apartamento"} · ${r.faixa}`),
-      },
+  const todos = DATA.valor_oportunidade.imoveis;
+  const nCasa = todos.filter((r) => r.tipo_imovel !== "apartamento").length;
+  const nApto = todos.length - nCasa;
+  const modo = LOCAL.vo;
+
+  // Alternador Casas / Apartamentos / Ambos (Rodada A).
+  const tog = document.getElementById("vo-toggle");
+  tog.innerHTML = "";
+  [["casa", `Casas (${nCasa})`], ["apartamento", `Apartamentos (${nApto})`], ["ambos", `Ambos (${nCasa + nApto})`]].forEach(([id, rotulo]) => {
+    const b = el("button", { type: "button", class: id === modo ? "active" : "", "data-vo": id }, rotulo);
+    b.addEventListener("click", () => { LOCAL.vo = id; renderValorOportunidade(); });
+    tog.appendChild(b);
+  });
+  const meta = DATA.valor_oportunidade.meta_apto || {};
+  document.getElementById("vo-nota").textContent = modo === "casa"
+    ? "Casa: desconto do R$/m² do anúncio contra a mediana de R$/m² paga em imóveis do mesmo tipo e faixa de metragem no bairro (segmento com 10+ vendas pagas em 12 meses)."
+    : (modo === "apartamento"
+      ? `Apartamento: preço do anúncio contra a mediana paga no MESMO PRÉDIO (revendas limpas do mesmo endereço). Só entram prédios com 4+ revendas limpas e preços parecidos entre si (P75 ÷ P25 de até 1,25) — hoje ${fmtInt(meta.predios_homogeneos || 0)} prédios passam nesse teste (de ${fmtInt(meta.predios_com_minimo_de_vendas || 0)} com 4+ vendas), ${fmtInt(meta.predios_homogeneos_com_anuncio || 0)} deles com algum apartamento anunciado.`
+      : "Casas pelo R$/m² do segmento; apartamentos pela mediana paga no mesmo prédio (prédios com 4+ revendas limpas e preços parecidos entre si).");
+
+  const colBairro = { key: "bairro", label: "Bairro" };
+  const colEnd = { key: "endereco", label: "Endereço", key2: "desc" };
+  const descontoCol = {
+    key: "desconto_pct", label: "Desconto", render: (r) => el("div", {}, [
+      fmtPct(r.desconto_pct) + " ",
+      r.atencao ? badge("Atenção", "critical") : null,
+      r.anuncio_antigo ? anuncioAntigoBadge(r.idade_dias) : null,
+    ]),
+  };
+  const linkCol = {
+    key: "link", label: "", sortable: false, render: (r) =>
+      r.link ? el("a", { href: r.link, target: "_blank", rel: "noopener" }, "Ver ↗") : el("span", { class: "muted" }, "—"),
+  };
+  const colTipoFaixa = {
+    key: "tipo_imovel", label: "Tipo · Faixa", sortable: false,
+    render: (r) => el("div", {}, `${r.tipo_imovel === "casa" ? "Casa" : "Apartamento"} · ${r.faixa}`),
+  };
+  const comparadoCom = (r) => el("div", {}, [
+    fmtMoneyCompact(r.valor_total_mediana),
+    el("div", { class: "small muted" }, `comparado com ${fmtInt(r.n_vendas_predio)} venda${r.n_vendas_predio === 1 ? "" : "s"} no mesmo prédio`),
+  ]);
+  let columns, rows;
+  if (modo === "casa") {
+    rows = todos.filter((r) => r.tipo_imovel !== "apartamento");
+    columns = [colBairro, colEnd, colTipoFaixa,
       { key: "valor_m2", label: "R$/m² anúncio", fmt: (v) => fmtMoneyCompact(v) },
       { key: "mediana_pago_m2", label: "R$/m² mediana (mesmo tipo/faixa)", fmt: (v) => fmtMoneyCompact(v) },
+      descontoCol, linkCol];
+  } else if (modo === "apartamento") {
+    rows = todos.filter((r) => r.tipo_imovel === "apartamento");
+    columns = [colBairro, colEnd,
+      { key: "area", label: "Área útil", fmt: (v) => fmtM2(v) },
+      { key: "valor", label: "Valor anunciado", fmt: (v) => fmtMoneyCompact(v) },
+      { key: "valor_total_mediana", label: "Mediana paga no prédio", render: comparadoCom },
+      descontoCol, linkCol];
+  } else {
+    rows = todos;
+    columns = [colBairro, colEnd,
+      { key: "tipo_imovel", label: "Tipo", render: (r) => el("div", {}, r.tipo_imovel === "casa" ? "Casa" : "Apartamento") },
+      { key: "valor", label: "Valor anunciado", fmt: (v) => fmtMoneyCompact(v) },
       {
-        key: "desconto_pct", label: "Desconto", render: (r) => el("div", {}, [
-          fmtPct(r.desconto_pct) + " ",
-          r.atencao ? badge("Atenção", "critical") : null,
-          r.anuncio_antigo ? anuncioAntigoBadge(r.idade_dias) : null,
-        ]),
+        key: "referencia", label: "Referência (mediana paga)", sortable: false, render: (r) => r.tipo_imovel === "apartamento"
+          ? comparadoCom(r)
+          : el("div", {}, [`${fmtMoneyCompact(r.mediana_pago_m2)}/m²`, el("div", { class: "small muted" }, `R$/m² do anúncio: ${fmtMoneyCompact(r.valor_m2)} · mesmo tipo e faixa (${r.faixa})`)]),
       },
-      {
-        key: "link", label: "", sortable: false, render: (r) =>
-          r.link ? el("a", { href: r.link, target: "_blank", rel: "noopener" }, "Ver ↗") : el("span", { class: "muted" }, "—"),
-      },
-    ],
-    rows,
-  });
+      descontoCol, linkCol];
+  }
+  const tabela = document.getElementById("valor-oportunidade-table");
+  if (!rows.length) {
+    tabela.innerHTML = "";
+    tabela.appendChild(el("div", { class: "placeholder-block" }, "Nenhum achado nesta seleção no momento."));
+  } else {
+    sortableTable(tabela, { initialSortKey: "desconto_pct", columns, rows });
+  }
 
   const bairrosBox = document.getElementById("valor-oportunidade-bairros");
   bairrosBox.innerHTML = "";

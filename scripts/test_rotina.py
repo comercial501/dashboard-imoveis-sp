@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import alertas
+import historico_anuncios as ha
 import keyword_client as kc
 import relatorio_semanal as rel
 
@@ -38,6 +39,8 @@ casos = {
     "camada_limpa": "[validate_build] FALHOU — publicação bloqueada: cálculo de preço fora da camada limpa única:\n  - x",
     "faixas_amostra": "[validate_build] FALHOU — publicação bloqueada: faixas de preço fora da regra de amostra (12/24/36 meses, mínimo 30):\n  - y",
     "google": "[validate_build] FALHOU — publicação bloqueada: datas de busca do Google por bairro incoerentes:\n  - z",
+    "rodada_a": "[validate_build] FALHOU — publicação bloqueada: Rodada A — 2 divergência(s):\n  - x",
+    "historico_anuncios": "[validate_build] FALHOU — publicação bloqueada: histórico de anúncios incoerente (1):\n  - y",
     "itbi_download": "SystemExit: Nenhum .xlsx de ITBI em cache (data/itbi_raw/) e a sincronização com a Prefeitura falhou",
     "nonstop_api": "RuntimeError: nonStop API 401 em /imoveis/todos: {\"error\":\"unauthorized\"}",
     "erro_programa": "linha\nTraceback (most recent call last):\n  File \"x.py\", line 1, in <module>\nKeyError: 'a'",
@@ -169,6 +172,50 @@ for b_ in antigo["bairros"].values():
     b_.pop("revenda_12m")  # versão antiga dos dados (sem esse campo)
 _, corpo8, al8 = rel.montar_relatorio(novo, antigo, AGORA)
 ok("comparável" in corpo8 and not any("variação" in a for a in al8), "relatório: semana anterior de versão antiga é detectada e NÃO gera falso alerta")
+
+# ---------------------------------------------------------------------------
+# 3b. histórico de anúncios (Rodada A, item 7)
+# ---------------------------------------------------------------------------
+def _rec(codigo, valor, **kw):
+    base = {"codigo": codigo, "valor": valor, "bairro": "Moema", "addr_display_building": "Rua X, 10", "complemento": "ap 12",
+            "tipo_imovel": "apartamento", "area": 80.0, "addr_key": "rua x|10", "created_at": "2026-03-05T15:00:00.000Z"}
+    base.update(kw)
+    return base
+
+
+est, r1 = ha.atualizar({}, [_rec("a1", 1_000_000), _rec("b2", 2_000_000)], "2026-10-06")
+ok(r1["novos"] == 2 and r1["ativos"] == 2 and est["a1"]["cadastro"] == "2026-03-05" and est["a1"]["visto_primeira"] == "2026-10-06",
+   "histórico: primeiro dia cria os anúncios com primeiro preço, cadastro e primeira vez visto")
+est_b, r1b = ha.atualizar(est, [_rec("a1", 1_000_000), _rec("b2", 2_000_000)], "2026-10-06")
+ok(est_b == est and r1b["novos"] == 0 and r1b["sairam"] == 0 and r1b["mudancas_de_preco"] == 0, "histórico: rodar de novo no mesmo dia não muda nada (idempotente)")
+est2, r2 = ha.atualizar(est, [_rec("a1", 950_000), _rec("c3", 500_000)], "2026-10-07")
+ok(est2["a1"]["preco_inicial"] == 1_000_000 and est2["a1"]["preco_atual"] == 950_000 and est2["a1"]["mudancas_preco"] == [["2026-10-07", 950_000]]
+   and est2["a1"]["visto_ultima"] == "2026-10-07", "histórico: mudança de preço guarda primeiro preço, preço atual e a mudança com data")
+ok(est2["b2"]["saida"] == "2026-10-07" and est2["b2"]["visto_ultima"] == "2026-10-06" and r2["sairam"] == 1 and r2["novos"] == 1 and r2["ativos"] == 2,
+   "histórico: anúncio que some da rede ganha data de saída e continua no arquivo")
+est3, r3 = ha.atualizar(est2, [_rec("a1", 950_000), _rec("b2", 2_100_000), _rec("c3", 500_000)], "2026-10-09")
+ok(est3["b2"]["saida"] is None and est3["b2"].get("voltas") == 1 and est3["b2"]["preco_atual"] == 2_100_000 and r3["voltaram"] == 1,
+   "histórico: anúncio que volta à rede zera a saída e conta a volta")
+est4, _ = ha.atualizar(est2, [_rec("a1", 950_000), _rec("c3", 500_000)], "2026-10-07")
+ok(est4["b2"]["saida"] == "2026-10-07" and est4 == est2, "histórico: dois builds no mesmo dia depois da saída continuam idempotentes")
+ok(est["a1"]["preco_atual"] == 1_000_000 and est["a1"]["mudancas_preco"] == [], "histórico: a função não altera o estado recebido")
+with tempfile.TemporaryDirectory() as tmp:
+    arq = Path(tmp) / "h.jsonl"
+    ha.salvar(est3, arq)
+    ok(ha.carregar(arq) == est3, "histórico: gravar e ler o arquivo devolve o mesmo conteúdo")
+    arq.write_text('{"codigo":"x"\n', encoding="utf-8")
+    try:
+        ha.carregar(arq)
+        ok(False, "histórico: arquivo corrompido deveria parar o build")
+    except SystemExit:
+        ok(True, "histórico: arquivo corrompido para o build em vez de ser sobrescrito")
+    arq.write_text('{"codigo":"x"}\n{"codigo":"x"}\n', encoding="utf-8")
+    try:
+        ha.carregar(arq)
+        ok(False, "histórico: código repetido deveria parar o build")
+    except SystemExit:
+        ok(True, "histórico: código repetido para o build")
+ok(ha.data_brasilia(datetime.datetime(2026, 10, 7, 2, 30, tzinfo=datetime.timezone.utc)) == "2026-10-06", "histórico: data em horário de Brasília (02:30 UTC ainda é o dia anterior)")
 
 # ---------------------------------------------------------------------------
 # 4. relatório com os dados reais do repositório (histórico do Git)

@@ -134,6 +134,7 @@ def card_to_record(card):
         "addr_key": akey,
         "addr_display": adisp,
         "addr_display_building": adisp_building,
+        "complemento": complement,
         "valor": values.get("sale"),
         "area": area_privativa,
         "quartos": card.get("rooms"),

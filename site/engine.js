@@ -815,6 +815,15 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     }))];
   };
 
+  // Rodada A: tipo do endereço = o mais comum entre as revendas limpas (empate: ordem alfabética).
+  const tipoMajoritario = (recs) => {
+    const cont = {};
+    for (const r of recs) if (r.tipoImovel) cont[r.tipoImovel] = (cont[r.tipoImovel] || 0) + 1;
+    const ks = Object.keys(cont);
+    if (!ks.length) return null;
+    ks.sort((a, b) => cont[b] - cont[a] || (a < b ? -1 : a > b ? 1 : 0));
+    return ks[0];
+  };
   const byAddr = {};
   for (const r of itbiRecords) if (r.addrKey != null) (byAddr[r.addrKey] ||= []).push(r);
 
@@ -860,7 +869,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     if (recs.length === 1) {
       const r = recs[0];
       captacaoUnico.push({
-        bairro, addr_key: addrKey, endereco, n_vendas: 1, preco_mediana: r.valor, preco_p25: null, preco_p75: null,
+        bairro, addr_key: addrKey, endereco, tipo_imovel: tipoMajoritario(recs), n_vendas: 1, preco_mediana: r.valor, preco_p25: null, preco_p75: null,
         poucas_vendas: true, n_planta: nPlanta, n_valor_fora_padrao: nValorForaPadrao,
         area_min: r.area, area_max: r.area, tem_unidade_a_venda_hoje: temHoje, unidades_a_venda_hoje: unidadesHoje,
       });
@@ -875,7 +884,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     const areas = recs.map((r) => r.area).filter((a) => a != null);
     const [areaMin, areaMax] = coherentAreaRange(areas);
     captacaoAtiva.push({
-      bairro, addr_key: addrKey, endereco, n_vendas: recs.length,
+      bairro, addr_key: addrKey, endereco, tipo_imovel: tipoMajoritario(recs), n_vendas: recs.length,
       preco_mediana: round(median(valores), 2),
       // Faixa P25-P75 só com 4+ revendas limpas; com menos, só a mediana.
       preco_p25: valores.length >= CAPTACAO_MIN_VENDAS_FAIXA ? round(percentile(25, valores), 2) : null,
@@ -1182,30 +1191,51 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   // (lookupMedianaPagoM2 já devolve null nesse caso) substitui o antigo
   // gate por volume do bairro inteiro — ver
   // scripts/engine.py._compute_valor_oportunidade.
+  // Rodada A (2026-10-06): apartamento comparado com a mediana paga no
+  // MESMO PRÉDIO (revenda limpa, mesmo endereço), só em prédio homogêneo —
+  // ver scripts/engine.py._compute_predio_stats.
+  const prediosPorEndereco = {};
+  for (const r of itbiRecords) {
+    if (r.addrKey != null && r.tipoImovel === "apartamento" && isRevendaLimpa(r)) (prediosPorEndereco[r.addrKey] ||= []).push(r.valor);
+  }
+  const predioStats = {};
+  for (const [k, vals] of Object.entries(prediosPorEndereco)) {
+    if (vals.length < C.valor_oport_apto_min_vendas) continue;
+    const p25 = percentile(25, vals), p75 = percentile(75, vals);
+    const razao = p25 ? p75 / p25 : null;
+    predioStats[k] = { n: vals.length, mediana: median(vals), razao, homogeneo: razao != null && razao <= C.valor_oport_apto_max_p75_p25 };
+  }
   const valorOportunidadeImoveis = [];
-  const elegivelByBairro = {};
+  const elegivelByBairro = {};  // só casa (f6 da Prontidão)
+  const elegivelAptoByBairro = {};
   for (const im of imoveisPrioritarios) {
     const b = bairrosOut[im.bairro];
     const isApto = im.tipo_imovel === "apartamento";
+    let predio = null;
     // Passo 2b (2026-10-01): comparação suspensa pra apartamento — ver
     // nota equivalente em scripts/engine.py._compute_valor_oportunidade.
     let medianaRef, valorRef;
     if (isApto) {
-      medianaRef = null;
-      valorRef = null;
+      predio = predioStats[im.addr_key] || null;
+      if (predio && predio.homogeneo && im.valor) { medianaRef = predio.mediana; valorRef = im.valor; }
+      else { medianaRef = null; valorRef = null; }
     } else {
       medianaRef = lookupMedianaPagoM2(b.preco_m2_segmentos, im.tipo_imovel, im.area);
       valorRef = im.area ? im.valor / im.area : null;
     }
     if (medianaRef == null || valorRef == null) continue;
-    elegivelByBairro[im.bairro] = (elegivelByBairro[im.bairro] || 0) + 1;
+    const alvoElegivel = isApto ? elegivelAptoByBairro : elegivelByBairro;
+    alvoElegivel[im.bairro] = (alvoElegivel[im.bairro] || 0) + 1;
     const ratio = valorRef / medianaRef, desconto = 1 - ratio;
     if (desconto < C.valor_oportunidade_min_desconto) continue;
     valorOportunidadeImoveis.push({
       bairro: im.bairro, endereco: im.endereco, codigo: im.codigo, link: im.link,
       valor: im.valor, area: im.area, tipo_imovel: im.tipo_imovel, faixa: faixaMetragem(im.area, C.faixas_metragem),
       valor_m2: isApto ? null : round(valorRef, 2), mediana_pago_m2: isApto ? null : medianaRef,
-      valor_total_mediana: isApto ? medianaRef : null,
+      valor_total_mediana: isApto ? round(medianaRef, 2) : null,
+      comparacao: isApto ? "predio" : "m2",
+      n_vendas_predio: isApto ? predio.n : null,
+      razao_p75_p25_predio: isApto ? round(predio.razao, 2) : null,
       desconto_pct: round(desconto * 100), atencao: desconto >= C.valor_oportunidade_atencao_desconto,
       idade_dias: im.idade_dias, anuncio_antigo: im.anuncio_antigo,
     });
@@ -1213,13 +1243,17 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   valorOportunidadeImoveis.sort((a, b) => b.desconto_pct - a.desconto_pct || cmpLower(a.endereco || "", b.endereco || "") || String(a.codigo || "").localeCompare(String(b.codigo || "")));
 
   const achadosByBairro = {};
-  for (const a of valorOportunidadeImoveis) achadosByBairro[a.bairro] = (achadosByBairro[a.bairro] || 0) + 1;
+  const achadosCasaByBairro = {};
+  for (const a of valorOportunidadeImoveis) {
+    achadosByBairro[a.bairro] = (achadosByBairro[a.bairro] || 0) + 1;
+    if (a.tipo_imovel !== "apartamento") achadosCasaByBairro[a.bairro] = (achadosCasaByBairro[a.bairro] || 0) + 1;
+  }
+  const estoqueTotalVO = {};
+  for (const d of [elegivelByBairro, elegivelAptoByBairro]) for (const [b, n] of Object.entries(d)) estoqueTotalVO[b] = (estoqueTotalVO[b] || 0) + n;
 
   scope.forEach((b) => {
     const bo = bairrosOut[b];
     const f1 = bo.score, f2 = f2MapScope[b];
-    const gap = bo.price_gap_pct;
-    const f3 = gap != null ? Math.max(0, 100 - Math.abs(gap) * 2) : 50;
     const f4 = f4MapScope[b];
 
     const top10 = (imoveisByBairro[b] || []).slice(0, 10);
@@ -1234,11 +1268,11 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     let f6;
     if (estoqueEleg === 0) f6 = 50;
     else {
-      const achadosBairro = achadosByBairro[b] || 0;
+      const achadosBairro = achadosCasaByBairro[b] || 0;
       f6 = (100 * achadosBairro) / estoqueEleg;
     }
 
-    const fatores = { f1, f2, f3, f4, f5, f6 };
+    const fatores = { f1, f2, f4, f5, f6 };
     const disponiveis = Object.entries(fatores).filter(([, v]) => v != null);
     const somaPesos = disponiveis.reduce((acc, [k]) => acc + C.pesos_prontidao[k], 0);
     const prontidao = disponiveis.reduce((acc, [k, v]) => acc + C.pesos_prontidao[k] * v, 0) / somaPesos;
@@ -1247,7 +1281,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
 
   const prontidaoRanking = [...scope].sort((a, b) => bairrosOut[b].prontidao_campanha - bairrosOut[a].prontidao_campanha);
   const valorOportunidadePorBairro = Object.entries(achadosByBairro).map(([bairro, n]) => {
-    const total = elegivelByBairro[bairro] || 0;
+    const total = estoqueTotalVO[bairro] || 0;
     return { bairro, n_achados: n, estoque_total: total, pct_do_estoque: total ? round((100 * n) / total) : null };
   }).sort((a, b) => b.n_achados - a.n_achados || cmpLower(a.bairro, b.bairro));
 
@@ -1292,7 +1326,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
         estoque_fora_do_perfil: bo.estoque_fora_do_perfil,
       },
       enderecos: enderecos.map((e) => ({
-        endereco: e.endereco, n_vendas: e.n_vendas, preco_mediana: e.preco_mediana,
+        endereco: e.endereco, addr_key: e.addr_key, tipo_imovel: e.tipo_imovel, n_vendas: e.n_vendas, preco_mediana: e.preco_mediana,
         preco_p25: e.preco_p25, preco_p75: e.preco_p75, poucas_vendas: e.poucas_vendas,
         n_planta: e.n_planta, n_valor_fora_padrao: e.n_valor_fora_padrao,
         area_min: e.area_min, area_max: e.area_max, unico: e.unico,
@@ -1304,6 +1338,14 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   captacaoEstrategica.sort((a, b) => ordemSelo(a) - ordemSelo(b)
     || bairrosOut[b.bairro].volume_primary_year - bairrosOut[a.bairro].volume_primary_year
     || cmpLower(a.bairro, b.bairro));
+
+  // Rodada A: Top 30 da semana (mesma regra de scripts/engine.py._compute_captacao_top30).
+  const candTop = [];
+  for (const g of captacaoEstrategica) for (const e of g.enderecos) if (!e.unico && !e.tem_unidade_a_venda_hoje) candTop.push([g, e]);
+  candTop.sort((x, y) => (x[0].selo_escassez_real === y[0].selo_escassez_real ? 0 : (x[0].selo_escassez_real ? -1 : 1))
+    || y[1].n_vendas - x[1].n_vendas
+    || cmpLower(x[0].bairro, y[0].bairro) || cmpLower(x[1].endereco, y[1].endereco));
+  const captacaoTop30 = candTop.slice(0, C.captacao_top_n).map(([g, e]) => ({ ...e, bairro: g.bairro, selo_escassez_real: g.selo_escassez_real }));
 
   // --- saída final: só os bairros do escopo ---
   const bairrosFinal = {};
@@ -1325,8 +1367,18 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
     bairros: bairrosFinal,
     captacao_ativa: captacaoAtivaFinal,
     imoveis_prioritarios: imoveisPrioritarios,
-    valor_oportunidade: { imoveis: valorOportunidadeImoveis, por_bairro: valorOportunidadePorBairro },
+    valor_oportunidade: {
+      imoveis: valorOportunidadeImoveis, por_bairro: valorOportunidadePorBairro,
+      meta_apto: {
+        predios_com_minimo_de_vendas: Object.keys(predioStats).length,
+        predios_homogeneos: Object.values(predioStats).filter((p) => p.homogeneo).length,
+        predios_homogeneos_com_anuncio: new Set(imoveisPrioritarios.filter((im) => im.tipo_imovel === "apartamento" && predioStats[im.addr_key] && predioStats[im.addr_key].homogeneo).map((im) => im.addr_key)).size,
+        anuncios_apto_comparaveis: Object.values(elegivelAptoByBairro).reduce((a, n) => a + n, 0),
+        achados_apto: valorOportunidadeImoveis.filter((a) => a.tipo_imovel === "apartamento").length,
+      },
+    },
     captacao_estrategica: captacaoEstrategica,
+    captacao_top30: captacaoTop30,
     preco_m2_painel: precoM2Painel.filter((p) => scopeSet.has(p.bairro)),
     // uso interno pro painel Estoque x Demanda (listagens que batem o perfil vencedor)
     _matchingListingsByBairro: Object.fromEntries(scope.map((b) => [b, bairrosOut[b]._matching_listings])),

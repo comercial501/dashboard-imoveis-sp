@@ -33,6 +33,7 @@ scripts/
   parse_usenonstop_xlsx.py  ← fallback: lê export manual .xlsx (sem NONSTOP_TOKEN)
   normalize.py               ← normalização de bairro/endereço + estatísticas
   engine.py                   ← motor de cálculo dos 10 painéis
+  historico_anuncios.py       ← histórico de vida de cada anúncio da rede (Rodada A)
   build_data.py                ← orquestra tudo → site/data.json + site/raw.json
 site/
   index.html / styles.css / app.js
@@ -40,6 +41,7 @@ site/
   raw.json    ← registros individuais (ITBI + nonStop), carregado só quando
                 o usuário usa um filtro — ver "Filtros" abaixo
   engine.js   ← porte de scripts/engine.py pra JavaScript, roda no navegador
+historico/anuncios.jsonl   ← histórico de anúncios (uma linha por anúncio), versionado
 .github/workflows/build-data.yml  ← roda build_data.py todo dia às 8h (BRT)
 ```
 
@@ -1818,10 +1820,10 @@ Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
 1. **Ranking de Oportunidade** — bairros por score (50% z-score do volume
    médio anual de vendas residenciais, pool 2024–2026 + 50% z-score da
    tendência de crescimento), normalizado 0–100 entre os 49 bairros.
-2. **Prontidão para Campanha** — score combinando 6 sinais (liquidez/tendência
-   15%, estoque compatível 20%, alinhamento de preço 15%, captação ativa 15%,
-   qualidade×cobertura dos imóveis prioritários 25%, concentração de achados
-   de valor 10%).
+2. **Prontidão para Campanha** — score combinando 5 sinais (liquidez/tendência
+   25%, estoque compatível 25%, captação ativa 15%, qualidade×cobertura dos
+   imóveis prioritários 25%, concentração de achados de valor 10%). O
+   alinhamento de preço (f3) saiu da nota na Rodada A (06/10/2026).
 3. **Perfil por Bairro** — metragem/preço/dormitórios/vagas que mais vendeu,
    com fallback para estimativa regional (vizinhos até 3km) quando a amostra
    do bairro é baixa (< 5 transações ou < 5 imóveis no perfil).
@@ -1842,8 +1844,10 @@ Pesos, limiares e fórmulas exatas estão comentados em `scripts/engine.py`
 6. **Imóveis Prioritários** — pontuação por imóvel (35% liquidez de revenda
    do bairro + 30% alinhamento de preço + 25% aderência ao perfil + 10%
    bônus de captação ativa).
-7. **Valor de Oportunidade** — imóveis 20%+ abaixo da mediana paga no bairro
-   (só em bairros com 10+ vendas/ano em média, 2024–2026 — mediana confiável).
+7. **Valor de Oportunidade** — imóveis 20%+ abaixo do pago em imóveis
+   comparáveis: casa pelo R$/m² do mesmo tipo e faixa no bairro; apartamento pela
+   mediana paga no MESMO PRÉDIO (Rodada A — ver abaixo). Alternador Casas /
+   Apartamentos / Ambos.
 
 ## Filtros (bairro + faixa de preço)
 
@@ -2184,3 +2188,67 @@ adaptativa; `valor_pago_por_bairro.csv` segue como série por ano.
 - **Ubuntu**: os dois workflows já estavam fixados em `ubuntu-24.04`.
 - `scripts/verificar_interface.py`: varredura local de interface (12 painéis,
   console, paridade servidor × navegador, cabeçalho, aviso de dado parado e PDFs).
+
+## Rodada A (2026-10-06) — ajustes do double check
+
+1. **Nomes**: painel "Preço por m²" → **"Valor pago por bairro"**; subtítulo →
+   "Inteligência de mercado · Compra e venda · São Paulo" (na lateral: "Inteligência
+   de mercado · SP").
+2. **"Por Bairro/Região" deixou de ser painel**: virou um filtro de bairro dentro
+   de **Imóveis Prioritários** (sem bairro = 50 melhores da carteira; com bairro =
+   todos os imóveis pontuados dele). O painel `por-bairro` não existe mais.
+3. **PDF completo**: o botão grande do topo saiu; o PDF da dashboard inteira é um
+   link discreto no rodapé ("Baixar arquivo completo para registro (PDF)"). O
+   "Baixar esta página" continua em cada painel.
+4. **Captação Ativa**: filtros (bairro, faixa de valor pago — mediana do endereço,
+   tipo apartamento/casa, "sem unidade anunciada hoje", nº mínimo de revendas
+   limpas) e **Top 30 da semana** no topo. O tipo do endereço (`tipo_imovel` em
+   `captacao_ativa`/`captacao_estrategica`) é o mais comum entre as revendas limpas
+   dele. Top 30 = endereços com 2+ revendas limpas e NENHUMA unidade anunciada hoje
+   na rede nonStop; ordem: bairros com o selo "Pouco estoque na rede" primeiro, depois
+   mais revendas limpas no período dos dados (jan/2024–hoje), depois bairro e endereço
+   (`captacao_top30`, `engine._compute_captacao_top30` + espelho no `engine.js`). O
+   critério está escrito na tela e a lista **não muda com os filtros locais** (só com
+   os filtros de bairro/preço da barra lateral). Os PDFs "Baixar esta página" saem com
+   o que está na tela e o cabeçalho do PDF lista os filtros do painel (também em
+   Imóveis Prioritários e Valor de Oportunidade).
+5. **Valor de Oportunidade** com alternador **Casas / Apartamentos / Ambos**:
+   - Casas: sem mudança (R$/m² do anúncio × mediana paga no mesmo tipo e faixa).
+   - Apartamentos (novo): preço do anúncio × **mediana paga no mesmo prédio** (revendas
+     limpas de apartamento do mesmo `addr_key`, sem janela de tempo, sem passar por
+     metragem). Só prédios **homogêneos**: 4+ revendas limpas e P75 ÷ P25 <= 1,25
+     (`engine._compute_predio_stats`, constantes `VALOR_OPORT_APTO_MIN_VENDAS` e
+     `VALOR_OPORT_APTO_MAX_P75_P25`). Achado = anúncio 20%+ abaixo da mediana do prédio
+     (30%+ = "Atenção"). Cada achado mostra "comparado com N vendas no mesmo prédio"
+     (`n_vendas_predio`, `razao_p75_p25_predio`, `comparacao: "predio"`).
+     `valor_oportunidade.meta_apto` traz prédios com 4+ vendas / homogêneos / com
+     anúncio / anúncios comparáveis / achados. O f6 da Prontidão continua só com
+     casas (`estoque_elegivel_por_bairro` não mudou), então a Prontidão não muda por
+     causa disso. `validate_build` check 7 agora aceita apartamento SÓ se vier do
+     prédio; check 15 confere tudo isso.
+6. **Prontidão**: o f3 (alinhamento de preço) saiu. Pesos: f1 ranking 25% (era 15%),
+   f2 estoque no perfil 25% (era 20%), f4 captação 15%, f5 imóveis prioritários 25%,
+   f6 achados de valor 10% — soma 100%. Top 10 antes → depois:
+   Vila Mariana 82,9 → 88,4 · Jardim Paulista 77,3 (2º) → 73,1 (3º) · Perdizes 67,5
+   (3º) → 74,6 (2º) · Saúde 61,1 (4º) → 59,8 (6º) · Pinheiros 60,6 (5º) → 62,3 (4º) ·
+   Campo Belo 60,4 (6º) → 59,6 (7º) · Tatuapé 59,9 (7º) → 62,2 (5º) · Cerqueira César
+   57,4 → 57,5 (8º) · Itaim Bibi 56,1 → 56,8 (9º) · Vila Olímpia 54,3 (10º) → fora ·
+   Brooklin entra em 10º (55,1).
+7. **Histórico de anúncios** (`historico/anuncios.jsonl`, `scripts/historico_anuncios.py`):
+   um arquivo só, uma linha por anúncio (JSON Lines, ordenado por código — o diff do git
+   fica pequeno). Atualizado a cada build, **depois** de todas as checagens passarem, e
+   commitado pela Action junto com o `data.json`. Campos: `codigo`, `bairro`, `endereco`,
+   `complemento` (unidade), `tipo`, `area` (útil), `addr_key`, `preco_inicial`,
+   `preco_atual`, `mudancas_preco` ([[data, novo preço], ...]), `cadastro` (data de
+   cadastro na nonStop), `visto_primeira`, `visto_ultima`, `saida` (primeiro dia em que
+   o anúncio não veio mais; `null` = ativo) e `voltas` (só se > 0). Datas em horário de
+   Brasília. Acompanha cada código separadamente (antes da deduplicação). Começou em
+   06/10/2026 com 2.125 anúncios; `visto_primeira` dos que já existiam é esse dia (o
+   `cadastro` vem da nonStop). Sem a API da nonStop (export manual), o arquivo não é
+   alterado. `validate_build` check 16 confere que o arquivo bate com a rede de hoje.
+   Nada disso aparece na tela por enquanto — base para "tempo no mercado" e "margem de
+   negociação". Tamanho: ~0,7 MB hoje; simulação de 1 ano (~8 entradas, ~7 saídas e ~12
+   mudanças de preço por dia): ~1,8 MB; ~5 MB de repositório ao ano já compactado.
+- Checks do build: agora **16** (15 = Rodada A; 16 = histórico). `scripts/test_rotina.py`
+  ganhou os testes do histórico (idempotência, mudança de preço, saída, volta, arquivo
+  corrompido) e os alertas dos dois checks novos.

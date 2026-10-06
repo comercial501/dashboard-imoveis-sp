@@ -58,6 +58,11 @@ def _load_dotenv():
             os.environ[key] = value
 
 
+# Rodada A (item 7): anúncios da API ANTES da deduplicação — o histórico de
+# anúncios acompanha cada código separadamente. None quando a fonte não é a API.
+_USN_ANTES_DEDUP = None
+
+
 def _get_usn_records():
     """Estoque atual: API da nonStop se NONSTOP_TOKEN estiver definido,
     senão cai pro export manual (dados-usenonstop/*.xlsx) como fallback.
@@ -87,6 +92,8 @@ def _get_usn_records():
         print(f"[build] {candidates[0].name}: {stats}")
         meta = {"fonte": "xlsx_manual", "arquivo": candidates[0].name, **stats}
 
+    global _USN_ANTES_DEDUP
+    _USN_ANTES_DEDUP = list(records) if meta.get("fonte") == "nonstop_api" else None
     records, n_duplicados = nonstop_client.deduplicar_registros(records)
     meta["rows_apos_dedup"] = len(records)
     meta["duplicados_removidos"] = n_duplicados
@@ -208,8 +215,11 @@ def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, car
             "valor_oportunidade_min_desconto": engine.VALOR_OPORTUNIDADE_MIN_DESCONTO,
             "valor_oportunidade_atencao_desconto": engine.VALOR_OPORTUNIDADE_ATENCAO_DESCONTO,
             "valor_oportunidade_min_vendas_primary": engine.VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY,
+            "valor_oport_apto_min_vendas": engine.VALOR_OPORT_APTO_MIN_VENDAS,
+            "valor_oport_apto_max_p75_p25": engine.VALOR_OPORT_APTO_MAX_P75_P25,
             "captacao_estrategica_max_stock_match": engine.CAPTACAO_ESTRATEGICA_MAX_STOCK_MATCH,
             "captacao_estrategica_min_enderecos": engine.CAPTACAO_ESTRATEGICA_MIN_ENDERECOS,
+            "captacao_top_n": engine.CAPTACAO_TOP_N,
             "captacao_min_vendas_faixa": engine.CAPTACAO_MIN_VENDAS_FAIXA,
             # Proteção de amostra das faixas de preço (2026-10-06)
             "perfil_min_vendas_faixa": engine.PERFIL_MIN_VENDAS_FAIXA,
@@ -430,6 +440,21 @@ def main():
     usn_records, usn_meta = _get_usn_records()
     print(f"[build] estoque: {len(usn_records)} anúncios válidos")
 
+    # Rodada A (item 7): histórico de anúncios (vida de cada anúncio da rede).
+    # Calculado aqui, em memória; só é gravado depois que todas as checagens
+    # passam (ver mais abaixo). Sem a API (export manual) não dá pra saber
+    # quem saiu da rede, então o histórico fica como está.
+    import historico_anuncios
+    historico_novo = historico_resumo = None
+    if _USN_ANTES_DEDUP is not None:
+        historico_hoje = historico_anuncios.data_brasilia()
+        historico_novo, historico_resumo = historico_anuncios.atualizar(
+            historico_anuncios.carregar(), _USN_ANTES_DEDUP, historico_hoje)
+        historico_resumo["data"] = historico_hoje
+        print(f"[build] histórico de anúncios: {historico_resumo}")
+    else:
+        print("[build] histórico de anúncios: fonte não é a API da nonStop — arquivo mantido como está")
+
     search_interest, search_interest_meta = _get_search_interest()
 
     # Item 3 (2026-09-30) / Item 1 da Etapa 2 (2026-10-01): carteira de 77
@@ -484,6 +509,8 @@ def main():
     data["meta"]["total_itbi_planta_todos_anos"] = resolucao_stats["planta_todos_anos"]
     data["meta"]["total_itbi_fora_carteira_ou_incerto"] = resolucao_stats["fora_carteira_ou_incerto"]
     data["meta"]["usn"] = usn_meta
+    if historico_resumo is not None:
+        data["meta"]["historico_anuncios"] = historico_resumo
 
     # Passo 3b (2026-10-01), achado da auditoria: até aqui nenhuma das 3
     # fontes (ITBI/nonStop/Google) tinha data de atualização visível na
@@ -513,7 +540,12 @@ def main():
     # data.json publicado. Levanta SystemExit e PARA aqui se qualquer uma
     # falhar — nem o CSV nem o raw.json chegam a ser escritos, o data.json
     # anterior fica intacto no disco/git.
-    validate_build.validate_before_publish(year_to_path, itbi_stats, data, OUT, usn_records, itbi_records)
+    validate_build.validate_before_publish(year_to_path, itbi_stats, data, OUT, usn_records, itbi_records,
+                                           historico=(historico_novo, _USN_ANTES_DEDUP))
+
+    if historico_novo is not None:
+        historico_anuncios.salvar(historico_novo)
+        print(f"[build] {historico_anuncios.ARQUIVO} escrito ({historico_anuncios.ARQUIVO.stat().st_size:,} bytes, {len(historico_novo)} anúncios)")
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

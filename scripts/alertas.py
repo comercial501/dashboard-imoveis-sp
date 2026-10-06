@@ -78,6 +78,10 @@ REGRAS = [
      "Apareceram **anúncios duplicados** no estoque da nonStop depois da limpeza — o site não foi atualizado."),
     ("datas de busca do Google", "google",
      "As **datas de busca do Google por bairro** ficaram incoerentes — o site não foi atualizado."),
+    ("Rodada A —", "rodada_a",
+     "A conferência da **Prontidão, do Valor de Oportunidade de apartamentos ou do Top 30 da Captação** deu diferença — o site não foi atualizado."),
+    ("histórico de anúncios incoerente", "historico_anuncios",
+     "O **histórico de anúncios** ficou incoerente com os anúncios da rede de hoje — o site não foi atualizado e o arquivo do histórico não foi alterado."),
     ("perfil vencedor v1", "perfil_v1", "Um painel voltou a usar o cálculo antigo de perfil por metragem — o site não foi atualizado."),
     ("faixa_metragem() voltou", "faixa_metragem", "Voltou a comparação antiga por metragem em apartamento — o site não foi atualizado."),
 ]

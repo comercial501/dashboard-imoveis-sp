@@ -26,7 +26,7 @@
       </svg>
       <div class="brand-text">
         <div class="brand-name">Topio Imóveis</div>
-        <div class="brand-role">Investimento Imobiliário · SP</div>
+        <div class="brand-role">Inteligência de mercado · SP</div>
       </div>
     </div>
 
@@ -47,12 +47,11 @@
       <header class="app-header">
         <div>
           <h1>Torre de Controle</h1>
-          <div class="handle">Investimento Imobiliário · São Paulo</div>
+          <div class="handle">Inteligência de mercado · Compra e venda · São Paulo</div>
         </div>
         <div style="display:flex; align-items:center; gap:14px">
           <div class="updated" id="updated-at"></div>
           <div class="fontes-status" id="fontes-status"></div>
-          <button id="pdf-btn" class="pdf-btn" type="button">Baixar PDF ↓</button>
         </div>
       </header>
 
@@ -118,7 +117,7 @@
         <section class="card">
           <h2>Prontidão para Campanha por Bairro</h2>
           <div class="note" style="margin-bottom:10px"><b>Estoque = imóveis ativos na rede nonStop integrada, não o mercado inteiro.</b></div>
-          <div class="card-sub">Combina 6 sinais (base nova, 2026-10-01 — pesos mantidos, revisão de pesos fica pra depois): liquidez de revenda + tendência de revenda (15%), estoque da rede compatível com o perfil vencedor por FAIXA DE PREÇO — P25–P75 do valor pago em revenda (12, 24 ou 36 meses, conforme a amostra), por tipo de imóvel (apartamento/casa), sem passar por metragem, já que área construída do ITBI ≠ área útil do anúncio (20%; bairro com 100+ revendas e no máximo 2 anúncios na faixa mostra o selo "Pouco estoque na rede" — pouco estoque da rede no bairro todo — ou "Estoque da rede fora do perfil" — estoque da rede no bairro, mas fora da faixa que vende), alinhamento de preço (15%, R$/m² só pra casa — apartamento usa valor total, sem gap de R$/m²), captação ativa (15%), qualidade × cobertura dos imóveis prioritários (25%, já em valor total pra apartamento), concentração de achados de valor (10%). Carteira de 77 bairros, mesma resolução do Carteira 77; bairro com menos de 100 vendas de revenda em 12m (amostra pequena) nunca fica no topo. Responde: esse bairro tem munição real pra campanha agora? Clique num bairro pra ver os 10 melhores imóveis anunciados hoje na nonStop.</div>
+          <div class="card-sub">Combina 5 sinais (pesos revisados em 06/10/2026: o "alinhamento de preço" saiu da nota): liquidez de revenda + tendência de revenda (25%), estoque da rede compatível com o perfil vencedor por FAIXA DE PREÇO — P25–P75 do valor pago em revenda (12, 24 ou 36 meses, conforme a amostra), por tipo de imóvel (apartamento/casa), sem passar por metragem, já que área construída do ITBI ≠ área útil do anúncio (25%; bairro com 100+ revendas e no máximo 2 anúncios na faixa mostra o selo "Pouco estoque na rede" — pouco estoque da rede no bairro todo — ou "Estoque da rede fora do perfil" — estoque da rede no bairro, mas fora da faixa que vende), captação ativa (15%), qualidade × cobertura dos imóveis prioritários (25%, já em valor total pra apartamento), concentração de achados de valor (10%). Carteira de 77 bairros, mesma resolução do Carteira 77; bairro com menos de 100 vendas de revenda em 12m (amostra pequena) nunca fica no topo. Responde: esse bairro tem munição real pra campanha agora? Clique num bairro pra ver os 10 melhores imóveis anunciados hoje na nonStop.</div>
           <div id="prontidao-table"></div>
         </section>
       </div>
@@ -158,6 +157,9 @@
         <section class="card">
           <h2>Captação Ativa Estratégica</h2>
           <div class="card-sub">Pauta semanal de prospecção: endereços com giro repetido de revenda (2+ revendas limpas em 3 anos — compra e venda, 100% do imóvel, uso residencial e valor dentro do padrão, a mesma base do Carteira 77 —, excluindo lançamentos e preços incoerentes). O preço de cada endereço é a MEDIANA das revendas limpas, com a faixa P25–P75 quando há 4+ vendas (com menos, só a mediana e “poucas vendas”); vendas na planta e revendas com valor fora do padrão aparecem em contagem separada e nunca entram no preço. A metragem é a área do cadastro do ITBI (inclui áreas comuns e vagas), não a área útil. Endereços sem nenhuma unidade anunciada hoje vêm primeiro (é onde a prospecção resolve um acesso que você não tem por outro caminho); os marcados <span class="badge warning" style="margin:0 2px">Já anunciado hoje</span> já têm alguma unidade ativa, mas o prédio continua valendo a visita pra tentar captar outras unidades. "Perfil vencedor" do bairro agora é a faixa de preço paga em revenda (12m, por tipo de imóvel) — não mais metragem (2026-10-01). Dois selos de bairro (só acendem com 100+ revendas em 12 meses e no máximo 2 anúncios dentro da faixa de preço vencedora, e nunca juntos): <span class="badge gold" style="margin:0 2px">Pouco estoque na rede</span> = o bairro inteiro tem pouco anúncio na rede frente à demanda (estoque total da rede ÷ revendas em 12m no terço mais baixo dos 77 bairros); <span class="badge warning" style="margin:0 2px">Estoque da rede fora do perfil</span> = tem estoque ativo no bairro, mas quase nada na faixa de preço que de fato vende. <span class="badge warning" style="margin:0 2px">Anúncio antigo — validar disponibilidade</span> = o anúncio ativo tem mais de 365 dias de cadastro na nonStop (continua valendo nas contas, só pede confirmação).</div>
+          <div id="captacao-filtros" class="local-filtros"></div>
+          <div id="captacao-top30" class="captacao-top30"></div>
+          <h3 class="captacao-lista-titulo">Todos os endereços, por bairro</h3>
           <div id="captacao-list"></div>
         </section>
       </div>
@@ -167,17 +169,11 @@
         <section class="card">
           <h2>Imóveis Prioritários para Campanha</h2>
           <div class="card-sub">Pontuação por imóvel (casa): 35% liquidez de revenda do bairro + 30% alinhamento de preço (R$/m² do anúncio × mediana paga do mesmo tipo de imóvel e faixa de metragem no bairro) + 25% aderência à faixa de preço vencedora do bairro (P25–P75 do valor pago em revenda, 12m, por tipo de imóvel) + 10% bônus de captação ativa (híbrido: prédio com 10+ unidades residenciais no IPTU 2026 usa o giro relativo — vendas em 3 anos ÷ unidades: menos de 7% = 40, 7–10% = 60, 10–15% = 80, 15% ou mais = 100; prédio com menos de 10 unidades, casa ou endereço sem casamento com o IPTU usa o nº de vendas: 2 = 40, 3 = 60, 4 = 80, 5 ou mais = 100; em qualquer régua, bônus acima de 60 exige pelo menos 3 vendas; cada imóvel mostra qual régua foi usada). Anúncio com mais de 365 dias de cadastro continua na lista, com o selo "Anúncio antigo — validar disponibilidade". Apartamento: alinhamento de preço suspenso (2026-10-01 — faixa de metragem comparava área construída do ITBI × área útil do anúncio, aguardando calibração) — peso redistribuído proporcionalmente entre liquidez, aderência e captação.</div>
+          <div class="local-filtros">
+            <label>Bairro <select id="prioritarios-bairro" class="bairro-select"></select></label>
+            <span class="small muted">Sem bairro escolhido: os 50 melhores da carteira. Com bairro: todos os imóveis pontuados dele (base para carrosséis "apartamentos à venda em [bairro]").</span>
+          </div>
           <div id="prioritarios-table"></div>
-        </section>
-      </div>
-
-      <!-- Painel 9 — Por Bairro/Região -->
-      <div class="panel" data-panel="por-bairro">
-        <section class="card">
-          <h2>Imóveis por Bairro/Região</h2>
-          <div class="card-sub">Os mesmos imóveis pontuados do painel anterior, agrupados por bairro — base para carrosséis "apartamentos à venda em [bairro]".</div>
-          <select id="porbairro-select" class="bairro-select"></select>
-          <div id="porbairro-content" style="margin-top:16px"></div>
         </section>
       </div>
 
@@ -185,7 +181,9 @@
       <div class="panel" data-panel="valor-oportunidade">
         <section class="card">
           <h2>Valor de Oportunidade</h2>
-          <div class="card-sub">Imóveis anunciados 20%+ abaixo da mediana de R$/m² paga em imóveis do MESMO tipo e faixa de metragem no bairro — nunca comparado com o valor total nem com tamanhos diferentes. Só entra quando esse segmento tem 10+ vendas pagas nos últimos 12 meses (amostra confiável). Apartamento não aparece aqui (comparação por faixa de metragem suspensa em 2026-10-01, aguardando calibração de área construída × útil); só casa. Badge "Atenção" = 30%+ de desconto, vale checar antes de anunciar.</div>
+          <div class="card-sub">Imóveis anunciados 20%+ abaixo do que se pagou em imóveis comparáveis. <b>Casa</b>: compara o R$/m² do anúncio com a mediana de R$/m² paga em imóveis do MESMO tipo e faixa de metragem no bairro (nunca o valor total nem tamanhos diferentes); só entra quando esse segmento tem 10+ vendas pagas nos últimos 12 meses. <b>Apartamento</b>: compara o preço do anúncio com a mediana paga no MESMO PRÉDIO (revendas limpas do mesmo endereço, sem passar por metragem); só entra prédio com 4+ revendas limpas e preços parecidos entre si (P75 ÷ P25 de até 1,25), e cada achado mostra "comparado com N vendas no mesmo prédio". Badge "Atenção" = 30%+ de desconto, vale checar antes de anunciar.</div>
+          <div id="vo-toggle" class="seg-toggle"></div>
+          <div id="vo-nota" class="note" style="margin:10px 0"></div>
           <div id="valor-oportunidade-table"></div>
         </section>
         <section class="card">
@@ -197,7 +195,7 @@
       <!-- Painel 11 — Preço por m² / Valor Total (Etapa 4 de 2026-09-29; Etapa 2 item 2 de 2026-10-01) -->
       <div class="panel" data-panel="preco-m2">
         <section class="card">
-          <h2>Valor Total Pago — Apartamento</h2>
+          <h2>Valor pago por bairro</h2>
           <div class="card-sub">Mediana/P25/P75 do VALOR TOTAL pago (não R$/m²) em REVENDA de apartamento, por bairro e faixa de metragem, nos últimos 12 meses (retrato do mercado agora) — ou 24/36 meses quando o bairro+faixa tem menos de 30 vendas limpas (cada linha mostra o período usado; abaixo de 30 mesmo em 36 meses vira “poucas vendas”). O gap R$/m² pedido×pago foi suspenso pra apartamento (calibração fica pra depois); "Anúncios hoje" mostra só o estoque atual pedido, sem comparação. Badge "Poucas vendas" = menos de 30 revendas limpas nesse segmento mesmo ampliando o período para 36 meses — não é uma referência confiável ainda. Também disponível em CSV: <code>output/preco_m2_por_bairro.csv</code> e <code>output/valor_pago_por_bairro.csv</code> (série histórica por ano, casa e apartamento).</div>
           <div id="preco-m2-table"></div>
         </section>
@@ -212,6 +210,11 @@
           <div id="carteira-77-table"></div>
         </section>
       </div>
+
+      <footer class="rodape-pdf">
+        <a href="#" id="pdf-completo-link">Baixar arquivo completo para registro (PDF)</a>
+        <span> — todas as páginas em um só arquivo. Para o dia a dia, use “Baixar esta página” dentro de cada painel.</span>
+      </footer>
 
     </div>
   </div>

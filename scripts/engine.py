@@ -67,9 +67,14 @@ ADDR_MAX_RATIO = 20
 # deixar passar erro de digitação óbvio, tipo "29m² e 480m²" no mesmo
 # endereço).
 ADDR_MAX_RATIO_AREA = 4
+CAPTACAO_TOP_N = 30
 VALOR_OPORTUNIDADE_MIN_DESCONTO = 0.20
 VALOR_OPORTUNIDADE_ATENCAO_DESCONTO = 0.30
 VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY = 10
+# Rodada A (2026-10-06): apartamento é comparado com a mediana paga no MESMO
+# PRÉDIO (camada limpa, mesmo endereço), só em prédio homogêneo.
+VALOR_OPORT_APTO_MIN_VENDAS = 4
+VALOR_OPORT_APTO_MAX_P75_P25 = 1.25
 CAPTACAO_ESTRATEGICA_MAX_STOCK_MATCH = 2
 CAPTACAO_ESTRATEGICA_MIN_ENDERECOS = 5
 
@@ -156,7 +161,8 @@ def _bonus_captacao(n_vendas):
     return CAPTACAO_BONUS_POR_VENDAS.get(n_vendas, CAPTACAO_BONUS_MAX)
 
 PESOS_PAINEL8 = {"revenda": 0.35, "preco": 0.30, "aderencia": 0.25, "captacao": 0.10}
-PESOS_PRONTIDAO = {"f1": 0.15, "f2": 0.20, "f3": 0.15, "f4": 0.15, "f5": 0.25, "f6": 0.10}
+# Rodada A (2026-10-06): f3 (gap de preço) removido; f1 15→25%, f2 20→25%.
+PESOS_PRONTIDAO = {"f1": 0.25, "f2": 0.25, "f4": 0.15, "f5": 0.25, "f6": 0.10}
 
 # Componentes ausentes (preço suspenso em apartamento — Passo 2b; aderência sem
 # faixa confiável — 2026-10-06) têm o peso redistribuído proporcionalmente:
@@ -771,6 +777,19 @@ def _is_launch(days):
     return False
 
 
+def _tipo_majoritario(recs):
+    """Rodada A: tipo (apartamento/casa) do endereço = o mais comum entre as
+    revendas limpas dele; empate por ordem alfabética. None se nenhuma tem tipo."""
+    cont = {}
+    for r in recs:
+        t = r.get("tipo_imovel")
+        if t:
+            cont[t] = cont.get(t, 0) + 1
+    if not cont:
+        return None
+    return sorted(cont.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+
+
 def _compute_liquidez(itbi_records, usn_by_addr_key, years):
     by_addr = {}
     for r in itbi_records:
@@ -844,7 +863,7 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
         if len(recs) == 1:
             r = recs[0]
             captacao_unico.append({
-                "bairro": bairro, "addr_key": addr_key, "endereco": endereco,
+                "bairro": bairro, "addr_key": addr_key, "endereco": endereco, "tipo_imovel": _tipo_majoritario(recs),
                 "n_vendas": 1, "preco_mediana": r["valor"], "preco_p25": None, "preco_p75": None,
                 "poucas_vendas": True, "n_planta": n_planta, "n_valor_fora_padrao": n_valor_fora_padrao,
                 "area_min": r["area"], "area_max": r["area"],
@@ -864,7 +883,7 @@ def _compute_liquidez(itbi_records, usn_by_addr_key, years):
         areas = [r["area"] for r in recs if r["area"] is not None]
         area_min, area_max = _coherent_area_range(areas)
         captacao_ativa.append({
-            "bairro": bairro, "addr_key": addr_key, "endereco": endereco,
+            "bairro": bairro, "addr_key": addr_key, "endereco": endereco, "tipo_imovel": _tipo_majoritario(recs),
             "n_vendas": len(recs), "preco_mediana": _round(median(valores), 2),
             # Captação limpa: faixa P25-P75 só com 4+ revendas limpas; com
             # menos, só a mediana + "poucas vendas" (em vez de mínimo-máximo).
@@ -1329,7 +1348,30 @@ def _compute_imoveis_prioritarios(usn_records, bairros_out, captacao_n_vendas, u
 # ---------------------------------------------------------------------------
 # 7. Painel 10 — Valor de Oportunidade
 # ---------------------------------------------------------------------------
-def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
+def _compute_predio_stats(itbi_records):
+    """Rodada A: mediana paga por PRÉDIO (addr_key), só apartamento e só
+    revenda limpa, sem janela de tempo (tudo o que a base tem). Prédio com
+    menos de VALOR_OPORT_APTO_MIN_VENDAS vendas fica de fora. "Homogêneo" =
+    P75 ÷ P25 <= VALOR_OPORT_APTO_MAX_P75_P25 (unidades parecidas em preço)."""
+    por_predio = {}
+    for r in itbi_records:
+        if r["addr_key"] and r["tipo_imovel"] == "apartamento" and _is_revenda_limpa(r):
+            por_predio.setdefault(r["addr_key"], []).append(r["valor"])
+    out = {}
+    for addr_key, vals in por_predio.items():
+        if len(vals) < VALOR_OPORT_APTO_MIN_VENDAS:
+            continue
+        p25 = percentile(25, vals)
+        p75 = percentile(75, vals)
+        razao = (p75 / p25) if p25 else None
+        out[addr_key] = {
+            "n": len(vals), "mediana": median(vals), "p25": p25, "p75": p75, "razao": razao,
+            "homogeneo": razao is not None and razao <= VALOR_OPORT_APTO_MAX_P75_P25,
+        }
+    return out
+
+
+def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out, predio_stats):
     # Etapa 3 (2026-09-29): desconto compara R$/m² do anúncio contra a
     # mediana R$/m² do MESMO tipo de imóvel + faixa de metragem no bairro
     # — não mais o valor total contra a mediana de TODOS os tamanhos do
@@ -1340,7 +1382,8 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
     # None nesse caso) substitui o antigo gate por volume do bairro
     # inteiro — a regra de amostra agora é por segmento, não por bairro.
     achados = []
-    elegivel_by_bairro = {}
+    elegivel_by_bairro = {}  # só casa — é o que o f6 da Prontidão sempre usou
+    elegivel_apto_by_bairro = {}
     for im in imoveis_prioritarios:
         b = bairros_out[im["bairro"]]
         is_apto = im.get("tipo_imovel") == "apartamento"
@@ -1351,15 +1394,27 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
         # achado aqui — mediana_ref/valor_ref ficam None, o gate abaixo
         # (`if mediana_ref is None...`) já pula o resto do loop pra ele.
         # Casa não muda (R$/m², faixa_metragem mantida).
+        # Rodada A (2026-10-06): apartamento volta, mas comparado com a
+        # mediana paga no MESMO PRÉDIO (valor total, não por metragem) e só
+        # se o prédio for homogêneo (>= 4 revendas limpas e P75÷P25 <= 1,25).
+        predio = None
         if is_apto:
-            mediana_ref = None
-            valor_ref = None
+            predio = predio_stats.get(im.get("addr_key"))
+            if predio is not None and predio["homogeneo"] and im.get("valor"):
+                mediana_ref = predio["mediana"]
+                valor_ref = im["valor"]
+            else:
+                mediana_ref = None
+                valor_ref = None
         else:
             mediana_ref = _lookup_mediana_pago_m2(b["preco_m2_segmentos"], im.get("tipo_imovel"), im.get("area"))
             valor_ref = (im["valor"] / im["area"]) if im.get("area") else None
         if mediana_ref is None or valor_ref is None:
             continue
-        elegivel_by_bairro[im["bairro"]] = elegivel_by_bairro.get(im["bairro"], 0) + 1
+        if is_apto:
+            elegivel_apto_by_bairro[im["bairro"]] = elegivel_apto_by_bairro.get(im["bairro"], 0) + 1
+        else:
+            elegivel_by_bairro[im["bairro"]] = elegivel_by_bairro.get(im["bairro"], 0) + 1
         ratio = valor_ref / mediana_ref
         desconto = 1 - ratio
         if desconto < VALOR_OPORTUNIDADE_MIN_DESCONTO:
@@ -1370,7 +1425,10 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
             "faixa": faixa_metragem(im["area"]),
             "valor_m2": None if is_apto else _round(valor_ref, 2),
             "mediana_pago_m2": None if is_apto else mediana_ref,
-            "valor_total_mediana": mediana_ref if is_apto else None,
+            "valor_total_mediana": _round(mediana_ref, 2) if is_apto else None,
+            "comparacao": "predio" if is_apto else "m2",
+            "n_vendas_predio": predio["n"] if is_apto else None,
+            "razao_p75_p25_predio": _round(predio["razao"], 2) if is_apto else None,
             "desconto_pct": _round(desconto * 100, 1),
             "atencao": desconto >= VALOR_OPORTUNIDADE_ATENCAO_DESCONTO,
             "idade_dias": im.get("idade_dias"),
@@ -1378,7 +1436,10 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
         })
     achados.sort(key=lambda a: (-a["desconto_pct"], (a["endereco"] or "").lower(), a["codigo"] or ""))
 
-    stock_eleg = elegivel_by_bairro
+    stock_eleg = {}
+    for d in (elegivel_by_bairro, elegivel_apto_by_bairro):
+        for b, n in d.items():
+            stock_eleg[b] = stock_eleg.get(b, 0) + n
     achados_by_bairro = {}
     for a in achados:
         achados_by_bairro[a["bairro"]] = achados_by_bairro.get(a["bairro"], 0) + 1
@@ -1397,7 +1458,23 @@ def _compute_valor_oportunidade(imoveis_prioritarios, bairros_out):
     # recalcular elegibilidade com um critério diferente (achado real: até
     # 2026-09-29 o f6 usava o gate antigo por volume do bairro inteiro,
     # inconsistente com o gate por segmento usado aqui).
-    return {"imoveis": achados, "por_bairro": por_bairro, "estoque_elegivel_por_bairro": elegivel_by_bairro}
+    n_predios = len(predio_stats)
+    n_homog = sum(1 for p in predio_stats.values() if p["homogeneo"])
+    n_homog_com_anuncio = len({im.get("addr_key") for im in imoveis_prioritarios
+                               if im.get("tipo_imovel") == "apartamento"
+                               and (predio_stats.get(im.get("addr_key")) or {}).get("homogeneo")})
+    return {
+        "imoveis": achados, "por_bairro": por_bairro,
+        # f6 da Prontidão continua só com CASA (Rodada A: nada mudou lá).
+        "estoque_elegivel_por_bairro": elegivel_by_bairro,
+        "meta_apto": {
+            "predios_com_minimo_de_vendas": n_predios,
+            "predios_homogeneos": n_homog,
+            "predios_homogeneos_com_anuncio": n_homog_com_anuncio,
+            "anuncios_apto_comparaveis": sum(elegivel_apto_by_bairro.values()),
+            "achados_apto": sum(1 for a in achados if a["tipo_imovel"] == "apartamento"),
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1455,7 +1532,8 @@ def _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out):
                 "estoque_fora_do_perfil": bo["estoque_fora_do_perfil"],
             },
             "enderecos": [
-                {"endereco": e["endereco"], "n_vendas": e["n_vendas"], "preco_mediana": e["preco_mediana"],
+                {"endereco": e["endereco"], "addr_key": e["addr_key"], "tipo_imovel": e["tipo_imovel"],
+                 "n_vendas": e["n_vendas"], "preco_mediana": e["preco_mediana"],
                  "preco_p25": e["preco_p25"], "preco_p75": e["preco_p75"], "poucas_vendas": e["poucas_vendas"],
                  "n_planta": e["n_planta"], "n_valor_fora_padrao": e["n_valor_fora_padrao"],
                  "area_min": e["area_min"], "area_max": e["area_max"],
@@ -1474,6 +1552,22 @@ def _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out):
     for g in groups:
         g.pop("_used_unico_fallback", None)
     return groups
+
+
+def _compute_captacao_top30(captacao_estrategica):
+    """Rodada A: "Top 30 da semana" da Captação Ativa. Candidatos = endereços
+    de revenda repetida (2+ revendas limpas — o "endereço único" fica de fora)
+    SEM nenhuma unidade anunciada hoje na rede nonStop. Ordem: 1º endereços de
+    bairros com o selo "Pouco estoque na rede"; 2º mais revendas limpas no
+    período dos dados; 3º bairro e endereço em ordem alfabética (desempate)."""
+    cand = []
+    for g in captacao_estrategica:
+        for e in g["enderecos"]:
+            if e["unico"] or e["tem_unidade_a_venda_hoje"]:
+                continue
+            cand.append((g, e))
+    cand.sort(key=lambda t: (not t[0]["selo_escassez_real"], -t[1]["n_vendas"], t[0]["bairro"].lower(), t[1]["endereco"].lower()))
+    return [{**e, "bairro": g["bairro"], "selo_escassez_real": g["selo_escassez_real"]} for g, e in cand[:CAPTACAO_TOP_N]]
 
 
 # ---------------------------------------------------------------------------
@@ -1798,8 +1892,6 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
     for b in TARGETS:
         f1 = bairros_out[b]["score"]
         f2 = f2_map.get(b)  # None = dado ausente
-        gap = bairros_out[b]["price_gap_pct"]
-        f3 = max(0, 100 - abs(gap) * 2) if gap is not None else 50
         f4 = f4_map[b]
 
         top10 = imoveis_by_bairro.get(b, [])[:10]
@@ -1808,16 +1900,19 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
         coverage = min(1, n_im / 10)
         f5 = mean_top10 * coverage
 
-        bairros_out[b]["_f1_f5"] = (f1, f2, f3, f4, f5)
+        bairros_out[b]["_f1_f5"] = (f1, f2, f4, f5)
 
-    valor_oportunidade = _compute_valor_oportunidade(imoveis_prioritarios, bairros_out)
+    predio_stats = _compute_predio_stats(itbi_records)
+    valor_oportunidade = _compute_valor_oportunidade(imoveis_prioritarios, bairros_out, predio_stats)
     achados_by_bairro_count = {}
     for a in valor_oportunidade["imoveis"]:
+        if a["tipo_imovel"] == "apartamento":
+            continue  # f6 só conta casa (ver estoque_elegivel_por_bairro)
         achados_by_bairro_count[a["bairro"]] = achados_by_bairro_count.get(a["bairro"], 0) + 1
 
     estoque_elegivel = valor_oportunidade["estoque_elegivel_por_bairro"]
     for b in TARGETS:
-        f1, f2, f3, f4, f5 = bairros_out[b].pop("_f1_f5")
+        f1, f2, f4, f5 = bairros_out[b].pop("_f1_f5")
         # f6 usa a MESMA elegibilidade por segmento do Valor de
         # Oportunidade (Etapa 3, 2026-09-29) — antes recalculava com o
         # gate antigo por volume do bairro inteiro, inconsistente com o
@@ -1829,7 +1924,7 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
             achados_bairro = achados_by_bairro_count.get(b, 0)
             f6 = 100 * achados_bairro / estoque_eleg
 
-        fatores = {"f1": f1, "f2": f2, "f3": f3, "f4": f4, "f5": f5, "f6": f6}
+        fatores = {"f1": f1, "f2": f2, "f4": f4, "f5": f5, "f6": f6}
         disponiveis = {k: v for k, v in fatores.items() if v is not None}
         soma_pesos = sum(PESOS_PRONTIDAO[k] for k in disponiveis)
         prontidao = sum(PESOS_PRONTIDAO[k] * v for k, v in disponiveis.items()) / soma_pesos
@@ -1847,6 +1942,7 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
     )
 
     captacao_estrategica = _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out)
+    captacao_top30 = _compute_captacao_top30(captacao_estrategica)
 
     return {
         "meta": {
@@ -1864,5 +1960,6 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
         "imoveis_prioritarios": imoveis_prioritarios,
         "valor_oportunidade": valor_oportunidade,
         "captacao_estrategica": captacao_estrategica,
+        "captacao_top30": captacao_top30,
         "preco_m2_painel": preco_m2_painel,
     }

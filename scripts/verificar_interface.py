@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Verificação de interface do dashboard (uso LOCAL — não roda no GitHub Actions):
-abre o site num Chrome limpo (Playwright), passa pelos 12 painéis coletando
+abre o site num Chrome limpo (Playwright), passa pelos painéis coletando
 erros de console, compara o resultado do servidor (data.json) com o recalculado
 no navegador (engine.js + raw.json), confere o cabeçalho e o aviso de dado
 parado, e gera os PDFs (completo + um por painel) contando as páginas.
@@ -20,7 +20,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 PAINEIS = ["visao-geral", "ranking", "prontidao", "estoque-demanda", "perfil", "mapa", "captacao",
-           "prioritarios", "por-bairro", "valor-oportunidade", "preco-m2", "carteira-77"]
+           "prioritarios", "valor-oportunidade", "preco-m2", "carteira-77"]
 
 JS_PARIDADE = """()=>{
   const eq=(a,b)=>{ if(a===b) return true; if(a==null&&b==null) return true; if(typeof a==="number"&&typeof b==="number") return Math.abs(a-b)<=0.011; return JSON.stringify(a)===JSON.stringify(b); };
@@ -40,6 +40,16 @@ JS_PARIDADE = """()=>{
   let dp=0,np=0; const pj=new Map(J.preco_m2_painel.map(p=>[p.bairro+"|"+p.faixa,p]));
   for(const p of S.preco_m2_painel){const q=pj.get(p.bairro+"|"+p.faixa); for(const k in p){np++; if(!q||!eq(p[k],q[k])) dp++;}}
   out.preco_m2={campos:np,divergencias:dp};
+  const vj=new Map(J.valor_oportunidade.imoveis.map(i=>[i.codigo,i])); let dv=0;
+  for(const a of S.valor_oportunidade.imoveis){const b=vj.get(a.codigo); if(!b||!eq(a.desconto_pct,b.desconto_pct)||a.n_vendas_predio!==b.n_vendas_predio||a.atencao!==b.atencao) dv++;}
+  if(S.valor_oportunidade.imoveis.length!==J.valor_oportunidade.imoveis.length) dv+=Math.abs(S.valor_oportunidade.imoveis.length-J.valor_oportunidade.imoveis.length);
+  out.valor_oportunidade={achados:S.valor_oportunidade.imoveis.length,achados_apto:S.valor_oportunidade.imoveis.filter(a=>a.tipo_imovel==="apartamento").length,divergencias:dv,meta_apto:JSON.stringify(S.valor_oportunidade.meta_apto)===JSON.stringify(J.valor_oportunidade.meta_apto)};
+  const k=(t)=>t.map(e=>[e.bairro,e.endereco,e.n_vendas,Math.round(e.preco_mediana),e.tipo_imovel].join("|")).join(";"); /* addr_key no JS é índice interno, não o texto do Python */
+  out.top30={n:S.captacao_top30.length,igual:k(S.captacao_top30)===k(J.captacao_top30)};
+  const ck=(c)=>[c.bairro,c.endereco,c.n_vendas,Math.round(c.preco_mediana/10)*10].join("|"); /* preço arredondado: Python x JS diferem em 0,01 */ const cs=(l)=>{const m=new Map(); l.forEach(c=>{const x=ck(c); (m.get(x)||m.set(x,[]).get(x)).push(c.tipo_imovel);}); m.forEach(v=>v.sort()); return m;};
+  const mp=cs(S.captacao_ativa), mj=cs(J.captacao_ativa); let dt=0; mp.forEach((v,x)=>{ if(JSON.stringify(v)!==JSON.stringify(mj.get(x))) dt+=v.length; });
+  if(S.captacao_ativa.length!==J.captacao_ativa.length) dt+=Math.abs(S.captacao_ativa.length-J.captacao_ativa.length);
+  out.captacao_tipo={enderecos:S.captacao_ativa.length,divergencias:dt};
   out.prontidao_top10_igual=S.prontidao_ranking.slice(0,10).join()===J.prontidao_ranking.slice(0,10).join();
   return out;}"""
 
@@ -96,8 +106,10 @@ def main():
         paginas = "(instale pypdf pra contar páginas)"
     print(json.dumps({"cabecalho": cab, "paridade": par, "aviso_dado_parado": aviso, "paginas_pdf": paginas}, ensure_ascii=False, indent=1))
     print("ERROS DE CONSOLE:", len(erros), erros[:5])
-    div = par["bairros"]["divergencias"] + par["painel8"]["divergencias"] + par["preco_m2"]["divergencias"]
-    ok = not erros and div == 0 and par["prontidao_top10_igual"]
+    div = (par["bairros"]["divergencias"] + par["painel8"]["divergencias"] + par["preco_m2"]["divergencias"]
+           + par["valor_oportunidade"]["divergencias"] + par["captacao_tipo"]["divergencias"])
+    ok = (not erros and div == 0 and par["prontidao_top10_igual"] and par["top30"]["igual"]
+          and par["valor_oportunidade"]["meta_apto"])
     print("RESULTADO:", "OK" if ok else "FALHOU")
     return 0 if ok else 1
 
