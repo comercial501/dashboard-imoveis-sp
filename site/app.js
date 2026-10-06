@@ -354,6 +354,25 @@ function renderAll() {
 // com fresco=false ganham destaque em vermelho/laranja; nonStop não tem
 // aviso de "velho" próprio porque uma falha de busca derruba o build
 // inteiro antes de chegar a gerar um data.json novo (ver build_data.py).
+// Aviso de dado parado (Passo 5b): se o "atualizado em" tem mais de 30 horas
+// NO MOMENTO EM QUE A PÁGINA É ABERTA (conferido aqui, no navegador — não no
+// build), mostra um aviso em destaque no topo. Reconfere a cada 10 minutos
+// pra quem deixa a página aberta. Usa o relógio do computador de quem abre.
+const LIMITE_DADO_PARADO_HORAS = 30;
+function atualizarAvisoDadoParado() {
+  const box = document.getElementById("aviso-dado-parado");
+  if (!box || !SERVER_DATA) return;
+  const gerado = parseInstante(SERVER_DATA.generated_at_iso || SERVER_DATA.generated_at);
+  if (!gerado) { box.hidden = true; return; }
+  const horas = (Date.now() - gerado.getTime()) / 3600000;
+  if (horas > LIMITE_DADO_PARADO_HORAS) {
+    box.textContent = `⚠ Dados sem atualização há ${Math.floor(horas)} horas — verificar a aba Actions do GitHub`;
+    box.hidden = false;
+  } else {
+    box.hidden = true;
+  }
+}
+
 function renderFontesStatus() {
   const el_ = document.getElementById("fontes-status");
   if (!el_) return;
@@ -413,6 +432,8 @@ async function main() {
   const fonte = m.usn && m.usn.fonte === "nonstop_api" ? "API nonStop" : "export nonStop";
   document.getElementById("fontes-foot").textContent = `ITBI (Prefeitura) · ${fonte}`;
   renderFontesStatus();
+  atualizarAvisoDadoParado();
+  setInterval(atualizarAvisoDadoParado, 10 * 60 * 1000);
 
   setupTabs();
   setupFiltros();

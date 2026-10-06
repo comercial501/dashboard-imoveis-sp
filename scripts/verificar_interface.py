@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""
+Verificação de interface do dashboard (uso LOCAL — não roda no GitHub Actions):
+abre o site num Chrome limpo (Playwright), passa pelos 12 painéis coletando
+erros de console, compara o resultado do servidor (data.json) com o recalculado
+no navegador (engine.js + raw.json), confere o cabeçalho e o aviso de dado
+parado, e gera os PDFs (completo + um por painel) contando as páginas.
+
+Requer: pip install playwright pypdf  (e Google Chrome instalado)
+Uso:
+  cd site && python3 serve_no_cache.py 8899 &      # servidor local
+  python3 scripts/verificar_interface.py [--base http://localhost:8899] [--saida /tmp/pdfs]
+Sai com código != 0 se houver erro de console ou divergência de lógica.
+"""
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from playwright.sync_api import sync_playwright
+
+PAINEIS = ["visao-geral", "ranking", "prontidao", "estoque-demanda", "perfil", "mapa", "captacao",
+           "prioritarios", "por-bairro", "valor-oportunidade", "preco-m2", "carteira-77"]
+
+JS_PARIDADE = """()=>{
+  const eq=(a,b)=>{ if(a===b) return true; if(a==null&&b==null) return true; if(typeof a==="number"&&typeof b==="number") return Math.abs(a-b)<=0.011; return JSON.stringify(a)===JSON.stringify(b); };
+  const tol=(a,b)=>{ // arrays/objetos com diferença só de arredondamento (<= 0,011)
+    if(eq(a,b)) return true;
+    if(Array.isArray(a)&&Array.isArray(b)&&a.length===b.length) return a.every((x,i)=>tol(x,b[i]));
+    if(a&&b&&typeof a==="object"&&typeof b==="object"){ const ks=new Set([...Object.keys(a),...Object.keys(b)]); return [...ks].every(k=>tol(a[k],b[k])); }
+    return false; };
+  const S=SERVER_DATA, J=window.__data; const out={};
+  const bf=["perfil_vencedor_faixa_preco_v2","perfil_vencedor_faixa_preco_v2_meta","perfil_faixa_confiavel","estoque_perfil_faixa_preco","estoque_perfil_faixa_preco_nota","estoque_fora_do_perfil","selo_escassez_real","prontidao_campanha","score","stock_demand_ratio","price_gap_pct","revenda_12m","search_interest"];
+  let d=0,n=0,ex=[];
+  for(const b in S.bairros){ for(const f of bf){ n++; if(!tol(S.bairros[b][f],J.bairros[b][f])){d++; ex.length<5&&ex.push(b+"."+f);} } }
+  out.bairros={comparacoes:n,divergencias:d,exemplos:ex};
+  const ip=new Map(J.imoveis_prioritarios.map(i=>[i.codigo,i])); let di=0;
+  for(const i of S.imoveis_prioritarios){const j=ip.get(i.codigo); if(!j||!eq(i.final_score,j.final_score)||i.captacao_bonus!==j.captacao_bonus) di++;}
+  out.painel8={imoveis:S.imoveis_prioritarios.length,divergencias:di};
+  let dp=0,np=0; const pj=new Map(J.preco_m2_painel.map(p=>[p.bairro+"|"+p.faixa,p]));
+  for(const p of S.preco_m2_painel){const q=pj.get(p.bairro+"|"+p.faixa); for(const k in p){np++; if(!q||!eq(p[k],q[k])) dp++;}}
+  out.preco_m2={campos:np,divergencias:dp};
+  out.prontidao_top10_igual=S.prontidao_ranking.slice(0,10).join()===J.prontidao_ranking.slice(0,10).join();
+  return out;}"""
+
+JS_AVISO = """()=>{
+  const box=document.getElementById("aviso-dado-parado"); const original=SERVER_DATA.generated_at_iso; const r={};
+  const t=(h)=>{SERVER_DATA.generated_at_iso=new Date(Date.now()-h*3600000).toISOString(); atualizarAvisoDadoParado(); return box.hidden?"oculto":box.textContent;};
+  r.h29=t(29); r.h30=t(30); r.h31=t(31); r.h120=t(120);
+  SERVER_DATA.generated_at_iso=original; atualizarAvisoDadoParado(); r.real=box.hidden?"oculto":box.textContent; return r;}"""
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--base", default="http://localhost:8899")
+    ap.add_argument("--saida", default="/tmp/verificacao_pdfs")
+    args = ap.parse_args()
+    out_dir = Path(args.saida)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    erros = []
+    with sync_playwright() as p:
+        br = p.chromium.launch(channel="chrome", headless=True)
+        pg = br.new_page()
+        pg.on("pageerror", lambda e: erros.append(str(e)[:200]))
+        pg.on("console", lambda m: erros.append(m.text[:200]) if m.type == "error" else None)
+        pg.goto(args.base, wait_until="networkidle")
+        pg.wait_for_timeout(1500)
+        cab = pg.evaluate("()=>({atualizado:document.getElementById('updated-at').textContent,fontes:document.getElementById('fontes-status').innerText.replace(/\\n/g,' | ')})")
+        pg.evaluate("async()=>{await window.ensureEngineLoaded(); window.recomputeAndRenderAll();}")
+        pg.wait_for_timeout(800)
+        for pid in PAINEIS:
+            pg.evaluate(f"()=>window.showPanel('{pid}')")
+            pg.wait_for_timeout(250)
+        par = pg.evaluate(JS_PARIDADE)
+        aviso = pg.evaluate(JS_AVISO)
+        pg.evaluate("()=>{document.body.classList.add('printing-all'); window.expandAllCaptacao&&window.expandAllCaptacao();}")
+        pg.wait_for_timeout(300)
+        pg.emulate_media(media="print")
+        pg.pdf(path=str(out_dir / "completo.pdf"), print_background=True, prefer_css_page_size=True)
+        pg.emulate_media(media="screen")
+        pg.evaluate("()=>document.body.classList.remove('printing-all')")
+        for pid in PAINEIS:
+            pg.evaluate(f"()=>window.showPanel('{pid}')")
+            pg.wait_for_timeout(150)
+            label = pg.evaluate(f"()=>{{const e=document.querySelector('.panel[data-panel=\"{pid}\"] h2');return e?e.textContent.trim():'{pid}'}}")
+            pg.evaluate(f"()=>window.printPage('{pid}', {label!r})")
+            pg.wait_for_timeout(200)
+            pg.emulate_media(media="print")
+            pg.pdf(path=str(out_dir / f"{pid}.pdf"), print_background=True, prefer_css_page_size=True)
+            pg.emulate_media(media="screen")
+        br.close()
+    try:
+        import pypdf
+        paginas = {k: len(pypdf.PdfReader(str(out_dir / f"{k}.pdf")).pages) for k in ["completo"] + PAINEIS}
+    except ImportError:
+        paginas = "(instale pypdf pra contar páginas)"
+    print(json.dumps({"cabecalho": cab, "paridade": par, "aviso_dado_parado": aviso, "paginas_pdf": paginas}, ensure_ascii=False, indent=1))
+    print("ERROS DE CONSOLE:", len(erros), erros[:5])
+    div = par["bairros"]["divergencias"] + par["painel8"]["divergencias"] + par["preco_m2"]["divergencias"]
+    ok = not erros and div == 0 and par["prontidao_top10_igual"]
+    print("RESULTADO:", "OK" if ok else "FALHOU")
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

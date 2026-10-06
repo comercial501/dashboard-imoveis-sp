@@ -2168,3 +2168,19 @@ adaptativa; `valor_pago_por_bairro.csv` segue como série por ano.
   Google é esperada.
 - `scripts/test_rotina.py` (sem rede): motivos dos alertas, cache por bairro,
   relatório (alertas, variações, top 10, estoque, semana anterior incomparável).
+
+### Passo 5b (2026-10-06)
+
+- **Aviso de dado parado**: no topo do dashboard, se o "atualizado em" (campo
+  `generated_at_iso`) tiver mais de 30 horas NO MOMENTO EM QUE A PÁGINA É ABERTA
+  (conferido no navegador, com o relógio de quem abre, e de novo a cada 10 min),
+  aparece em vermelho "⚠ Dados sem atualização há X horas — verificar a aba
+  Actions do GitHub" (`atualizarAvisoDadoParado` em `site/app.js`). Não depende
+  do build: pega o caso em que a Action nem chega a rodar.
+- **Node 24**: `actions/checkout@v5`, `actions/cache@v5` e `actions/setup-python@v6`
+  (saltos mínimos que já rodam em Node 24; exigem runner >= 2.327.1, que os
+  runners hospedados já têm). Existem majors mais novos (checkout v6/v7, cache v6,
+  setup-python v7), não adotados pra não mudar mais nada além do pedido.
+- **Ubuntu**: os dois workflows já estavam fixados em `ubuntu-24.04`.
+- `scripts/verificar_interface.py`: varredura local de interface (12 painéis,
+  console, paridade servidor × navegador, cabeçalho, aviso de dado parado e PDFs).
