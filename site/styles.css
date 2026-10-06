@@ -94,8 +94,9 @@ header.app-header {
 header.app-header h1 { font-size: 25px; margin: 0; font-weight: 900; }
 header.app-header .handle { color: var(--text-secondary); font-size: 13.5px; margin-top: 2px; }
 header.app-header .updated { color: var(--text-muted); font-size: 12px; }
-.fontes-status { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-muted); }
-.fontes-status .fonte-item { display: flex; align-items: center; gap: 4px; }
+.fontes-status { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; font-size: 11.5px; color: var(--text-muted); max-width: 560px; }
+.fontes-status .fonte-item { display: block; line-height: 1.35; }
+.fontes-status .fonte-item b { color: var(--text-secondary); font-weight: 650; }
 .fontes-status .fonte-stale { color: var(--status-warning); font-weight: 600; }
 .pdf-btn {
   appearance: none; cursor: pointer; font-family: "Montserrat", sans-serif;

@@ -285,17 +285,30 @@ def _get_search_interest():
     low_cut = values[n // 3]
     high_cut = values[(2 * n) // 3]
 
+    # Passo 5 (2026-10-06): a data da busca é POR BAIRRO (idade_dias/fresco
+    # de cada um) — o selo "sem dado recente" vale bairro a bairro, e um
+    # bairro recém-buscado não "rejuvenesce" os outros.
+    agora = datetime.datetime.now(datetime.timezone.utc)
     for b, v in data.items():
-        s = v["avg_monthly_searches"]
-        v["nivel"] = "alto" if s > high_cut else ("baixo" if s <= low_cut else "medio")
+        s_ = v["avg_monthly_searches"]
+        v["nivel"] = "alto" if s_ > high_cut else ("baixo" if s_ <= low_cut else "medio")
+        v["idade_dias"] = (agora - datetime.datetime.fromisoformat(v["fetched_at"])).days
+        v["fresco"] = v["idade_dias"] < SEARCH_INTEREST_MAX_AGE_DIAS and not v["fetch_falhou"]
 
-    fetched_at = datetime.datetime.fromisoformat(cache_meta["fetched_at"])
-    idade_dias = (datetime.datetime.now(datetime.timezone.utc) - fetched_at).days
+    datas = sorted(v["fetched_at"] for v in data.values())
+    n_frescos = sum(1 for v in data.values() if v["fresco"])
     meta = {
         "fonte": "Google Ads Keyword Planner",
-        "fetched_at": cache_meta["fetched_at"],
-        "idade_dias": idade_dias,
-        "fresco": idade_dias < SEARCH_INTEREST_MAX_AGE_DIAS and not cache_meta["fetch_falhou"],
+        # Resumo (a data de verdade está em cada bairro): mais antiga/mais
+        # recente busca, quantos bairros têm dado e quantos estão frescos.
+        "fetched_at": datas[-1],  # compat.: busca mais recente
+        "mais_antiga": datas[0], "mais_recente": datas[-1],
+        "idade_dias": max(v["idade_dias"] for v in data.values()),  # do bairro mais antigo
+        "n_bairros_com_dado": len(data), "n_bairros_total": len(TARGETS),
+        "n_frescos": n_frescos, "n_sem_dado_recente": len(data) - n_frescos,
+        "fresco": n_frescos == len(data),
+        "buscados_agora": len((cache_meta or {}).get("buscados_agora", [])),
+        "tentativa_falhou": bool((cache_meta or {}).get("tentativa_falhou")),
     }
     return data, meta
 
@@ -446,8 +459,12 @@ def main():
     if search_interest:
         _attach_search_interest(result["bairros"], search_interest)
 
+    _agora_build = datetime.now(timezone.utc)
     data = {
-        "generated_at": datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S %Y UTC"),
+        "generated_at": _agora_build.strftime("%a %b %d %H:%M:%S %Y UTC"),
+        # Passo 5: mesmo instante em ISO-8601 (UTC) — a tela converte pra
+        # horário de Brasília em português ("atualizado em 05/10/2026 às 22:48").
+        "generated_at_iso": _agora_build.isoformat(),
         **result,
     }
     data["carteira_77"] = carteira_77

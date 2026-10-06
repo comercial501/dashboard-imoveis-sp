@@ -2124,3 +2124,47 @@ meses-calendário do período (jul/25–jun/26), não "365 dias a partir de hoje
 `output/faixa_valor_pago_por_bairro.csv` traz a mesma faixa por janela
 adaptativa; `valor_pago_por_bairro.csv` segue como série por ano.
 `validate_build`: 13 checagens (nova `check_faixas_amostra`).
+
+## Passo 5 (2026-10-06) — rotina de conferência automática
+
+- **Relatório semanal** (`.github/workflows/relatorio-semanal.yml` +
+  `scripts/relatorio_semanal.py`): toda segunda às 09:00 de Brasília (uma hora
+  depois da atualização diária; se ela ainda estiver rodando o script espera
+  até 25 min) cria uma Issue com label `relatorio-semanal`, atribuída ao dono
+  do repositório (o GitHub avisa por e-mail), e fecha a Issue da semana
+  anterior. Conteúdo: datas de cada fonte (ITBI parado > 45 dias, nonStop > 7
+  dias, Google > 30 dias — o Google é mensal por desenho e o painel só diz
+  "sem dado recente" depois de 30), execuções diárias da semana (rodaram/
+  falharam, pela API do GitHub), bairros com variação > 20% (revendas 12m,
+  estoque da rede, nota do Prontidão — com mudança mínima em números
+  absolutos; só bairros de 100+ revendas contam como alerta) com causa
+  provável, top 10 do Prontidão × semana anterior, estoque da rede (total,
+  novos, saíram, % "anúncio antigo"). Primeira linha: "Semana sem alertas"
+  quando está tudo normal. A "semana anterior" é o último `site/data.json`
+  commitado até 7 dias antes; se for de uma versão com campos diferentes, o
+  relatório avisa que a comparação ainda não é possível. Rodar na hora:
+  Actions → "Relatório semanal de conferência" → Run workflow.
+- **Alerta imediato** (`scripts/alertas.py`, passos no
+  `build-data.yml`): se a atualização diária travar, cria a Issue
+  "⚠ Atualização travada" (label `alerta`) com o motivo em português (queda de
+  estoque, formato novo do ITBI, nonStop fora, check de qualidade, erro
+  inesperado), a data da última atualização boa e o link da execução; se já
+  houver uma aberta, só comenta. Quando uma execução seguinte funciona, a
+  Issue é comentada e fechada. Testar sem mexer nos dados: Actions → "Atualizar
+  dados do dashboard" → Run workflow com `testar_alerta` (cria e fecha uma
+  Issue [TESTE]). Limite: se o GitHub nem alocar o runner (incidente deles),
+  nenhum passo roda e não há como alertar daqui.
+- **Buscas do Google por bairro**: `data/keyword_state.json` v2 guarda a data
+  da busca de CADA bairro (`keyword_client.migrar_estado` converte o v1); só
+  os bairros que faltam ou têm > 25 dias são buscados, numa chamada só.
+  `search_interest` de cada bairro traz `fetched_at`/`idade_dias`/`fresco` e o
+  selo "sem dado recente" vale por bairro (> 30 dias ou busca de hoje
+  falhou). `fontes.google_busca` resume (mais antiga/mais recente, nº de
+  bairros frescos). Os 30 bairros que faltavam foram buscados em 06/10/2026.
+  `validate_build` check 14 confere a coerência (a falta de dado nunca trava).
+- **Cabeçalho**: "atualizado em dd/mm/aaaa às HH:MM (Brasília)" a partir de
+  `generated_at_iso`, e cada fonte diz a periodicidade ("nonStop: diário",
+  "ITBI: mensal (Prefeitura)", "Google: mensal") — data antiga no ITBI e no
+  Google é esperada.
+- `scripts/test_rotina.py` (sem rede): motivos dos alertas, cache por bairro,
+  relatório (alertas, variações, top 10, estoque, semana anterior incomparável).

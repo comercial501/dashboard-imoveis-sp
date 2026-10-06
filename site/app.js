@@ -107,6 +107,30 @@ function anuncioAntigoBadge(idadeDias) {
   }, "Anúncio antigo — validar disponibilidade");
 }
 
+// Datas sempre em horário de Brasília (America/Sao_Paulo) e em português,
+// qualquer que seja o fuso do navegador — a tela fala "05/10/2026 às 22:48".
+const TZ_BR = "America/Sao_Paulo";
+function parseInstante(s) {
+  if (!s) return null;
+  let d = new Date(s);
+  if (isNaN(d)) {
+    // formato antigo do generated_at: "Tue Oct 06 01:48:01 2026 UTC"
+    d = new Date(String(s).replace(/^\w{3} (\w{3}) (\d{2}) (\d{2}:\d{2}:\d{2}) (\d{4}) UTC$/, "$1 $2 $4 $3 UTC"));
+  }
+  return isNaN(d) ? null : d;
+}
+function fmtDataBR(s) {
+  const d = parseInstante(s);
+  return d ? d.toLocaleDateString("pt-BR", { timeZone: TZ_BR, day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
+}
+function fmtDataHoraBR(s) {
+  const d = parseInstante(s);
+  if (!d) return "—";
+  const data = d.toLocaleDateString("pt-BR", { timeZone: TZ_BR, day: "2-digit", month: "2-digit", year: "numeric" });
+  const hora = d.toLocaleTimeString("pt-BR", { timeZone: TZ_BR, hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${data} às ${hora}`;
+}
+
 // Interesse de busca no Google (Keyword Planner) — sinal PROSPECTIVO de
 // demanda (gente pesquisando agora), complementar à liquidez do ITBI
 // (retrospectiva, só vendas já fechadas). Classificação Alto/Médio/Baixo é
@@ -118,22 +142,19 @@ function searchInterestBadge(b) {
   const si = b.search_interest;
   if (!si) return null;
   const meta = DATA.search_interest_meta;
-  const dataFetch = meta ? new Date(meta.fetched_at).toLocaleDateString("pt-BR") : null;
+  // Passo 5 (2026-10-06): a data da busca e o "sem dado recente" valem POR
+  // BAIRRO (si.fetched_at / si.fresco / si.idade_dias, calculados no build).
+  const dataFetch = si.fetched_at ? fmtDataBR(si.fetched_at) : null;
   const fonte = meta ? meta.fonte : "Google Ads Keyword Planner";
-  // Revisão 2026-10-01 (migração do Prontidão): fonte desatualizada
-  // (>= 30 dias, ver build_data.SEARCH_INTEREST_MAX_AGE_DIAS) OU quebrada
-  // (tentativa de hoje falhou, caiu pro cache antigo) — mostra "sem dado
-  // recente" em vez de um selo alto/médio/baixo que pode já não valer
-  // mais, em vez de confiar num número que pode ter meses.
-  if (meta && !meta.fresco) {
+  if (si.fresco === false) {
     const el_ = badge("Busca: sem dado recente", "neutral");
-    el_.title = `Fonte: ${fonte} · último dado de ${dataFetch} (${meta.idade_dias} dias atrás)`;
+    el_.title = `Fonte: ${fonte} · busca deste bairro em ${dataFetch} (${si.idade_dias} dias atrás)`;
     return el_;
   }
   const cfg = { alto: ["Busca: Alto", "gold"], medio: ["Busca: Médio", "neutral"], baixo: ["Busca: Baixo", "neutral"] }[si.nivel];
   if (!cfg) return null;
   const el_ = badge(cfg[0], cfg[1]);
-  el_.title = `~${fmtInt(si.avg_monthly_searches)} buscas/mês (média de ${si.meses_com_dado} meses) · Fonte: ${fonte}${dataFetch ? ` · dado de ${dataFetch}` : ""}`;
+  el_.title = `~${fmtInt(si.avg_monthly_searches)} buscas/mês (média de ${si.meses_com_dado} meses) · Fonte: ${fonte}${dataFetch ? ` · busca deste bairro em ${dataFetch}` : ""}`;
   return el_;
 }
 
@@ -271,6 +292,7 @@ function mergeStaticMeta(computed) {
   // mudam com o filtro — herda do data.json original pros painéis que as
   // exibem (ex: resumo da Visão Geral) não quebrarem.
   computed.generated_at = SERVER_DATA.generated_at;
+  computed.generated_at_iso = SERVER_DATA.generated_at_iso;
   computed.meta.total_itbi_rows_seen = SERVER_DATA.meta.total_itbi_rows_seen;
   computed.meta.total_itbi_rows_matched = SERVER_DATA.meta.total_itbi_rows_matched;
   computed.meta.usn = SERVER_DATA.meta.usn;
@@ -339,32 +361,41 @@ function renderFontesStatus() {
   if (!f) { el_.textContent = ""; return; }
   el_.innerHTML = "";
 
-  const itbiStale = f.itbi && f.itbi.sync_ok === false;
-  const itbiData = f.itbi && f.itbi.arquivo_atualizado_em
-    ? new Date(f.itbi.arquivo_atualizado_em).toLocaleDateString("pt-BR")
-    : "—";
-  // Passo 3c (2026-10-05): rótulo explica que o último mês COMPLETO é
-  // "jun/2026" e que os meses seguintes ainda estão recebendo guias da
-  // Prefeitura — antes mostrava "ITBI: 2026-06", que parecia dado atrasado.
-  // Meses vêm de DATA.periodo_12m (fim + meses_incompletos), não de texto fixo.
+  // Cada fonte mostra de quanto em quanto tempo ela muda — ITBI e Google
+  // mudam por mês, então data antiga neles é ESPERADA, não falha (só a
+  // nonStop é diária). Aviso "dado antigo" só aparece se algo está de fato
+  // fora do normal (sync do ITBI falhou / buscas do Google acima de 30 dias).
   const mesLongo = (ym) => { const [y, m] = ym.split("-").map(Number); return `${MES_ABREV[m - 1]}/${y}`; };
   const p12 = DATA.periodo_12m || {};
-  const ateMes = f.itbi && f.itbi.ultimo_mes_dado ? mesLongo(f.itbi.ultimo_mes_dado) : "—";
   const incompletos = (p12.meses_incompletos || []).map(mesLongo);
-  const itbiTexto = `ITBI: vendas até ${ateMes}${incompletos.length ? ` (${incompletos.map((m) => m.split("/")[0]).join("–")} ainda recebendo guias)` : ""} · arquivo ${itbiData}`;
-  el_.appendChild(el("span", { class: "fonte-item" + (itbiStale ? " fonte-stale" : ""), title: itbiStale ? "Falha ao sincronizar com a Prefeitura — usando o último arquivo salvo em cache." : `Último mês completo de dado do ITBI: ${ateMes}. ${incompletos.length ? "Meses incompletos (Prefeitura ainda registrando guias): " + incompletos.join(", ") + ". " : ""}Data do arquivo baixado da Prefeitura: ${itbiData}.` },
-    `${itbiTexto}${itbiStale ? " ⚠ dado antigo" : ""}`));
 
-  const nsData = f.nonstop && f.nonstop.consultado_em
-    ? new Date(f.nonstop.consultado_em).toLocaleString("pt-BR")
-    : "—";
-  el_.appendChild(el("span", { class: "fonte-item", title: "Horário da última consulta bem-sucedida à nonStop." }, `nonStop: ${nsData}`));
+  const itbiStale = f.itbi && f.itbi.sync_ok === false;
+  const ateMes = f.itbi && f.itbi.ultimo_mes_dado ? mesLongo(f.itbi.ultimo_mes_dado) : "—";
+  const itbiData = f.itbi && f.itbi.arquivo_atualizado_em ? fmtDataBR(f.itbi.arquivo_atualizado_em) : "—";
+  el_.appendChild(el("span", {
+    class: "fonte-item" + (itbiStale ? " fonte-stale" : ""),
+    title: itbiStale
+      ? "Falha ao sincronizar com a Prefeitura — usando o último arquivo salvo em cache."
+      : `A Prefeitura publica a planilha do ITBI uma vez por mês, então data antiga aqui é esperada. Último mês completo: ${ateMes}.${incompletos.length ? " Meses ainda incompletos (guias chegando): " + incompletos.join(", ") + "." : ""}`,
+  }, [el("b", {}, "ITBI: mensal (Prefeitura)"),
+      ` · vendas até ${ateMes}${incompletos.length ? ` (${incompletos.map((m) => m.split("/")[0]).join("–")} ainda recebendo guias)` : ""} · arquivo de ${itbiData}${itbiStale ? " ⚠ dado antigo" : ""}`]));
+
+  const nsData = f.nonstop && f.nonstop.consultado_em ? fmtDataHoraBR(f.nonstop.consultado_em) : "—";
+  el_.appendChild(el("span", { class: "fonte-item", title: "A nonStop é consultada todo dia; esta é a última consulta bem-sucedida." },
+    [el("b", {}, "nonStop: diário"), ` · consultada em ${nsData}`]));
 
   const g = f.google_busca;
-  const googleStale = g && g.fresco === false;
-  const gData = g && g.fetched_at ? new Date(g.fetched_at).toLocaleDateString("pt-BR") : null;
-  el_.appendChild(el("span", { class: "fonte-item" + (googleStale ? " fonte-stale" : ""), title: g ? "Data da última busca de interesse no Google Ads Keyword Planner." : "Busca no Google não configurada." },
-    g ? `Google: ${gData}${googleStale ? " ⚠ dado antigo" : ""}` : "Google: sem dado"));
+  const googleStale = g && g.n_sem_dado_recente > 0;
+  const gTxt = !g ? " · sem dado"
+    : (g.mais_antiga && g.mais_recente && fmtDataBR(g.mais_antiga) !== fmtDataBR(g.mais_recente)
+      ? ` · buscas de ${fmtDataBR(g.mais_antiga)} a ${fmtDataBR(g.mais_recente)} (data de cada bairro no painel)`
+      : ` · busca de ${fmtDataBR(g.mais_recente || g.fetched_at)}`)
+      + ` · ${g.n_bairros_com_dado}/${g.n_bairros_total} bairros`
+      + (googleStale ? ` ⚠ ${g.n_sem_dado_recente} sem dado recente` : "");
+  el_.appendChild(el("span", {
+    class: "fonte-item" + (googleStale ? " fonte-stale" : ""),
+    title: g ? "O volume de busca do Google só muda uma vez por mês, então data antiga aqui é esperada; cada bairro tem a sua data. Vira 'sem dado recente' só depois de 30 dias." : "Busca no Google não configurada.",
+  }, [el("b", {}, "Google: mensal"), gTxt]));
 }
 
 async function main() {
@@ -378,7 +409,7 @@ async function main() {
   window.__data = DATA;
 
   const m = DATA.meta;
-  document.getElementById("updated-at").textContent = `Dados de ${m.years.join("/")} · gerado em ${DATA.generated_at}`;
+  document.getElementById("updated-at").textContent = `Dados de ${m.years.join("/")} · atualizado em ${fmtDataHoraBR(DATA.generated_at_iso || DATA.generated_at)} (Brasília)`;
   const fonte = m.usn && m.usn.fonte === "nonstop_api" ? "API nonStop" : "export nonStop";
   document.getElementById("fontes-foot").textContent = `ITBI (Prefeitura) · ${fonte}`;
   renderFontesStatus();
@@ -568,8 +599,8 @@ async function printPage(panelId, label) {
 
   const metaEl = document.getElementById(`print-meta-${panelId}`);
   if (metaEl) {
-    const geradoEm = new Date().toLocaleString("pt-BR");
-    metaEl.textContent = `Gerado em ${geradoEm} · Período dos dados: ${periodo12mLabel()} · Filtros aplicados: ${filtrosResumoLabel()}`;
+    // PDF: hora do clique, sempre em horário de Brasília; mais a data de atualização dos dados.
+    metaEl.textContent = `PDF gerado em ${fmtDataHoraBR(new Date().toISOString())} (Brasília) · Dados atualizados em ${fmtDataHoraBR(DATA.generated_at_iso || DATA.generated_at)} · Período dos dados: ${periodo12mLabel()} · Filtros aplicados: ${filtrosResumoLabel()}`;
   }
 
   const isCaptacao = panelId === "captacao";
@@ -920,6 +951,11 @@ function renderPerfilContent(name) {
   });
   perfilBox.appendChild(el("div", { class: "small muted", style: "margin-top:8px" },
     `Anúncios da rede nonStop dentro da faixa: ${fmtInt(b.estoque_perfil_faixa_preco)} de ${fmtInt(b.stock_total)}.`));
+  if (b.search_interest) {
+    const si = b.search_interest;
+    perfilBox.appendChild(el("div", { class: "small muted", style: "margin-top:8px" },
+      `Interesse de busca no Google: ~${fmtInt(si.avg_monthly_searches)} buscas/mês (média de ${si.meses_com_dado} meses) · busca deste bairro em ${fmtDataBR(si.fetched_at)}${si.fresco === false ? " — sem dado recente (mais de 30 dias)" : ""}.`));
+  }
   box.appendChild(perfilBox);
 
   const stockBox = el("section", { class: "card", style: "margin:0 0 14px; padding:16px 18px;" });

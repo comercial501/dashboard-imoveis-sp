@@ -50,47 +50,17 @@ def _load_dotenv():
 
 
 def tag_busca(bairro_entry, meta):
+    """Passo 5 (2026-10-06): "sem dado recente" vale POR BAIRRO (data da
+    busca de cada um, ver build_data._get_search_interest)."""
     si = bairro_entry.get("search_interest")
     if not si:
         return "sem dado"
-    if meta and not meta.get("fresco"):
-        data_fmt = meta["fetched_at"][:10] if meta.get("fetched_at") else "?"
-        return f"sem dado recente (fonte: {meta.get('fonte', '?')}, última tentativa {data_fmt})"
-    nivel = {"alto": "Alto", "medio": "Médio", "baixo": "Baixo"}.get(si.get("nivel"), si.get("nivel"))
     fonte = meta.get("fonte", "Google Ads Keyword Planner") if meta else "Google Ads Keyword Planner"
-    data_fmt = meta["fetched_at"][:10] if meta and meta.get("fetched_at") else "?"
-    return f"{nivel} (fonte: {fonte}, dado de {data_fmt})"
-
-
-def _carregar_busca_completa(bairros_alvo, log=print):
-    """Combina o cache existente (data/keyword_state.json) com um fetch
-    AO VIVO, só pros bairros ausentes do cache — reaproveita
-    keyword_client.fetch_search_interest tal como já existe. Retorna
-    dict {bairro: {avg_monthly_searches, meses_com_dado, por_termo}} —
-    "por_termo" só existe pros bairros que vieram do fetch de agora (o
-    cache antigo nunca guardou a granularidade por termo)."""
-    import keyword_client as kc
-
-    state = kc._load_state()
-    combinado = dict(state["data"]) if state else {}
-    faltando = [b for b in bairros_alvo if b not in combinado]
-
-    if not faltando:
-        log("[shortlist] cache de busca já cobre todos os bairros.")
-        return combinado
-
-    if not kc.credentials_available():
-        log(f"[shortlist] GOOGLE_ADS_* não configurado — {len(faltando)} bairro(s) sem cache ficam sem dado de busca: {faltando}")
-        return combinado
-
-    log(f"[shortlist] buscando interesse de busca pra {len(faltando)} bairro(s) sem cache (fetch ao vivo, não salvo no cache compartilhado)...")
-    try:
-        novos = kc.fetch_search_interest(faltando, log=log)
-    except Exception as e:
-        log(f"[shortlist] aviso: falhou buscar os {len(faltando)} bairro(s) que faltavam ({e}) — ficam sem dado de busca.")
-        return combinado
-    combinado.update(novos)
-    return combinado
+    data_fmt = si["fetched_at"][:10] if si.get("fetched_at") else "?"
+    if si.get("fresco") is False:
+        return f"sem dado recente (fonte: {fonte}, busca de {data_fmt})"
+    nivel = {"alto": "Alto", "medio": "Médio", "baixo": "Baixo"}.get(si.get("nivel"), si.get("nivel"))
+    return f"{nivel} (fonte: {fonte}, busca de {data_fmt})"
 
 
 def main():
@@ -99,11 +69,10 @@ def main():
     bairros = data["bairros"]
     meta = data.get("search_interest_meta")
 
-    busca_completa = _carregar_busca_completa(list(bairros.keys()))
 
     linhas = []
     for nome, b in bairros.items():
-        si = busca_completa.get(nome)
+        si = b.get("search_interest")
         por_termo = (si or {}).get("por_termo") or {}
         linhas.append({
             "bairro": nome,
@@ -117,6 +86,7 @@ def main():
             "tag_busca": tag_busca(b, meta),
             "amostra_pequena": b["amostra_pequena_ranking"],
             "buscas_google_mes": si["avg_monthly_searches"] if si else "",
+            "data_busca_google": si["fetched_at"][:10] if si and si.get("fetched_at") else "",
             "busca_apartamento_a_venda": por_termo.get("apartamento_a_venda", ""),
             "busca_apartamento": por_termo.get("apartamento", ""),
             "busca_imoveis": por_termo.get("imoveis", ""),
@@ -129,7 +99,7 @@ def main():
         w = csv.DictWriter(f, fieldnames=[
             "bairro", "nota_prontidao", "revenda_12m", "tendencia_revenda_pct", "giro_12m_pct",
             "anuncios_ativos", "anuncios_perfil_vencedor_faixa_preco", "estoque_fora_do_perfil", "tag_busca",
-            "amostra_pequena", "buscas_google_mes",
+            "amostra_pequena", "buscas_google_mes", "data_busca_google",
             "busca_apartamento_a_venda", "busca_apartamento", "busca_imoveis",
         ])
         w.writeheader()

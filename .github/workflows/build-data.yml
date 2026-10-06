@@ -6,10 +6,16 @@ on:
     # e o Brasil não tem mais horário de verão desde 2019, então
     # America/Sao_Paulo é fixo em UTC-3 o ano todo -> 08:00 BRT = 11:00 UTC.
     - cron: "0 11 * * *"
-  workflow_dispatch: {} # permite rodar manualmente pela aba Actions
+  workflow_dispatch: # permite rodar manualmente pela aba Actions
+    inputs:
+      testar_alerta:
+        description: "Só testar o alerta de 'Atualização travada' (cria e fecha na hora uma Issue [TESTE]; NÃO atualiza os dados)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
+  issues: write # alerta imediato "⚠ Atualização travada" (scripts/alertas.py)
 
 jobs:
   build:
@@ -41,15 +47,20 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Rodar build_data.py
+        if: ${{ !inputs.testar_alerta }}
         env:
           NONSTOP_TOKEN: ${{ secrets.NONSTOP_TOKEN }}
           GOOGLE_ADS_CLIENT_ID: ${{ secrets.GOOGLE_ADS_CLIENT_ID }}
           GOOGLE_ADS_CLIENT_SECRET: ${{ secrets.GOOGLE_ADS_CLIENT_SECRET }}
           GOOGLE_ADS_REFRESH_TOKEN: ${{ secrets.GOOGLE_ADS_REFRESH_TOKEN }}
           GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
-        run: python3 scripts/build_data.py
+        run: |
+          # log guardado em build.log pro alerta saber explicar o motivo se travar
+          set -o pipefail
+          python3 scripts/build_data.py 2>&1 | tee build.log
 
       - name: Commitar site/data.json, site/raw.json, site/itbi_clean_log.json e output/preco_m2_por_bairro.csv se mudou
+        if: ${{ !inputs.testar_alerta }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -60,3 +71,27 @@ jobs:
             git commit -m "chore: atualizar data.json ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
             git push
           fi
+
+      # --- Rotina de conferência (Passo 5) ---------------------------------
+      # Travou (check de segurança, formato novo do ITBI, nonStop fora...):
+      # cria na hora a Issue "⚠ Atualização travada" com o motivo em português.
+      - name: Alertar - atualização travada
+        if: ${{ failure() && !inputs.testar_alerta }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/alertas.py travada --log build.log
+
+      # Rodou bem: se havia um alerta aberto, avisa que normalizou e fecha.
+      - name: Fechar alerta anterior (atualização normalizada)
+        if: ${{ success() && !inputs.testar_alerta }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/alertas.py resolvida
+
+      # Execução manual com "testar_alerta": cria e fecha uma Issue [TESTE]
+      # (confere permissões e e-mail) sem tocar nos dados.
+      - name: Testar o alerta
+        if: ${{ inputs.testar_alerta }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/alertas.py travada --teste

@@ -1,0 +1,35 @@
+name: Relatório semanal de conferência
+
+# Toda segunda-feira às 09:00 (Brasília = 12:00 UTC), uma hora depois da
+# atualização diária das 08:00. Cria uma Issue com o relatório em português
+# (o GitHub avisa por e-mail — a Issue é atribuída ao dono do repositório) e
+# fecha sozinha a Issue da semana anterior. Se a atualização diária de hoje
+# ainda estiver rodando, o script espera até 25 minutos por ela.
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch: {} # "Run workflow" gera um relatório na hora (teste)
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+concurrency:
+  group: relatorio-semanal
+  cancel-in-progress: false
+
+jobs:
+  relatorio:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: "Checkout (histórico completo - o relatório compara com a semana anterior)"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Criar o relatório da semana
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/relatorio_semanal.py --criar-issue

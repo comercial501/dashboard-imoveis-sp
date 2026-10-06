@@ -16,8 +16,9 @@ normalmente sem ele — é um selo informativo a mais, não uma dependência).
 
 Cadência: o próprio Google só atualiza o volume de busca mensalmente (é uma
 média móvel de 12 meses, recalculada uma vez por mês) — não faz sentido
-chamar a API todo dia. build_data.py só rechama se o cache local
-(data/keyword_state.json) tiver mais de 25 dias.
+chamar a API todo dia. A data da busca é guardada POR BAIRRO
+(data/keyword_state.json, versão 2 — ver migrar_estado): o build só
+rechama a API pros bairros que faltam no cache ou têm mais de 25 dias.
 """
 import json
 import os
@@ -203,45 +204,81 @@ def _save_state(state):
     STATE_FILE.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def get_search_interest_cached(bairros, log=print):
-    """Usa o cache se tiver menos de CACHE_MAX_AGE_DAYS dias; senão busca de
-    novo na API e atualiza o cache. Retorna None se não há credenciais
+def migrar_estado(state):
+    """Passo 5 (2026-10-06): o cache passa a guardar a DATA DA BUSCA POR
+    BAIRRO (antes era uma data única pro cache inteiro, o que impedia buscar
+    só os bairros que faltavam sem "rejuvenescer" os demais).
+    v1: {"fetched_at": iso, "data": {bairro: {...}}}
+    v2: {"versao": 2, "bairros": {bairro: {..., "fetched_at": iso}},
+         "ultima_tentativa": {"em": iso, "falhou": bool, "erro": str|None}}
+    Cache v1 vira v2 com a data antiga em todos os bairros que ele cobria."""
+    if not state:
+        return {"versao": 2, "bairros": {}, "ultima_tentativa": None}
+    if state.get("versao") == 2:
+        return state
+    return {
+        "versao": 2,
+        "bairros": {b: {**v, "fetched_at": state["fetched_at"]} for b, v in (state.get("data") or {}).items()},
+        "ultima_tentativa": None,
+    }
+
+
+def get_search_interest_cached(bairros, log=print, agora=None):
+    """Busca por bairro com cache por bairro. Cada bairro tem a sua data de
+    busca (`fetched_at`); só são (re)buscados, numa única chamada à API,
+    os bairros que faltam no cache OU têm mais de CACHE_MAX_AGE_DAYS dias.
+    Os demais mantêm a data original. Retorna None se não há credenciais
     configuradas (feature opcional).
 
-    Revisão 2026-10-01 (migração do Prontidão): retorna (data, meta) em
-    vez de só `data` — meta = {"fetched_at": <ISO-8601>, "fetch_falhou":
-    bool}. `fetched_at` é SEMPRE a data do último fetch que teve sucesso
-    (pode ser bem mais antiga que hoje se a API estiver quebrada há
-    tempos — ver o `return state["data"], {...}` no except abaixo, que
-    propositalmente NÃO atualiza fetched_at nesse caso); `fetch_falhou`
-    marca explicitamente que a tentativa de hoje falhou e os dados detrás
-    são um fallback, pra build_data.py decidir mostrar "sem dado
-    recente" em vez de confiar cegamente só na idade em dias."""
+    Retorna (data, meta):
+      data = {bairro: {avg_monthly_searches, meses_com_dado, por_termo,
+                       fetched_at, fetch_falhou}} — só bairros com dado;
+      meta = {"buscados_agora": [bairros], "tentativa_falhou": bool,
+              "erro": str|None}.
+    `fetched_at` é SEMPRE a data da última busca que teve sucesso daquele
+    bairro; `fetch_falhou` marca que a tentativa de agora pra esse bairro
+    falhou e o dado é o antigo (nunca atualiza a data nesse caso) — o
+    build_data.py usa isso pra mostrar "sem dado recente" POR BAIRRO."""
     import datetime
 
     if not credentials_available():
         log("[keywords] GOOGLE_ADS_* não configurado — pulando sinal de interesse de busca (opcional).")
         return None, None
 
-    state = _load_state()
-    if state:
-        fetched_at = datetime.datetime.fromisoformat(state["fetched_at"])
-        age_days = (datetime.datetime.now(datetime.timezone.utc) - fetched_at).days
-        if age_days < CACHE_MAX_AGE_DAYS:
-            log(f"[keywords] usando cache ({age_days} dias, dados atualizam mensalmente na fonte).")
-            return state["data"], {"fetched_at": state["fetched_at"], "fetch_falhou": False}
+    agora = agora or datetime.datetime.now(datetime.timezone.utc)
+    state = migrar_estado(_load_state())
+    cache = {b: v for b, v in state["bairros"].items() if b in set(bairros)}
 
+    def idade(v):
+        return (agora - datetime.datetime.fromisoformat(v["fetched_at"])).days
+
+    a_buscar = [b for b in bairros if b not in cache or idade(cache[b]) >= CACHE_MAX_AGE_DAYS]
+    meta = {"buscados_agora": [], "tentativa_falhou": False, "erro": None}
+    if not a_buscar:
+        log(f"[keywords] cache por bairro em dia ({len(cache)} bairros, o mais antigo com {max(idade(v) for v in cache.values())} dias).")
+        out = {b: {**v, "fetch_falhou": False} for b, v in cache.items()}
+        return out, meta
+
+    log(f"[keywords] {len(a_buscar)} bairro(s) sem busca ou com +{CACHE_MAX_AGE_DAYS} dias — buscando agora.")
     try:
-        data = fetch_search_interest(bairros, log=log)
+        novos = fetch_search_interest(a_buscar, log=log)
     except Exception as e:
-        log(f"[keywords] aviso: falhou buscar interesse de busca ({e}) — seguindo sem esse sinal.")
-        if state:
-            return state["data"], {"fetched_at": state["fetched_at"], "fetch_falhou": True}
-        return None, None
+        log(f"[keywords] aviso: falhou buscar interesse de busca ({e}) — mantendo os dados antigos de cada bairro.")
+        meta.update(tentativa_falhou=True, erro=str(e))
+        state["ultima_tentativa"] = {"em": agora.isoformat(), "falhou": True, "erro": str(e)}
+        _save_state({**state, "bairros": {**state["bairros"]}})
+        out = {b: {**v, "fetch_falhou": b in a_buscar} for b, v in cache.items()}
+        return (out or None), meta
 
-    fetched_at_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    _save_state({"fetched_at": fetched_at_iso, "data": data})
-    return data, {"fetched_at": fetched_at_iso, "fetch_falhou": False}
+    for b, v in novos.items():
+        cache[b] = {**v, "fetched_at": agora.isoformat()}
+    meta["buscados_agora"] = list(novos.keys())
+    _save_state({
+        "versao": 2,
+        "bairros": {**{b: v for b, v in state["bairros"].items() if b not in cache}, **cache},
+        "ultima_tentativa": {"em": agora.isoformat(), "falhou": False, "erro": None},
+    })
+    return {b: {**v, "fetch_falhou": False} for b, v in cache.items()}, meta
 
 
 if __name__ == "__main__":
@@ -254,4 +291,4 @@ if __name__ == "__main__":
     if result:
         print(f"[meta] {meta}")
         for b, v in sorted(result.items(), key=lambda x: -x[1]["avg_monthly_searches"])[:15]:
-            print(f"  {b}: {v['avg_monthly_searches']} buscas/mês")
+            print(f"  {b}: {v['avg_monthly_searches']} buscas/mês (busca de {v['fetched_at'][:10]})")
