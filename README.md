@@ -2371,7 +2371,9 @@ Cloudflare não apaga as antigas (a documentação não prevê expiração). Tod
 mantém só as N mais recentes (padrão 5) e nunca apaga a que está em produção; por padrão só LISTA
 (`--apagar` apaga). Teste com API falsa: `python3 scripts/test_limpar_cloudflare.py`.
 **Ligada no fim de `scripts/publicar_cloudflare.sh`** (deploy diário e manual), aprovada em 07/10/2026 em 2
-etapas: etapa 1 (`LIMPAR_APAGAR=0`, padrão do script) só LISTA e publica o resumo como anotação do GitHub
-("Limpeza de publicações da Cloudflare", inclusive "Produção na lista de apagar: não"); etapa 2
-(`LIMPAR_APAGAR=1`) apaga, mantendo as 5 mais recentes + a de produção. Falha da limpeza só vira aviso no log
+etapas: etapa 1 (só LISTA; conferida nas execuções reais de 07/10: 3 e 4 publicações, apagaria 0, produção fora
+da lista) e etapa 2 (**ativa desde 07/10/2026**: `LIMPAR_APAGAR=1` é o padrão do script) que apaga, mantendo
+as 5 mais recentes + a de produção. Cada execução publica o resumo como anotação do GitHub ("Limpeza de
+publicações da Cloudflare", com "Produção na lista de apagar: não"). Para só listar de novo: `LIMPAR_APAGAR=0`.
+A primeira exclusão real acontece quando houver a 6ª publicação. Falha da limpeza só vira aviso no log
 (`::warning::`), nunca derruba o deploy.

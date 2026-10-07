@@ -23,8 +23,10 @@ npx --yes wrangler@4 pages deploy cloudflare-dist \
 
 # Limpeza das publicações antigas (mantém as 5 mais recentes + a de produção).
 # NUNCA derruba o deploy: se falhar, só registra o aviso no log.
-# ETAPA 1 (aprovada em 07/10/2026): só LISTA o que apagaria. A etapa 2 troca para 1.
-LIMPAR_APAGAR="${LIMPAR_APAGAR:-0}"
+# ETAPA 1 (07/10/2026): só listou (LIMPAR_APAGAR=0) — conferido nas execuções reais, produção
+# fora da lista. ETAPA 2 (07/10/2026, aprovada): apaga de verdade. Para voltar a só listar,
+# rode com LIMPAR_APAGAR=0.
+LIMPAR_APAGAR="${LIMPAR_APAGAR:-1}"
 modo=""
 [ "$LIMPAR_APAGAR" = "1" ] && modo="--apagar"
 python3 scripts/limpar_publicacoes_cloudflare.py --manter 5 $modo \
