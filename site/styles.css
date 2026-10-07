@@ -173,6 +173,7 @@ section.card .card-sub { color: var(--text-secondary); font-size: 13px; margin-b
 .bar-row .bar-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
 .bar-row .bar-label { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar-row.local .bar-label { font-weight: 650; }
+.pagamento-bars .bar-label { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.2; }
 
 /* Tables */
 table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }

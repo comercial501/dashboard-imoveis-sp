@@ -222,7 +222,7 @@ function barRows(container, rows, { valueFmt = (v) => fmtInt(v), colorVar = "--g
   const max = maxOverride || Math.max(1, ...rows.map((r) => r.value));
   rows.forEach((r) => {
     const row = el("div", { class: "bar-row" + (r.local ? " local" : "") });
-    row.appendChild(el("div", { class: "bar-label" }, r.label));
+    row.appendChild(el("div", r.dica ? { class: "bar-label", title: r.dica } : { class: "bar-label" }, r.label));
     const track = el("div", { class: "bar-track" });
     track.appendChild(el("div", { class: "bar-fill", style: `width:${Math.min(100, (r.value / max) * 100)}%; background:var(${r.colorVar || colorVar})` }));
     row.appendChild(track);
@@ -995,15 +995,16 @@ function renderPerfil() {
 
 // "Como se paga neste bairro" (Rodada C): forma de pagamento nas compras do ITBI. Financiamento = o
 // que passou por banco (SFH, Minha Casa Minha Vida, SFI/carteira hipotecária); consórcio aparece à parte.
+const PAGAMENTO_DICA_SEM_FINANCIAMENTO = "Guias de ITBI sem financiamento informado. Inclui compras com recursos próprios e parcelamentos direto com o vendedor, que não passam por banco.";
 const PAGAMENTO_ROTULOS = [
-  ["a_vista", "À vista"], ["sfh", "SFH"], ["mcmv", "MCMV"], ["sfi", "SFI"], ["consorcio", "Consórcio"], ["outros", "Outros"],
+  ["a_vista", "Sem financiamento bancário"], ["sfh", "SFH"], ["mcmv", "MCMV"], ["sfi", "SFI"], ["consorcio", "Consórcio"], ["outros", "Outros"],
 ];
 
 function frasePagamento(p, nome) {
   const partes = [`${fmtPct(p.financiamento_bancario_pct)} das compras usaram financiamento de banco`];
   if (p.pct_financiado_mediana != null) partes[0] += `; em geral o banco financiou ${fmtPct(p.pct_financiado_mediana)} do valor (mediana)`;
   partes[0] += ".";
-  partes.push(`${fmtPct(p.pct.a_vista)} foram à vista${p.pct.consorcio >= 0.5 ? ` e ${fmtPct(p.pct.consorcio)} por consórcio` : ""}.`);
+  partes.push(`${fmtPct(p.pct.a_vista)} sem financiamento bancário${p.pct.consorcio >= 0.5 ? ` e ${fmtPct(p.pct.consorcio)} por consórcio` : ""}.`);
   return partes.join(" ");
 }
 
@@ -1013,9 +1014,9 @@ function blocoPagamento(p, titulo, secundario) {
   if (p.poucas_vendas) cab.push(badge("Poucas vendas", "neutral"));
   wrap.appendChild(el("div", { class: secundario ? "small muted" : "" }, cab));
   wrap.appendChild(el("div", { class: secundario ? "small muted" : "small" }, frasePagamento(p)));
-  const barras = el("div", {});
+  const barras = el("div", { class: "pagamento-bars" });
   barRows(barras, PAGAMENTO_ROTULOS.filter(([k]) => p.pct[k] > 0 || ["a_vista", "sfh"].includes(k))
-    .map(([k, rotulo]) => ({ label: rotulo, value: p.pct[k], colorVar: k === "a_vista" ? "--series-blue" : "--gold" })),
+    .map(([k, rotulo]) => ({ label: rotulo, value: p.pct[k], colorVar: k === "a_vista" ? "--series-blue" : "--gold", dica: k === "a_vista" ? PAGAMENTO_DICA_SEM_FINANCIAMENTO : undefined })),
     { valueFmt: (v) => fmtPct(v), maxOverride: 100 });
   wrap.appendChild(barras);
   wrap.appendChild(el("div", { class: "small muted" },
@@ -1029,7 +1030,7 @@ function pagamentoBox(b) {
   box.appendChild(el("div", { class: "card-sub", style: "margin-bottom:6px" },
     "Forma de pagamento nas revendas (compra e venda de imóvel já existente) registradas no ITBI da Prefeitura, só da camada limpa de preço. “Financiamento” = crédito de banco (SFH, Minha Casa Minha Vida ou SFI); consórcio aparece separado. Não muda com os filtros de bairro/preço do alto da página."));
   box.appendChild(el("div", { class: "small muted", style: "margin-bottom:4px" },
-    "Siglas: À vista = sem financiamento informado · SFH = Sistema Financeiro de Habitação · MCMV = Minha Casa Minha Vida · SFI = carteira hipotecária (crédito imobiliário fora do SFH)."));
+    `Sem financiamento bancário: ${PAGAMENTO_DICA_SEM_FINANCIAMENTO} Siglas: SFH = Sistema Financeiro de Habitação · MCMV = Minha Casa Minha Vida · SFI = carteira hipotecária (crédito imobiliário fora do SFH).`));
   const pag = b.pagamento;
   const rev = pag && pag.revenda;
   if (!rev || !Object.keys(rev).length) {
@@ -1843,7 +1844,7 @@ function renderCarteira77() {
       { key: "unidades_iptu", label: "Unidades IPTU", fmt: (v) => fmtInt(v) },
       { key: "giro_12m_pct", label: "Giro", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
       // Rodada C: forma de pagamento da revenda limpa (apartamento + casa)
-      { key: "pagamento_a_vista_pct", label: "Compras à vista", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
+      { key: "pagamento_a_vista_pct", label: "Compras sem financiamento bancário", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
       { key: "pagamento_financiamento_pct", label: "Compras com financiamento de banco", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
       {
         key: "pagamento_pct_financiado_mediana", label: "Banco financiou (mediana)",

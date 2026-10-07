@@ -104,6 +104,9 @@ def main():
         pg.evaluate("()=>{window.showPanel('perfil'); const s=document.getElementById('perfil-select'); s.value='Vila Mariana'; s.dispatchEvent(new Event('change'));}")
         pg.wait_for_timeout(300)
         telas["perfil_como_se_paga"] = pg.evaluate("()=>{const e=[...document.querySelectorAll('#perfil-content h2')].find(h=>h.textContent==='Como se paga neste bairro'); return e? e.parentElement.innerText.slice(0,260).replace(/\\n/g,' | ') : null}")
+        txt_perfil = pg.evaluate("()=>{const e=[...document.querySelectorAll('#perfil-content h2')].find(h=>h.textContent==='Como se paga neste bairro'); return e? e.parentElement.innerText : ''}")
+        telas["perfil_rotulo_ok"] = ("Sem financiamento bancário" in txt_perfil and "sem financiamento bancário" in txt_perfil and "Guias de ITBI sem financiamento informado" in txt_perfil
+                                     and "à vista" not in txt_perfil.lower())
         pg.evaluate("()=>window.showPanel('carteira-77')")
         telas["carteira_colunas"] = pg.evaluate("()=>[...document.querySelectorAll('#carteira-77-table thead th')].map(t=>t.textContent.replace(/[↕↓↑]/g,'').trim())")
         aviso = pg.evaluate(JS_AVISO)
@@ -135,7 +138,7 @@ def main():
     div = (par["bairros"]["divergencias"] + par["painel8"]["divergencias"] + par["preco_m2"]["divergencias"]
            + par["valor_oportunidade"]["divergencias"] + par["captacao_tipo"]["divergencias"] + par["correcao_tempo"]["divergencias"])
     ok = (not erros and par["pagamento"]["divergencias"] == 0 and par["pagamento"]["credito_igual"] and telas["credito_cartoes"] == 4
-          and telas["perfil_como_se_paga"] and not raw_antes_do_filtro and lista_ok and div == 0 and par["prontidao_top10_igual"] and par["top30"]["igual"]
+          and telas["perfil_como_se_paga"] and telas["perfil_rotulo_ok"] and not raw_antes_do_filtro and lista_ok and div == 0 and par["prontidao_top10_igual"] and par["top30"]["igual"]
           and par["valor_oportunidade"]["meta_apto"] and par["correcao_tempo"]["resumo_igual"])
     print("RESULTADO:", "OK" if ok else "FALHOU")
     return 0 if ok else 1
