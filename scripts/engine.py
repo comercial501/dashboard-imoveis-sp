@@ -68,6 +68,12 @@ ADDR_MAX_RATIO = 20
 # endereço).
 ADDR_MAX_RATIO_AREA = 4
 CAPTACAO_TOP_N = 30
+# Rodada C (2026-10-07): forma de pagamento (ITBI, colunas "Tipo de Financiamento" e
+# "Valor Financiado"). Categorias pelo TIPO (sem tipo = à vista): 1.SFH, 2.Minha Casa Minha
+# Vida, 3.Consórcio, 99.SFI/carteira hipotecária; qualquer outro texto = outros.
+PAGAMENTO_CATEGORIAS = ("a_vista", "sfh", "mcmv", "sfi", "consorcio", "outros")
+PAGAMENTO_FINANCIAMENTO_BANCARIO = ("sfh", "mcmv", "sfi")  # o que conta como "financiamento" no texto
+PAGAMENTO_MIN_FINANCIADAS = 10  # mediana do % financiado só com pelo menos isso de compras financiadas com valor
 VALOR_OPORTUNIDADE_MIN_DESCONTO = 0.20
 VALOR_OPORTUNIDADE_ATENCAO_DESCONTO = 0.30
 VALOR_OPORTUNIDADE_MIN_VENDAS_PRIMARY = 10
@@ -790,6 +796,105 @@ def _is_launch(days):
         if cnt >= LAUNCH_MIN_COUNT:
             return True
     return False
+
+
+def categoria_pagamento(tipo_financiamento):
+    """Rodada C: à vista (campo vazio), SFH ("1."), MCMV ("2."), consórcio ("3."), SFI/carteira
+    hipotecária ("99."), outros (qualquer outro texto — ainda não apareceu nos dados)."""
+    t = (tipo_financiamento or "").strip()
+    if not t:
+        return "a_vista"
+    if t.startswith("1."):
+        return "sfh"
+    if t.startswith("2."):
+        return "mcmv"
+    if t.startswith("3."):
+        return "consorcio"
+    if t.startswith("99."):
+        return "sfi"
+    return "outros"
+
+
+def _percentuais_somando_100(contagem, total):
+    """% de cada categoria com 1 casa, ajustados (maiores restos) pra somar exatamente 100,0."""
+    bruto = {k: 1000 * contagem[k] / total for k in PAGAMENTO_CATEGORIAS}
+    base = {k: int(v) for k, v in bruto.items()}
+    falta = 1000 - sum(base.values())
+    for k in sorted(PAGAMENTO_CATEGORIAS, key=lambda k: (-(bruto[k] - base[k]), PAGAMENTO_CATEGORIAS.index(k)))[:falta]:
+        base[k] += 1
+    return {k: base[k] / 10 for k in PAGAMENTO_CATEGORIAS}
+
+
+def perfil_pagamento(recs):
+    """Perfil de pagamento de uma lista de registros do ITBI (dicts com `tipo_financiamento`,
+    `valor` e `valor_financiado`). Usado pelo motor (data.json) e pelo export CSV — uma regra só.
+    Retorna None se a lista é vazia. `pct_financiado_mediana` = mediana de valor financiado ÷
+    valor da venda, só nas compras com financiamento bancário (SFH, MCMV, SFI) e valor financiado
+    entre 0 (exclusive) e o valor da venda; None com menos de PAGAMENTO_MIN_FINANCIADAS."""
+    if not recs:
+        return None
+    contagem = {k: 0 for k in PAGAMENTO_CATEGORIAS}
+    pcts, inconsistentes = [], 0
+    for r in recs:
+        cat = categoria_pagamento(r.get("tipo_financiamento"))
+        contagem[cat] += 1
+        vf = r.get("valor_financiado") or 0
+        if cat == "a_vista":
+            if vf > 0:
+                inconsistentes += 1  # sem tipo de financiamento mas com valor financiado
+            continue
+        if not (0 < vf <= r["valor"]):
+            inconsistentes += 1  # com tipo de financiamento mas valor financiado zero, negativo ou acima da venda
+            continue
+        if cat in PAGAMENTO_FINANCIAMENTO_BANCARIO:
+            pcts.append(vf / r["valor"])
+    total = len(recs)
+    pct = _percentuais_somando_100(contagem, total)
+    bancario = sum(contagem[k] for k in PAGAMENTO_FINANCIAMENTO_BANCARIO)
+    return {
+        "n_vendas": total, "contagem": contagem, "pct": pct,
+        "financiamento_bancario_pct": _round(100 * bancario / total, 1),
+        "pct_financiado_mediana": _round(100 * median(pcts), 1) if len(pcts) >= PAGAMENTO_MIN_FINANCIADAS else None,
+        "n_financiadas_com_valor": len(pcts), "n_inconsistentes": inconsistentes,
+    }
+
+
+def _compute_pagamento(itbi_records, periodo_12m, inicio_dados):
+    """Rodada C: perfil de pagamento por bairro, separado em revenda (camada limpa) e planta, e por
+    tipo (apartamento, casa e total). Mesma janela adaptativa das faixas de preço: 12 meses se
+    houver >= 30 vendas, senão 24, senão 36 (cortada em jan/2024); abaixo de 30 mesmo assim,
+    `poucas_vendas`. Planta: sem filtro de preço (o perfil de financiamento não depende dele) e
+    por tipo só quando o registro tem tipo (venda na planta costuma vir com o uso do lote-mãe)."""
+    janelas = janelas_meses(periodo_12m, inicio_dados)
+    conj = {w: set(janelas[w]) for w in janelas}
+    grupos = {"revenda": {}, "planta": {}}
+    for r in itbi_records:
+        if r["bairro"] not in TARGETS or r["day"] is None:
+            continue
+        if _is_revenda_limpa(r):
+            origem = "revenda"
+        elif r.get("is_planta"):
+            origem = "planta"
+        else:
+            continue
+        ym = excel_serial_to_ym(r["day"])
+        chaves = ["total"] + ([r["tipo_imovel"]] if r["tipo_imovel"] in ("apartamento", "casa") else [])
+        for chave in chaves:
+            por_janela = grupos[origem].setdefault((r["bairro"], chave), {w: [] for w in janelas})
+            for w in janelas:
+                if ym in conj[w]:
+                    por_janela[w].append(r)
+    out = {b: {"revenda": {}, "planta": {}} for b in TARGETS}
+    for origem in ("revenda", "planta"):
+        for (bairro, chave), por_janela in grupos[origem].items():
+            w, poucas = escolher_janela({k: len(v) for k, v in por_janela.items()})
+            recs = por_janela[w]
+            if not recs:
+                continue
+            perfil = perfil_pagamento(recs)
+            perfil.update(_meta_janela(janelas, w, len(recs), poucas))
+            out[bairro][origem][chave] = perfil
+    return out
 
 
 def _tipo_majoritario(recs):
@@ -1810,6 +1915,7 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
     profile = _compute_profile(pairs_all_years, usn_by_bairro, centroids)
     inicio_dados = (min(years), 1)
     perfil_preco_v2 = _compute_perfil_vencedor_faixa_preco_v2(itbi_records, periodo_12m_externo[0], usn_by_bairro, inicio_dados)
+    pagamento = _compute_pagamento(itbi_records, periodo_12m_externo[0], inicio_dados)
     hoje_serial = today_excel_serial()
     preco_m2 = _compute_preco_m2(itbi_records, usn_records, hoje_serial)
     preco_m2_painel = _compute_preco_m2_painel(itbi_records, usn_records, hoje_serial, periodo_12m_externo[0], inicio_dados)
@@ -1928,6 +2034,7 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
             # nesta rodada.
             "estoque_perfil_faixa_preco": perfil_preco_v2[b]["profile_sample_size_faixa_preco_v2"],
             "perfil_vencedor_faixa_preco_v2": perfil_preco_v2[b]["bandas"],
+            "pagamento": pagamento[b],
             # Proteção de amostra: período usado por tipo (12/24/36 meses),
             # nº de vendas limpas e selo "poucas vendas"; faixa_confiavel =
             # algum tipo com >= 30 vendas; _nota = estoque só em faixas

@@ -172,18 +172,25 @@ def exportar_faixa_adaptativa(revenda_resolvida):
         ym = excel_serial_to_ym(r["day"])
         for w in janelas:
             if ym in conj[w]:
-                vals.setdefault((r["bairro"], tipo), {w2: [] for w2 in janelas})[w].append(r["valor"])
+                vals.setdefault((r["bairro"], tipo), {w2: [] for w2 in janelas})[w].append(r)
     linhas = []
     for (bairro, tipo), por_janela in sorted(vals.items()):
         w, poucas = engine.escolher_janela({k: len(v) for k, v in por_janela.items()})
-        v = por_janela[w]
+        regs = por_janela[w]
+        v = [x["valor"] for x in regs]
         meta = engine._meta_janela(janelas, w, len(v), poucas)
+        # Rodada C: forma de pagamento nas MESMAS vendas da faixa (engine.perfil_pagamento — mesma regra do dashboard)
+        pg = engine.perfil_pagamento(regs)
         linhas.append({
             "bairro": bairro, "tipo": tipo, "janela_meses": w, "meses_com_dado": meta["meses_com_dado"],
             "periodo_inicio": meta["periodo_inicio"], "periodo_fim": meta["periodo_fim"],
             "n_vendas_limpas": len(v),
             "p25": round(percentile(25, v), 2), "mediana": round(median(v), 2), "p75": round(percentile(75, v), 2),
             "poucas_vendas": poucas,
+            "pct_a_vista": pg["pct"]["a_vista"], "pct_sfh": pg["pct"]["sfh"], "pct_minha_casa_minha_vida": pg["pct"]["mcmv"],
+            "pct_sfi_carteira_hipotecaria": pg["pct"]["sfi"], "pct_consorcio": pg["pct"]["consorcio"], "pct_outros": pg["pct"]["outros"],
+            "pct_financiamento_banco": pg["financiamento_bancario_pct"], "pct_financiado_mediana": pg["pct_financiado_mediana"],
+            "guias_valor_financiado_inconsistente": pg["n_inconsistentes"],
         })
     with open(OUT_FAIXA_CSV, "w", newline="", encoding="utf-8") as f:
         w_ = csv.DictWriter(f, fieldnames=list(linhas[0].keys()))

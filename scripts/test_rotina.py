@@ -258,6 +258,104 @@ ok(ha.data_brasilia(datetime.datetime(2026, 10, 7, 2, 30, tzinfo=datetime.timezo
 ok(ha.agora_brasilia(datetime.datetime(2026, 10, 7, 2, 30, 5, tzinfo=datetime.timezone.utc)) == "2026-10-06T23:30:05", "histórico: data e hora em horário de Brasília")
 
 # ---------------------------------------------------------------------------
+# 3c. Rodada C: forma de pagamento (ITBI) e contexto de crédito (Banco Central)
+# ---------------------------------------------------------------------------
+import engine as _eng
+import bcb_client as _bcb
+
+ok(_eng.categoria_pagamento(None) == "a_vista" and _eng.categoria_pagamento("") == "a_vista" and _eng.categoria_pagamento("1.Sistema Financeiro de Habitação") == "sfh"
+   and _eng.categoria_pagamento("2.Minha Casa Minha Vida") == "mcmv" and _eng.categoria_pagamento("3.Consórcio") == "consorcio"
+   and _eng.categoria_pagamento("99.SFI, Carteira Hipotecária, etc") == "sfi" and _eng.categoria_pagamento("7.Qualquer coisa nova") == "outros",
+   "pagamento: categorias pelo texto do Tipo de Financiamento (vazio = à vista, texto novo = outros)")
+
+
+def _r(tipo, valor, vf):
+    return {"tipo_financiamento": tipo, "valor": valor, "valor_financiado": vf}
+
+
+amostra = ([_r(None, 1_000_000, 0)] * 6 + [_r("1.Sistema Financeiro de Habitação", 1_000_000, 700_000)] * 12 + [_r("2.Minha Casa Minha Vida", 300_000, 240_000)] * 3
+           + [_r("3.Consórcio", 500_000, 400_000)] * 2 + [_r("99.SFI, Carteira Hipotecária, etc", 800_000, 400_000)])
+pf = _eng.perfil_pagamento(amostra)
+ok(pf["n_vendas"] == 24 and abs(sum(pf["pct"].values()) - 100.0) < 1e-9 and sum(pf["contagem"].values()) == 24, "pagamento: percentuais somam exatamente 100% e a contagem bate")
+ok(pf["pct"]["a_vista"] == 25.0 and pf["financiamento_bancario_pct"] == 66.7 and pf["pct"]["consorcio"] == 8.3, "pagamento: à vista 25%, financiamento de banco 66,7% (SFH+MCMV+SFI), consórcio à parte")
+ok(pf["pct_financiado_mediana"] == 70.0 and pf["n_financiadas_com_valor"] == 16, "pagamento: mediana do % financiado só entre as financiadas por banco (SFH/MCMV/SFI) com valor")
+# 33 casos de arredondamento: sempre 100,0
+import random
+random.seed(3)
+for _ in range(200):
+    c = {k: random.randint(0, 40) for k in _eng.PAGAMENTO_CATEGORIAS}
+    if sum(c.values()) == 0:
+        continue
+    assert abs(sum(_eng._percentuais_somando_100(c, sum(c.values())).values()) - 100.0) < 1e-9
+ok(True, "pagamento: 200 sorteios de contagens — os percentuais arredondados sempre somam 100,0")
+incons = _eng.perfil_pagamento([_r(None, 100_000, 50_000), _r("1.Sistema Financeiro de Habitação", 100_000, 0), _r("1.Sistema Financeiro de Habitação", 100_000, -5_000), _r("1.Sistema Financeiro de Habitação", 100_000, 200_000)])
+ok(incons["n_inconsistentes"] == 4 and incons["pct_financiado_mediana"] is None and incons["pct"]["a_vista"] == 25.0,
+   "pagamento: sem tipo mas com valor financiado, e com tipo mas valor 0/negativo/acima da venda, contam como inconsistentes e não entram na mediana")
+ok(_eng.perfil_pagamento([]) is None, "pagamento: lista vazia não vira perfil")
+ok(_eng.perfil_pagamento([_r("1.Sistema Financeiro de Habitação", 1_000_000, 500_000)] * 5)["pct_financiado_mediana"] is None, "pagamento: menos de 10 compras financiadas não gera mediana")
+
+# --- Banco Central: série falsa, fuso, futuro, fallback ---
+hoje_ = datetime.date(2026, 10, 7)
+D = datetime.date
+mensal = [(D(2025, m, 1), 10.0 + m / 10) for m in range(8, 13)] + [(D(2026, m, 1), 11.0 + m / 10) for m in range(1, 9)]
+diaria = [(D(2025, 10, 6), 15.0), (D(2025, 10, 7), 15.0), (D(2026, 9, 7), 14.0), (D(2026, 10, 7), 13.75)]
+
+
+def _falsa(cod, hj):
+    if cod == 432:
+        return diaria
+    if cod in (20772, 20773, 13522):
+        return mensal
+    raise RuntimeError("fora do ar")
+
+
+agora_ = datetime.datetime(2026, 10, 7, 12, 0, tzinfo=datetime.timezone.utc)
+ctx1 = _bcb.buscar_contexto(agora=agora_, buscar=_falsa)
+sel = next(x for x in ctx1["series"] if x["id"] == "selic")
+ok(sel["valor"] == 13.75 and sel["valor_mes_anterior"] == 14.0 and sel["var_mes_pp"] == -0.25 and sel["valor_12m"] == 15.0 and sel["var_12m_pp"] == -1.25, "banco central: valor atual, mês anterior e 12 meses atrás da Selic (diária)")
+ip = next(x for x in ctx1["series"] if x["id"] == "ipca_12m")
+ok(ip["data"] == "2026-08-01" and ip["valor_mes_anterior"] == mensal[-2][1] and ip["valor_12m"] == mensal[-13][1] if len(mensal) >= 13 else ip["valor_12m"] is not None, "banco central: série mensal usa o ponto anterior e o de 12 meses atrás")
+ok(not ctx1["falhas"] and all(not x["desatualizado"] and x["fonte"].startswith("Banco Central") and x["explicacao"] for x in ctx1["series"]), "banco central: com a API ok nada fica desatualizado e toda série traz fonte e explicação")
+
+
+def _quebrada(cod, hj):
+    raise RuntimeError("API fora do ar")
+
+
+ctx2 = _bcb.buscar_contexto(anterior=ctx1, agora=agora_ + datetime.timedelta(days=1), buscar=_quebrada)
+ok(len(ctx2["falhas"]) == 4 and all(x["desatualizado"] and x["valor"] is not None and x["data"] == y["data"] and x["erro"] for x, y in zip(ctx2["series"], ctx1["series"])),
+   "banco central: API fora do ar mantém o último valor bom (com a data dele) e marca desatualizado — não levanta erro")
+ctx3 = _bcb.buscar_contexto(anterior=None, agora=agora_, buscar=_quebrada)
+ok(all(x["valor"] is None and x["desatualizado"] for x in ctx3["series"]), "banco central: sem valor guardado e sem API, a série fica vazia mas o build não quebra")
+ctx4 = _bcb.buscar_contexto(anterior=ctx1, agora=agora_, buscar=lambda c, h: _falsa(c, h) if c != 13522 else (_ for _ in ()).throw(RuntimeError("só o IPCA falhou")))
+ok(ctx4["falhas"] == ["ipca_12m"] and [x["desatualizado"] for x in ctx4["series"]] == [False, False, False, True], "banco central: falha de UMA série não afeta as outras")
+# filtro de datas futuras (a série da Selic traz dias que ainda não chegaram)
+import json as _json
+
+
+class _Resp:
+    def __init__(self, corpo): self.corpo = corpo
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def read(self): return self.corpo
+
+
+fut = _json.dumps([{"data": "06/10/2026", "valor": "13.75"}, {"data": "07/10/2026", "valor": "13.75"}, {"data": "02/11/2026", "valor": "99.0"}]).encode()
+pts = _bcb.buscar_pontos(432, hoje_, abrir=lambda req, timeout: _Resp(fut))
+ok(pts[-1] == (D(2026, 10, 7), 13.75) and all(p[0] <= hoje_ for p in pts), "banco central: datas futuras da API são descartadas")
+
+# relatório semanal com a seção de crédito
+_c = copy.deepcopy(json.loads((ROOT / "site" / "data.json").read_text(encoding="utf-8"))) if (ROOT / "site" / "data.json").exists() else None
+if _c is not None and "contexto_credito" in _c:
+    alertas_ = []
+    linhas_ = rel.secao_credito(_c, alertas_)
+    ok(any("Selic" in x for x in linhas_) and not alertas_, "relatório: seção de contexto de crédito com os números (sem alerta quando tudo atualizou)")
+    _c["contexto_credito"] = ctx2
+    alertas_ = []
+    linhas_ = rel.secao_credito(_c, alertas_)
+    ok(len(alertas_) == 4 and any("dado de" in x for x in linhas_), "relatório: série desatualizada aparece com 'dado de [data]' e vira alerta da semana")
+
+# ---------------------------------------------------------------------------
 # 4. relatório com os dados reais do repositório (histórico do Git)
 # ---------------------------------------------------------------------------
 try:

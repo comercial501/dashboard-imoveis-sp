@@ -496,7 +496,32 @@ def main():
         "generated_at_iso": _agora_build.isoformat(),
         **result,
     }
+    # Rodada C: colunas aditivas de forma de pagamento no carteira_77 (revenda limpa, apartamento + casa,
+    # janela adaptativa 12/24/36 meses — o mesmo perfil que o motor calcula por bairro).
+    for b, v77 in carteira_77["bairros"].items():
+        tot = ((result["bairros"].get(b) or {}).get("pagamento") or {}).get("revenda", {}).get("total")
+        v77.update({
+            "pagamento_a_vista_pct": tot["pct"]["a_vista"] if tot else None,
+            "pagamento_financiamento_pct": tot["financiamento_bancario_pct"] if tot else None,
+            "pagamento_consorcio_pct": tot["pct"]["consorcio"] if tot else None,
+            "pagamento_pct_financiado_mediana": tot["pct_financiado_mediana"] if tot else None,
+            "pagamento_n_vendas": tot["n_vendas"] if tot else None,
+            "pagamento_janela_meses": tot["janela_meses"] if tot else None,
+            "pagamento_poucas_vendas": tot["poucas_vendas"] if tot else None,
+        })
     data["carteira_77"] = carteira_77
+    # Rodada C (item 2): contexto de crédito — séries públicas do Banco Central. Fonte SECUNDÁRIA: se a
+    # API falhar, mantém o último valor bom do data.json anterior (marcado desatualizado) e segue.
+    import bcb_client
+    try:
+        _anterior = json.loads(OUT.read_text(encoding="utf-8")).get("contexto_credito") if OUT.exists() else None
+    except (ValueError, OSError):
+        _anterior = None
+    data["contexto_credito"] = bcb_client.buscar_contexto(anterior=_anterior)
+    if data["contexto_credito"]["falhas"]:
+        print(f"[build] AVISO: séries do Banco Central sem atualizar hoje: {data['contexto_credito']['falhas']} (mantido o último valor; o build segue)")
+    else:
+        print("[build] contexto de crédito (Banco Central) atualizado: " + " | ".join(f"{s['nome']}: {s['valor']}" for s in data["contexto_credito"]["series"]))
     # Revisão 2026-10-01 (migração do Prontidão): global (um fetch só pra
     # todos os bairros) — ver _get_search_interest/keyword_client.
     data["search_interest_meta"] = search_interest_meta

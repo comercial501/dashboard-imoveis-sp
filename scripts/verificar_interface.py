@@ -53,6 +53,8 @@ JS_PARIDADE = """()=>{
   const mp=cs(S.captacao_ativa), mj=cs(J.captacao_ativa); let dt=0; mp.forEach((v,x)=>{ if(JSON.stringify(v)!==JSON.stringify(mj.get(x))) dt+=v.length; });
   if(S.captacao_ativa.length!==J.captacao_ativa.length) dt+=Math.abs(S.captacao_ativa.length-J.captacao_ativa.length);
   out.captacao_tipo={enderecos:S.captacao_ativa.length,divergencias:dt};
+  let dpg=0, npg=0; for(const b in S.bairros){ npg++; if(JSON.stringify(S.bairros[b].pagamento)!==JSON.stringify(J.bairros[b].pagamento)) dpg++; }
+  out.pagamento={bairros:npg,divergencias:dpg,credito_igual:JSON.stringify(S.contexto_credito)===JSON.stringify(J.contexto_credito)};
   out.prontidao_top10_igual=S.prontidao_ranking.slice(0,10).join()===J.prontidao_ranking.slice(0,10).join();
   return out;}"""
 
@@ -97,6 +99,13 @@ def main():
             pg.evaluate(f"()=>window.showPanel('{pid}')")
             pg.wait_for_timeout(250)
         par = pg.evaluate(JS_PARIDADE)
+        pg.evaluate("()=>window.showPanel('visao-geral')")
+        telas = {"credito_cartoes": pg.evaluate("()=>document.querySelectorAll('#credito-quadro .credito-item').length")}
+        pg.evaluate("()=>{window.showPanel('perfil'); const s=document.getElementById('perfil-select'); s.value='Vila Mariana'; s.dispatchEvent(new Event('change'));}")
+        pg.wait_for_timeout(300)
+        telas["perfil_como_se_paga"] = pg.evaluate("()=>{const e=[...document.querySelectorAll('#perfil-content h2')].find(h=>h.textContent==='Como se paga neste bairro'); return e? e.parentElement.innerText.slice(0,260).replace(/\\n/g,' | ') : null}")
+        pg.evaluate("()=>window.showPanel('carteira-77')")
+        telas["carteira_colunas"] = pg.evaluate("()=>[...document.querySelectorAll('#carteira-77-table thead th')].map(t=>t.textContent.replace(/[↕↓↑]/g,'').trim())")
         aviso = pg.evaluate(JS_AVISO)
         pg.evaluate("()=>{document.body.classList.add('printing-all'); window.expandAllCaptacao&&window.expandAllCaptacao();}")
         pg.wait_for_timeout(300)
@@ -120,11 +129,13 @@ def main():
     except ImportError:
         paginas = "(instale pypdf pra contar páginas)"
     print(json.dumps({"cabecalho": cab, "paridade": par, "aviso_dado_parado": aviso, "paginas_pdf": paginas}, ensure_ascii=False, indent=1))
+    print("TELAS NOVAS:", json.dumps(telas, ensure_ascii=False))
     print("ERROS DE CONSOLE:", len(erros), erros[:5])
     print("raw.json pedido antes de usar filtro:", raw_antes_do_filtro, "| Ver lista completa abriu:", lista_ok)
     div = (par["bairros"]["divergencias"] + par["painel8"]["divergencias"] + par["preco_m2"]["divergencias"]
            + par["valor_oportunidade"]["divergencias"] + par["captacao_tipo"]["divergencias"] + par["correcao_tempo"]["divergencias"])
-    ok = (not erros and not raw_antes_do_filtro and lista_ok and div == 0 and par["prontidao_top10_igual"] and par["top30"]["igual"]
+    ok = (not erros and par["pagamento"]["divergencias"] == 0 and par["pagamento"]["credito_igual"] and telas["credito_cartoes"] == 4
+          and telas["perfil_como_se_paga"] and not raw_antes_do_filtro and lista_ok and div == 0 and par["prontidao_top10_igual"] and par["top30"]["igual"]
           and par["valor_oportunidade"]["meta_apto"] and par["correcao_tempo"]["resumo_igual"])
     print("RESULTADO:", "OK" if ok else "FALHOU")
     return 0 if ok else 1

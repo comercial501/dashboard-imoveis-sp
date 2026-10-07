@@ -167,6 +167,38 @@ def secao_fontes(d, agora, alertas):
 
 
 # ---------------------------------------------------------------------------
+# contexto de crédito (Banco Central) — Rodada C
+# ---------------------------------------------------------------------------
+def _dia(iso_data):
+    """'2026-08-01' -> '01/08/2026' sem passar por fuso (é só uma data, não um instante)."""
+    return datetime.date.fromisoformat(iso_data).strftime("%d/%m/%Y")
+
+
+def secao_credito(d, alertas):
+    ctx = d.get("contexto_credito")
+    linhas = ["## 6. Contexto de crédito (Banco Central)", ""]
+    if not ctx:
+        return linhas + ["ℹ Ainda sem esses números nos dados desta execução.", ""]
+    linhas += ["| Indicador | Valor atual | Contra o mês anterior | Contra 12 meses atrás | Fonte e data |", "|---|---|---|---|---|"]
+    for s in ctx["series"]:
+        if s.get("valor") is None:
+            alertas.append(f"Banco Central: {s['nome']} sem nenhum valor (a API falhou e não há valor guardado)")
+            linhas.append(f"| {s['nome']} | — | — | — | ⚠ sem dado ({s.get('erro') or 'falha na API'}) |")
+            continue
+        def pp(x):
+            return "—" if x is None else f"{x:+.2f} p.p.".replace(".", ",")
+        valor = f"{s['valor']:.2f}".replace(".", ",") + (" % a.a." if "ano" in s["unidade"] else " %")
+        ref = mes_ano(s["data"][:7]) if s["periodicidade"] == "mensal" else _dia(s["data"])
+        aviso = ""
+        if s.get("desatualizado"):
+            aviso = f" ⚠ dado de {_dia(s['data'])} (não consegui atualizar)"
+            alertas.append(f"Banco Central: {s['nome']} não atualizou — mantido o dado de {_dia(s['data'])}")
+        linhas.append(f"| {s['nome']} | {valor} | {pp(s['var_mes_pp'])} | {pp(s['var_12m_pp'])} | {s['fonte']} · referência {ref}{aviso} |")
+    linhas += ["", "_" + " ".join(f"**{s['nome']}**: {s['explicacao']}" for s in ctx["series"]) + "_", ""]
+    return linhas
+
+
+# ---------------------------------------------------------------------------
 # b) execuções diárias
 # ---------------------------------------------------------------------------
 def execucoes_da_semana(agora):
@@ -337,6 +369,7 @@ def montar_relatorio(d_novo, d_velho, agora, ref_velha=None, banner=None):
     corpo += secao_variacoes(d_novo, d_velho, alertas)
     corpo += secao_top10(d_novo, d_velho)
     corpo += secao_estoque(d_novo, d_velho)
+    corpo += secao_credito(d_novo, alertas)
     topo = ["✅ **Semana sem alertas**"] if not alertas else [f"⚠ **{len(alertas)} alerta(s) nesta semana:**"] + [f"- {a}" for a in alertas]
     rodape = [
         "---",

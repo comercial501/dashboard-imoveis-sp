@@ -82,6 +82,10 @@ REGRAS = [
      "A conferência da **Prontidão, do Valor de Oportunidade de apartamentos ou do Top 30 da Captação** deu diferença — o site não foi atualizado."),
     ("histórico de anúncios incoerente", "historico_anuncios",
      "O **histórico de anúncios** ficou incoerente com os anúncios da rede de hoje — o site não foi atualizado e o arquivo do histórico não foi alterado."),
+    ("forma de pagamento incoerente", "forma_pagamento",
+     "O perfil de **forma de pagamento** (à vista, financiamento) ficou incoerente (percentuais que não somam 100% ou acima de 100%) — o site não foi atualizado."),
+    ("contexto de crédito incoerente", "contexto_credito",
+     "O quadro de **contexto de crédito** (Banco Central) ficou incoerente — o site não foi atualizado. (Falha da API do Banco Central sozinha NÃO trava a atualização.)"),
     ("perfil vencedor v1", "perfil_v1", "Um painel voltou a usar o cálculo antigo de perfil por metragem — o site não foi atualizado."),
     ("faixa_metragem() voltou", "faixa_metragem", "Voltou a comparação antiga por metragem em apartamento — o site não foi atualizado."),
 ]

@@ -308,6 +308,12 @@ function mergeStaticMeta(computed) {
   // global (um fetch só pra todos os bairros, ver build_data.py.
   // _get_search_interest) — mesmo motivo/padrão de carteira_77 acima.
   computed.search_interest_meta = SERVER_DATA.search_interest_meta;
+  // Rodada C: contexto de crédito (Banco Central) e perfil de forma de pagamento por bairro são
+  // calculados no servidor (ITBI/API do Banco Central) e não mudam com os filtros — mesma regra.
+  computed.contexto_credito = SERVER_DATA.contexto_credito;
+  for (const b of Object.keys(computed.bairros)) {
+    if (SERVER_DATA.bairros[b]) computed.bairros[b].pagamento = SERVER_DATA.bairros[b].pagamento;
+  }
   return computed;
 }
 
@@ -756,7 +762,50 @@ function statTile(label, value, sub) {
 // ---------------------------------------------------------------------------
 // Visão Geral
 // ---------------------------------------------------------------------------
+// "2026-08-01" -> "ago/2026" (série mensal) ou "07/10/2026" (série diária)
+function dataSerieCredito(s) {
+  return s.periodicidade === "mensal" ? fmtMesAnoCompleto(s.data.slice(0, 7)) : fmtDataBR(`${s.data}T12:00:00-03:00`);
+}
+
+function fmtPP(v) {
+  if (v == null) return "—";
+  const t = Math.abs(v).toFixed(2).replace(".", ",");
+  return `${v > 0 ? "▲ +" : v < 0 ? "▼ −" : "= "}${t} p.p.`;
+}
+
+// Quadro "Contexto de crédito" (Visão Geral) — séries do Banco Central, dado do servidor.
+function renderContextoCredito() {
+  const box = document.getElementById("credito-quadro");
+  if (!box) return;
+  box.innerHTML = "";
+  const ctx = DATA.contexto_credito;
+  if (!ctx) {
+    box.appendChild(el("div", { class: "placeholder-block" }, "Ainda sem dados do Banco Central nesta versão do data.json."));
+    return;
+  }
+  ctx.series.forEach((s) => {
+    const card = el("div", { class: "credito-item" });
+    card.appendChild(el("div", { class: "label" }, s.nome));
+    if (s.valor == null) {
+      card.appendChild(el("div", { class: "value" }, "—"));
+      card.appendChild(el("div", { class: "small", style: "color:var(--status-warning)" }, "⚠ sem dado: a consulta ao Banco Central falhou e não há valor guardado."));
+    } else {
+      card.appendChild(el("div", { class: "value" }, `${s.valor.toFixed(2).replace(".", ",")}${s.unidade.startsWith("% ao") ? " % a.a." : " %"}`));
+      card.appendChild(el("div", { class: "small" }, [`Contra o mês anterior: `, el("b", {}, fmtPP(s.var_mes_pp))]));
+      card.appendChild(el("div", { class: "small" }, [`Contra 12 meses atrás: `, el("b", {}, fmtPP(s.var_12m_pp))]));
+      if (s.desatualizado) {
+        card.appendChild(el("div", { class: "small", style: "color:var(--status-warning); font-weight:600" }, `⚠ dado de ${dataSerieCredito(s)} (não consegui atualizar hoje)`));
+      }
+    }
+    card.appendChild(el("div", { class: "small muted", style: "margin-top:6px" },
+      `Fonte: ${s.fonte}${s.valor != null ? ` · referência ${dataSerieCredito(s)}` : ""}.`));
+    card.appendChild(el("div", { class: "small muted" }, s.explicacao));
+    box.appendChild(card);
+  });
+}
+
 function renderVisaoGeral() {
+  renderContextoCredito();
   // Etapa 2, item 3 (2026-10-01): bairro com < MIN_VENDAS_TOP10 (100)
   // vendas de REVENDA em 12m (amostra_pequena_ranking, calculado em
   // engine.py/engine.js) não entra no top 10 de "Onde anunciar agora" —
@@ -944,6 +993,63 @@ function renderPerfil() {
   else document.getElementById("perfil-content").innerHTML = "";
 }
 
+// "Como se paga neste bairro" (Rodada C): forma de pagamento nas compras do ITBI. Financiamento = o
+// que passou por banco (SFH, Minha Casa Minha Vida, SFI/carteira hipotecária); consórcio aparece à parte.
+const PAGAMENTO_ROTULOS = [
+  ["a_vista", "À vista"], ["sfh", "SFH"], ["mcmv", "MCMV"], ["sfi", "SFI"], ["consorcio", "Consórcio"], ["outros", "Outros"],
+];
+
+function frasePagamento(p, nome) {
+  const partes = [`${fmtPct(p.financiamento_bancario_pct)} das compras usaram financiamento de banco`];
+  if (p.pct_financiado_mediana != null) partes[0] += `; em geral o banco financiou ${fmtPct(p.pct_financiado_mediana)} do valor (mediana)`;
+  partes[0] += ".";
+  partes.push(`${fmtPct(p.pct.a_vista)} foram à vista${p.pct.consorcio >= 0.5 ? ` e ${fmtPct(p.pct.consorcio)} por consórcio` : ""}.`);
+  return partes.join(" ");
+}
+
+function blocoPagamento(p, titulo, secundario) {
+  const wrap = el("div", { style: "margin-top:12px" });
+  const cab = [el("b", {}, titulo), " "];
+  if (p.poucas_vendas) cab.push(badge("Poucas vendas", "neutral"));
+  wrap.appendChild(el("div", { class: secundario ? "small muted" : "" }, cab));
+  wrap.appendChild(el("div", { class: secundario ? "small muted" : "small" }, frasePagamento(p)));
+  const barras = el("div", {});
+  barRows(barras, PAGAMENTO_ROTULOS.filter(([k]) => p.pct[k] > 0 || ["a_vista", "sfh"].includes(k))
+    .map(([k, rotulo]) => ({ label: rotulo, value: p.pct[k], colorVar: k === "a_vista" ? "--series-blue" : "--gold" })),
+    { valueFmt: (v) => fmtPct(v), maxOverride: 100 });
+  wrap.appendChild(barras);
+  wrap.appendChild(el("div", { class: "small muted" },
+    `${fmtInt(p.n_vendas)} compra${p.n_vendas === 1 ? "" : "s"} · período usado: ${fmtMesAno(p.periodo_inicio)}–${fmtMesAno(p.periodo_fim)} (${p.meses_com_dado === p.janela_meses ? p.janela_meses + " meses" : p.meses_com_dado + " meses, todo o histórico disponível"})${p.poucas_vendas ? " — menos de 30 compras, leia com cuidado" : ""}.`));
+  return wrap;
+}
+
+function pagamentoBox(b) {
+  const box = el("section", { class: "card", style: "margin:0 0 14px; padding:16px 18px;" });
+  box.appendChild(el("h2", { style: "font-size:14.5px" }, "Como se paga neste bairro"));
+  box.appendChild(el("div", { class: "card-sub", style: "margin-bottom:6px" },
+    "Forma de pagamento nas revendas (compra e venda de imóvel já existente) registradas no ITBI da Prefeitura, só da camada limpa de preço. “Financiamento” = crédito de banco (SFH, Minha Casa Minha Vida ou SFI); consórcio aparece separado. Não muda com os filtros de bairro/preço do alto da página."));
+  box.appendChild(el("div", { class: "small muted", style: "margin-bottom:4px" },
+    "Siglas: À vista = sem financiamento informado · SFH = Sistema Financeiro de Habitação · MCMV = Minha Casa Minha Vida · SFI = carteira hipotecária (crédito imobiliário fora do SFH)."));
+  const pag = b.pagamento;
+  const rev = pag && pag.revenda;
+  if (!rev || !Object.keys(rev).length) {
+    box.appendChild(el("div", { class: "placeholder-block" }, "Sem revenda registrada neste bairro no período para montar o perfil de pagamento."));
+  } else {
+    [["apartamento", "Apartamento"], ["casa", "Casa"]].forEach(([k, rotulo]) => {
+      if (rev[k]) box.appendChild(blocoPagamento(rev[k], rotulo, false));
+    });
+  }
+  const pl = pag && pag.planta;
+  const plantaChaves = pl ? ["total", "apartamento", "casa"].filter((k) => pl[k]) : [];
+  if (plantaChaves.length) {
+    const sec = el("div", { style: "margin-top:16px; padding-top:10px; border-top:1px solid var(--border)" });
+    sec.appendChild(el("div", { class: "small muted" }, "Informação secundária — lançamentos (venda na planta). O perfil de financiamento é outro (muito mais financiamento), por isso fica separado da revenda."));
+    plantaChaves.forEach((k) => sec.appendChild(blocoPagamento(pl[k], k === "total" ? "Lançamentos (todos os tipos)" : (k === "casa" ? "Lançamentos — casa" : "Lançamentos — apartamento"), true)));
+    box.appendChild(sec);
+  }
+  return box;
+}
+
 function renderPerfilContent(name) {
   const b = DATA.bairros[name];
   const box = document.getElementById("perfil-content");
@@ -986,6 +1092,8 @@ function renderPerfilContent(name) {
       `Interesse de busca no Google: ~${fmtInt(si.avg_monthly_searches)} buscas/mês (média de ${si.meses_com_dado} meses) · busca deste bairro em ${fmtDataBR(si.fetched_at)}${si.fresco === false ? " — sem dado recente (mais de 30 dias)" : ""}.`));
   }
   box.appendChild(perfilBox);
+
+  box.appendChild(pagamentoBox(b));
 
   const stockBox = el("section", { class: "card", style: "margin:0 0 14px; padding:16px 18px;" });
   const stockHeader = el("div", { style: "display:flex; align-items:center; gap:8px" }, [
@@ -1561,8 +1669,8 @@ function toggleEstoqueDetalhe(bairro, linkEl) {
 // ---------------------------------------------------------------------------
 // Valor de Oportunidade (Painel 10)
 // ---------------------------------------------------------------------------
-// "2026-06" -> "jun/2026"
-function fmtMesAno(ym) {
+// "2026-06" -> "jun/2026" (com o ano inteiro; fmtMesAno acima usa "jun/26")
+function fmtMesAnoCompleto(ym) {
   const [a, m] = ym.split("-");
   return `${["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][Number(m) - 1]}/${a}`;
 }
@@ -1584,7 +1692,7 @@ function renderValorOportunidade() {
   const meta = DATA.valor_oportunidade.meta_apto || {};
   const corr = DATA.valor_oportunidade.correcao_tempo;
   const notaCorr = corr
-    ? ` Vendas antigas são atualizadas para os preços de ${fmtMesAno(corr.mes_base)} pela variação da mediana de R$/m² de revenda do mesmo bairro e tipo, do mês da venda até ${fmtMesAno(corr.mes_base)}. Sem essa atualização haveria ${fmtInt(corr.resumo.casa.achados_bruto)} achado(s) de casa e ${fmtInt(corr.resumo.apartamento.achados_bruto)} de apartamento.`
+    ? ` Vendas antigas são atualizadas para os preços de ${fmtMesAnoCompleto(corr.mes_base)} pela variação da mediana de R$/m² de revenda do mesmo bairro e tipo, do mês da venda até ${fmtMesAnoCompleto(corr.mes_base)}. Sem essa atualização haveria ${fmtInt(corr.resumo.casa.achados_bruto)} achado(s) de casa e ${fmtInt(corr.resumo.apartamento.achados_bruto)} de apartamento.`
     : "";
   document.getElementById("vo-nota").textContent = (modo === "casa"
     ? "Casa: desconto do R$/m² do anúncio contra a mediana de R$/m² paga em imóveis do mesmo tipo e faixa de metragem no bairro (segmento com 10+ vendas pagas em 12 meses)."
@@ -1609,7 +1717,7 @@ function renderValorOportunidade() {
     key: "tipo_imovel", label: "Tipo · Faixa", sortable: false,
     render: (r) => el("div", {}, `${r.tipo_imovel === "casa" ? "Casa" : "Apartamento"} · ${r.faixa}`),
   };
-  const mesBase = DATA.valor_oportunidade.correcao_tempo ? fmtMesAno(DATA.valor_oportunidade.correcao_tempo.mes_base) : "";
+  const mesBase = DATA.valor_oportunidade.correcao_tempo ? fmtMesAnoCompleto(DATA.valor_oportunidade.correcao_tempo.mes_base) : "";
   const comparadoCom = (r) => el("div", {}, [
     fmtMoneyCompact(r.valor_total_mediana),
     el("div", { class: "small muted" }, `comparado com ${fmtInt(r.n_vendas_predio)} venda${r.n_vendas_predio === 1 ? "" : "s"} no mesmo prédio, atualizadas para ${mesBase}`),
@@ -1734,6 +1842,13 @@ function renderCarteira77() {
       { key: "planta_12m", label: "Planta (12m)", fmt: (v) => fmtInt(v) },
       { key: "unidades_iptu", label: "Unidades IPTU", fmt: (v) => fmtInt(v) },
       { key: "giro_12m_pct", label: "Giro", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
+      // Rodada C: forma de pagamento da revenda limpa (apartamento + casa)
+      { key: "pagamento_a_vista_pct", label: "Compras à vista", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
+      { key: "pagamento_financiamento_pct", label: "Compras com financiamento de banco", fmt: (v) => (v == null ? "—" : fmtPct(v)) },
+      {
+        key: "pagamento_pct_financiado_mediana", label: "Banco financiou (mediana)",
+        render: (r) => el("div", {}, [r.pagamento_pct_financiado_mediana == null ? "—" : fmtPct(r.pagamento_pct_financiado_mediana), r.pagamento_poucas_vendas ? el("div", { class: "small muted" }, "poucas vendas") : null]),
+      },
     ],
     rows,
   });

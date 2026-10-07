@@ -188,6 +188,16 @@ def parse_itbi_file(path, somente_uso_residencial=True):
                     except ValueError:
                         pass
 
+                # Rodada C (2026-10-07): "Valor Financiado" (coluna P) — quanto do
+                # imóvel foi pago com financiamento (0 = sem). None se ausente/ilegível.
+                valor_financiado = None
+                fin_raw = cells.get("P")
+                if fin_raw is not None:
+                    try:
+                        valor_financiado = float(fin_raw)
+                    except ValueError:
+                        pass
+
                 natureza = (cells.get("H") or "").strip()
                 is_compra_venda = bool(NATUREZA_COMPRA_VENDA_RE.match(natureza))
                 is_retomada = bool(NATUREZA_RETOMADA_RE.match(natureza))
@@ -250,6 +260,7 @@ def parse_itbi_file(path, somente_uso_residencial=True):
                     # planta de fração ideal de herança/divórcio (ver
                     # cascata_completa.classificar_revenda_planta_aprovada).
                     "tipo_financiamento": (cells.get("O") or "").strip() or None,
+                    "valor_financiado": valor_financiado,
                 })
 
     return records, {

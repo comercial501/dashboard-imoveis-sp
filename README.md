@@ -2377,3 +2377,50 @@ as 5 mais recentes + a de produção. Cada execução publica o resumo como anot
 publicações da Cloudflare", com "Produção na lista de apagar: não"). Para só listar de novo: `LIMPAR_APAGAR=0`.
 A primeira exclusão real acontece quando houver a 6ª publicação. Falha da limpeza só vira aviso no log
 (`::warning::`), nunca derruba o deploy.
+
+## Rodada C (2026-10-07) — forma de pagamento por bairro + contexto de crédito
+
+### 1. Forma de pagamento (ITBI, colunas O "Tipo de Financiamento" e P "Valor Financiado")
+- `parse_itbi.py` agora lê `valor_financiado` (col. P) e o cabeçalho das colunas O e P entra na conferência de
+  layout do build (`validate_build.EXPECTED_HEADERS`).
+- **Diagnóstico** (`python3 scripts/diagnostico_financiamento.py`, manual, ~3 min; revendas limpas dos 12 meses
+  jul/2025–jun/2026 = 37.255 compras): compra SEM financiamento = campo "Tipo de Financiamento" **vazio** (67,6%);
+  tipos que existem: `1.Sistema Financeiro de Habitação` 24,8% · `99.SFI, Carteira Hipotecária, etc` 3,8% ·
+  `3.Consórcio` 2,4% · `2.Minha Casa Minha Vida` 1,4% — nenhum "0" nem outro código. "Valor Financiado" nunca vem
+  vazio. Casos que não se encaixam (14 de 37.255, 0,04%): 11 guias SEM tipo mas com valor financiado > 0; 3 guias
+  COM tipo e valor financiado 0 ou **negativo** (−R$ 448.902 e −R$ 930.000). Valor financiado acima do valor da venda
+  (ou da base de cálculo): **nenhum**. % financiado nas guias com tipo: P5 25% · P25 50% · mediana 68% · P75 80% · P95 90%.
+  Na planta (27.166 guias): vazio 23,1%, SFH 43,4%, MCMV 31,5%; 102 sem tipo e com valor > 0.
+- **Regra** (`engine.categoria_pagamento`/`perfil_pagamento`): a categoria vem só do TIPO (vazio = à vista; "1." SFH;
+  "2." MCMV; "3." consórcio; "99." SFI; qualquer outro texto = outros). As guias esquisitas acima ficam na categoria que
+  o tipo diz e são só **contadas** (`n_inconsistentes`) e **excluídas da mediana** do % financiado (que só usa
+  valor financiado entre 0 e o valor da venda). "Financiamento de banco" = SFH + MCMV + SFI; consórcio é mostrado à parte.
+- **Por bairro** (`bairros[b].pagamento`): `revenda` (camada limpa) e `planta`, cada uma com `apartamento`, `casa` e `total`
+  (planta por tipo só quando o registro tem tipo): % de cada categoria (somam exatamente 100,0), % com financiamento de
+  banco, mediana do % financiado (só com 10+ compras financiadas) e a janela adaptativa das faixas (12/24/36 meses, mínimo 30
+  compras; abaixo disso `poucas_vendas`). É calculado no servidor e **não muda com os filtros** (mesmo padrão do carteira_77).
+- **Onde aparece**: seção "Como se paga neste bairro" no Perfil por Bairro (planta como informação secundária); colunas
+  "Compras à vista", "Compras com financiamento de banco", "Banco financiou (mediana)" no Carteira 77
+  (`carteira_77.bairros[b].pagamento_*`, campos aditivos); colunas `pct_*` no
+  `output/faixa_valor_pago_por_bairro.csv` (mesma função, mesmas vendas da faixa de preço).
+- `validate_build` check 17: categorias somam 100%, contagem = nº de vendas, financiamento de banco = SFH+MCMV+SFI,
+  nenhum % acima de 100%, `poucas_vendas` coerente e carteira_77 batendo com o perfil do bairro.
+
+### 2. Contexto de crédito (Banco Central, API pública do SGS — `scripts/bcb_client.py`)
+| Indicador | Série SGS | Nome oficial | Periodicidade |
+|---|---|---|---|
+| Selic (meta) | 432 | Taxa de juros - Meta Selic definida pelo Copom | diária, % a.a. |
+| Juros do financiamento imobiliário (taxas de mercado) | 20772 | Taxa média de juros das operações de crédito com recursos direcionados - Pessoas físicas - Financiamento imobiliário com taxas de mercado | mensal, % a.a. |
+| Juros do financiamento imobiliário (taxas reguladas — SFH) | 20773 | …Financiamento imobiliário com taxas reguladas | mensal, % a.a. |
+| IPCA acumulado em 12 meses | 13522 | título oficial não consta no portal de dados abertos; confirmada porque o IPCA de 12 meses composto a partir da série 433 (IPCA, variação mensal) dá o mesmo número | mensal, % |
+Existe também a 20774 (financiamento imobiliário total), não usada. A série 432 traz datas futuras: o cliente descarta tudo
+depois de hoje. Busca a cada build; guarda o último valor bom no próprio `data.json` (`contexto_credito`); se a API falhar
+a série fica marcada `desatualizada` com "dado de [data]" e **nunca trava a publicação**. Aparece no quadro "Contexto de
+crédito" da Visão Geral (valor, variação em pontos percentuais contra o mês anterior e 12 meses atrás, fonte, data e uma
+linha de explicação) e na seção 6 do relatório semanal (que avisa série desatualizada). `validate_build` check 18 confere
+só a coerência do que foi gravado (falha de API não bloqueia).
+
+### Também nesta rodada
+- Correção: a Rodada A2 declarou uma segunda função `fmtMesAno` em `site/app.js` e ela substituía a original; todos os rótulos
+  de período passaram a sair "jul/2025" em vez de "jul/25". A nova se chama `fmtMesAnoCompleto`; os rótulos de período voltaram ao curto.
+- Checks do build: agora 18. `scripts/test_rotina.py` ganhou testes de pagamento (regra, 100%, inconsistências) e do Banco Central.
