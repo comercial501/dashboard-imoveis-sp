@@ -456,8 +456,17 @@ def decompor_quedas_revenda(revenda_antiga, revenda_nova, resolucao_antiga, reso
     return out
 
 
-def rodar(usar_split_santo_amaro, label):
-    print(f"\n########## RODADA: {label} ##########")
+def rodar(usar_split_santo_amaro, label, diagnostico=True):
+    """Contagens da carteira de 77 bairros (revenda/planta de 12 meses e
+    unidades do IPTU). `diagnostico=True` (padrão, uso MANUAL: `python3
+    scripts/cascata_completa.py`) também roda o diagnóstico da auditoria —
+    coluna "antes" (regra antiga), exemplos de planta SFH/MCMV, quedas de
+    revenda por bairro — e imprime tudo. O build diário chama com
+    `diagnostico=False` (gerar_dados_carteira_77): esse diagnóstico não
+    alimenta nenhum painel nem checagem e só custava tempo e ~190 linhas de
+    log. Os números da carteira_77 são os mesmos nos dois modos."""
+    if diagnostico:
+        print(f"\n########## RODADA: {label} ##########")
     tradutor = tb.carregar_tradutor()
     targets = tb.targets_carteira(tradutor)
     print(f"[tradutor] carteira: {len(targets)}")
@@ -471,68 +480,70 @@ def rodar(usar_split_santo_amaro, label):
     itbi_dedup_todos = carregar_itbi_deduplicado()
     periodo_12m, _, _ = engine._mes_base_e_periodo(itbi_dedup_todos)
     print(f"[periodo] 12m: {periodo_12m[0]}..{periodo_12m[-1]}")
-    itbi_12m_todos = filtrar_janela_12m(itbi_dedup_todos, periodo_12m)
-    print(f"[universo] total 12m (qualquer natureza/uso, dedup): {len(itbi_12m_todos)}")
 
-    # --- coluna "antes": regra antiga (endereço + lançamento), recomputada
-    # com código commitado (nunca mais um script descartável) — mesmo
-    # escopo de sempre (só uso residencial via tipo_imovel), senão as
-    # linhas de uso não-residencial (que só entraram agora pra alimentar a
-    # regra nova) inflariam o "antes" incorretamente.
-    itbi_dedup_residencial = [r for r in itbi_dedup_todos if r["tipo_imovel"] is not None]
-    itbi_12m_residencial = [r for r in itbi_12m_todos if r["tipo_imovel"] is not None]
-    classificacao_antiga = classificar_enderecos_regra_antiga(itbi_dedup_residencial)
-    revenda_antiga, planta_antiga = separar_revenda_planta_regra_antiga(itbi_12m_residencial, classificacao_antiga)
-    antes_combinado = revenda_antiga + planta_antiga
-    print(f"[regra antiga/antes] revenda={len(revenda_antiga)} planta={len(planta_antiga)} combinado={len(antes_combinado)}")
-
-    # --- coluna "depois": regra aprovada (revisão 2 — uso do lote-mãe) ---
-    # Revisão 2026-10-01 (item 2 da revisão da Etapa 2): classifica sobre
-    # TODOS OS ANOS (itbi_dedup_todos, não mais só itbi_12m_todos) — os
-    # votos de endereço/CEP (abaixo) precisam vir do universo de 3 anos
-    # inteiro, não só da janela de 12m; ver resolver_registros_engine()
-    # para o motivo (achado do usuário: venda antiga num endereço sem
-    # venda recente perdia o voto do bairro certo e caía em vizinho/fora,
+    # Regra aprovada (revisão 2 — uso do lote-mãe), classificada sobre TODOS
+    # OS ANOS: os votos de endereço/CEP precisam vir do universo de 3 anos
+    # inteiro, não só da janela de 12m; ver resolver_registros_engine() para
+    # o motivo (achado do usuário: venda antiga num endereço sem venda
+    # recente perdia o voto do bairro certo e caía em vizinho/fora,
     # encolhendo artificialmente o "ano anterior" da tendência — Jardim
     # das Acácias, +69,3%). revenda_12m/planta_12m (as métricas da
     # carteira_77) continuam sendo só a fatia de 12m, filtrada depois de
     # classificar — resolvida com votos de 3 anos.
     buckets_todos_anos = classificar_revenda_planta_aprovada(itbi_dedup_todos)
     revenda_todos_anos, planta_todos_anos = buckets_todos_anos["revenda"], buckets_todos_anos["planta"]
-    revenda_12m_alvo = filtrar_janela_12m(revenda_todos_anos, periodo_12m)
-    planta_12m_alvo = filtrar_janela_12m(planta_todos_anos, periodo_12m)
-    # buckets (nome mantido pros prints de fechamento abaixo, que são só
-    # sobre o universo de 12m) — reclassifica só pra manter os contadores
-    # de parcial/demais/fora_do_universo no mesmo escopo de sempre.
-    buckets = classificar_revenda_planta_aprovada(itbi_12m_todos)
-    revenda, planta = revenda_12m_alvo, planta_12m_alvo
-    n_parcial = len(buckets["parcial"])
-    n_demais = len(buckets["demais"])
-    soma_buckets = len(revenda) + len(planta) + n_parcial + n_demais
-    fora_do_universo = len(itbi_12m_todos) - soma_buckets
-    print(
-        f"[regra aprovada/depois] revenda={len(revenda)} planta={len(planta)} "
-        f"parcial(<100% uso residencial — herança/divórcio)={n_parcial} "
-        f"demais(100% uso não-residencial, ou <100% uso não-residencial sem sinal)={n_demais} "
-        f"fora_do_universo(natureza != compra_venda)={fora_do_universo}"
-    )
+    revenda = filtrar_janela_12m(revenda_todos_anos, periodo_12m)
+    planta = filtrar_janela_12m(planta_todos_anos, periodo_12m)
 
-    print("\n=== 20 exemplos de planta via SFH/MCMV sem token de unidade no complemento ===")
-    for ex in amostrar_planta_sfh_sem_token(planta):
+    antes_combinado = []
+    contagem_antes, fora_antes, incerto_antes = {}, 0, 0
+    quedas = []
+    if diagnostico:
+        itbi_12m_todos = filtrar_janela_12m(itbi_dedup_todos, periodo_12m)
+        print(f"[universo] total 12m (qualquer natureza/uso, dedup): {len(itbi_12m_todos)}")
+
+        # --- coluna "antes": regra antiga (endereço + lançamento), recomputada
+        # com código commitado (nunca mais um script descartável) — mesmo
+        # escopo de sempre (só uso residencial via tipo_imovel), senão as
+        # linhas de uso não-residencial (que só entraram agora pra alimentar a
+        # regra nova) inflariam o "antes" incorretamente.
+        itbi_dedup_residencial = [r for r in itbi_dedup_todos if r["tipo_imovel"] is not None]
+        itbi_12m_residencial = [r for r in itbi_12m_todos if r["tipo_imovel"] is not None]
+        classificacao_antiga = classificar_enderecos_regra_antiga(itbi_dedup_residencial)
+        revenda_antiga, planta_antiga = separar_revenda_planta_regra_antiga(itbi_12m_residencial, classificacao_antiga)
+        antes_combinado = revenda_antiga + planta_antiga
+        print(f"[regra antiga/antes] revenda={len(revenda_antiga)} planta={len(planta_antiga)} combinado={len(antes_combinado)}")
+
+        # buckets (só sobre o universo de 12m) — contadores de
+        # parcial/demais/fora_do_universo dos prints de fechamento.
+        buckets = classificar_revenda_planta_aprovada(itbi_12m_todos)
+        n_parcial = len(buckets["parcial"])
+        n_demais = len(buckets["demais"])
+        soma_buckets = len(revenda) + len(planta) + n_parcial + n_demais
+        fora_do_universo = len(itbi_12m_todos) - soma_buckets
         print(
-            f"  {ex['endereco']} | complemento={ex['complemento']!r} | uso={ex['uso_code']} "
-            f"| financiamento={ex['tipo_financiamento']!r} | bairro_raw={ex['bairro_raw']!r}"
+            f"[regra aprovada/depois] revenda={len(revenda)} planta={len(planta)} "
+            f"parcial(<100% uso residencial — herança/divórcio)={n_parcial} "
+            f"demais(100% uso não-residencial, ou <100% uso não-residencial sem sinal)={n_demais} "
+            f"fora_do_universo(natureza != compra_venda)={fora_do_universo}"
         )
 
-    cascata_antes = fabrica_cascata()
-    contagem_antes, fora_antes, incerto_antes, _, _ = resolver_universo_itbi(cascata_antes, antes_combinado)
+        print("\n=== 20 exemplos de planta via SFH/MCMV sem token de unidade no complemento ===")
+        for ex in amostrar_planta_sfh_sem_token(planta):
+            print(
+                f"  {ex['endereco']} | complemento={ex['complemento']!r} | uso={ex['uso_code']} "
+                f"| financiamento={ex['tipo_financiamento']!r} | bairro_raw={ex['bairro_raw']!r}"
+            )
 
-    # revenda da regra ANTIGA resolvida SOZINHA (não combinada com
-    # planta_antiga) — só pra decompor a queda de revenda por bairro
-    # (ver abaixo); a coluna "antes" da tabela principal continua usando
-    # o combinado acima.
-    cascata_revenda_antiga = fabrica_cascata()
-    _, _, _, _, resolucao_revenda_antiga = resolver_universo_itbi(cascata_revenda_antiga, revenda_antiga)
+        cascata_antes = fabrica_cascata()
+        contagem_antes, fora_antes, incerto_antes, _, _ = resolver_universo_itbi(cascata_antes, antes_combinado)
+
+        # revenda da regra ANTIGA resolvida SOZINHA (não combinada com
+        # planta_antiga) — só pra decompor a queda de revenda por bairro
+        # (ver abaixo); a coluna "antes" da tabela principal continua usando
+        # o combinado acima.
+        cascata_revenda_antiga = fabrica_cascata()
+        _, _, _, _, resolucao_revenda_antiga = resolver_universo_itbi(cascata_revenda_antiga, revenda_antiga)
 
     # Revisão 2026-10-01: votos construídos com revenda/planta de TODOS
     # OS ANOS (revenda_todos_anos/planta_todos_anos), resolvendo só a
@@ -554,55 +565,56 @@ def rodar(usar_split_santo_amaro, label):
     cascata_unidades = fabrica_cascata()
     contagem_unidades, fora_u, incerto_u = resolver_universo_iptu(cascata_unidades, unidades)
 
-    def _fechamento(nome, total, soma, fora, incerto):
-        print(
-            f"{nome:<9}: total={total} carteira={soma} ({100*soma/total:.1f}%) "
-            f"fora={fora} ({100*fora/total:.1f}%) incerto={incerto} ({100*incerto/total:.1f}%)"
-        )
+    if diagnostico:
+        def _fechamento(nome, total, soma, fora, incerto):
+            print(
+                f"{nome:<9}: total={total} carteira={soma} ({100*soma/total:.1f}%) "
+                f"fora={fora} ({100*fora/total:.1f}%) incerto={incerto} ({100*incerto/total:.1f}%)"
+            )
 
-    print(f"\n=== FECHAMENTO ({label}) ===")
-    _fechamento("ANTES", len(antes_combinado), sum(contagem_antes.values()), fora_antes, incerto_antes)
-    _fechamento("REVENDA", len(revenda), sum(contagem_revenda.values()), fora_r, incerto_r)
-    _fechamento("PLANTA", len(planta), sum(contagem_planta.values()), fora_p, incerto_p)
-    _fechamento("UNIDADES", len(unidades), sum(contagem_unidades.values()), fora_u, incerto_u)
+        print(f"\n=== FECHAMENTO ({label}) ===")
+        _fechamento("ANTES", len(antes_combinado), sum(contagem_antes.values()), fora_antes, incerto_antes)
+        _fechamento("REVENDA", len(revenda), sum(contagem_revenda.values()), fora_r, incerto_r)
+        _fechamento("PLANTA", len(planta), sum(contagem_planta.values()), fora_p, incerto_p)
+        _fechamento("UNIDADES", len(unidades), sum(contagem_unidades.values()), fora_u, incerto_u)
 
-    print(f"\n=== TODOS OS {len(targets)} (antes|depois_revenda|depois_planta|unidades|giro%) ===")
-    linhas = []
-    for b in targets:
-        antes = contagem_antes.get(b, 0)
-        rv = contagem_revenda.get(b, 0)
-        pl = contagem_planta.get(b, 0)
-        un = contagem_unidades.get(b, 0)
-        giro = (100 * rv / un) if un else None
-        linhas.append((b, antes, rv, pl, un, giro))
-    for b, antes, rv, pl, un, giro in linhas:
-        giro_s = f"{giro:.2f}%" if giro is not None else "—"
-        print(f"{b}|{antes}|{rv}|{pl}|{un}|{giro_s}")
+        print(f"\n=== TODOS OS {len(targets)} (antes|depois_revenda|depois_planta|unidades|giro%) ===")
+        linhas = []
+        for b in targets:
+            antes = contagem_antes.get(b, 0)
+            rv = contagem_revenda.get(b, 0)
+            pl = contagem_planta.get(b, 0)
+            un = contagem_unidades.get(b, 0)
+            giro = (100 * rv / un) if un else None
+            linhas.append((b, antes, rv, pl, un, giro))
+        for b, antes, rv, pl, un, giro in linhas:
+            giro_s = f"{giro:.2f}%" if giro is not None else "—"
+            print(f"{b}|{antes}|{rv}|{pl}|{un}|{giro_s}")
 
-    print("\n=== GIRO ACIMA DE 10% (revenda/unidades) ===")
-    acima10 = [(b, giro) for b, _, _, _, un, giro in linhas if un and giro is not None and giro > 10.0]
-    if not acima10:
-        print("  nenhum bairro acima de 10%")
-    else:
-        for b, giro in sorted(acima10, key=lambda x: -x[1]):
-            print(f"  {b}: {giro:.2f}%")
+        print("\n=== GIRO ACIMA DE 10% (revenda/unidades) ===")
+        acima10 = [(b, giro) for b, _, _, _, un, giro in linhas if un and giro is not None and giro > 10.0]
+        if not acima10:
+            print("  nenhum bairro acima de 10%")
+        else:
+            for b, giro in sorted(acima10, key=lambda x: -x[1]):
+                print(f"  {b}: {giro:.2f}%")
 
-    print("\n=== QUEDAS DE REVENDA (regra antiga PURA x aprovada), decomposição — >=25% marcado com * ===")
-    # limiar=0 pra devolver TODOS os bairros (não só >=25%) — permite
-    # conferir pontualmente qualquer bairro citado no relatório (ex:
-    # Brooklin/Campo Belo, que no RELATÓRIO ANTERIOR pareciam cair >25%
-    # mas isso comparava "antes" (revenda+planta antigos COMBINADOS) com
-    # "depois revenda" só — uma comparação não-equivalente; aqui "antigo"
-    # é revenda PURA (sem planta_antiga junto), resolvida sozinha.
-    quedas = decompor_quedas_revenda(revenda_antiga, revenda, resolucao_revenda_antiga, resolucao_revenda, buckets, limiar=-1.0)
-    for d in sorted(quedas, key=lambda d: -d["queda_pct"]):
-        marca = "*" if d["queda_pct"] >= 0.25 else " "
-        print(
-            f"  {marca} {d['bairro']}: {d['old_total']} -> {d['new_total']} (queda {d['queda_pct']*100:.1f}%) | "
-            f"continuou revenda mesmo bairro={d['unchanged']} | revenda mas mudou de bairro={d['reassigned_outro_bairro']} | "
-            f"saiu pra planta={d['saiu_planta']} parcial={d['saiu_parcial']} demais={d['saiu_demais']} "
-            f"fora_universo={d['saiu_fora_do_universo']}"
-        )
+        print("\n=== QUEDAS DE REVENDA (regra antiga PURA x aprovada), decomposição — >=25% marcado com * ===")
+        # limiar=-1 pra devolver TODOS os bairros (não só >=25%) — permite
+        # conferir pontualmente qualquer bairro citado no relatório (ex:
+        # Brooklin/Campo Belo, que no RELATÓRIO ANTERIOR pareciam cair >25%
+        # mas isso comparava "antes" (revenda+planta antigos COMBINADOS) com
+        # "depois revenda" só — uma comparação não-equivalente; aqui "antigo"
+        # é revenda PURA (sem planta_antiga junto), resolvida sozinha.
+        quedas = decompor_quedas_revenda(revenda_antiga, revenda, resolucao_revenda_antiga, resolucao_revenda, buckets, limiar=-1.0)
+        for d in sorted(quedas, key=lambda d: -d["queda_pct"]):
+            marca = "*" if d["queda_pct"] >= 0.25 else " "
+            print(
+                f"  {marca} {d['bairro']}: {d['old_total']} -> {d['new_total']} (queda {d['queda_pct']*100:.1f}%) | "
+                f"continuou revenda mesmo bairro={d['unchanged']} | revenda mas mudou de bairro={d['reassigned_outro_bairro']} | "
+                f"saiu pra planta={d['saiu_planta']} parcial={d['saiu_parcial']} demais={d['saiu_demais']} "
+                f"fora_universo={d['saiu_fora_do_universo']}"
+            )
 
     return {
         "targets": targets,
@@ -624,7 +636,7 @@ def gerar_dados_carteira_77():
     nenhuma chave existente). Painel estático (não recalcula com os
     filtros de preço/bairro do resto do site — ver README, seção Item 3:
     implementação no engine.py/engine.js)."""
-    resultado = rodar(usar_split_santo_amaro=True, label="producao")
+    resultado = rodar(usar_split_santo_amaro=True, label="producao", diagnostico=False)
     targets = resultado["targets"]
 
     def _fech(nome):

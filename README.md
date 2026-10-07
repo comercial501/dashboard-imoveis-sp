@@ -2282,3 +2282,28 @@ mês da venda até o mês base. Vale para casas e apartamentos (`engine._compute
   do Painel 8, alertas e Ranking continuam como estavam.
 - `validate_build` check 15 confere: mês base = último mês completo, fator do mês base =
   1,0, todos os fatores entre 0,5 e 2,0, séries suficientes, resumo = lista.
+
+## Histórico de anúncios com data e hora + build diário sem diagnóstico (2026-10-07)
+
+- **Data e hora no histórico**: o check 16 travou a Action de 06/10 (21:29 BRT) porque 8
+  anúncios vistos na execução das 13:41 e sumidos numa execução posterior do MESMO DIA
+  ficaram com primeira vez visto = última = saída = `2026-10-06` (só a data), o que não dá
+  pra distinguir de "inconsistente". Agora `visto_primeira`, `visto_ultima`, `saida` e a data de
+  cada mudança de preço são **data e hora de Brasília** (`AAAA-MM-DDTHH:MM:SS`, da execução do
+  build). Regra do check 16: `visto_primeira <= visto_ultima < saida`, comparando data e hora;
+  mudanças de preço dentro do período visto; datas sem hora bloqueiam. Várias execuções no
+  mesmo dia são normais (cada uma tem a sua hora); um anúncio que some numa execução e volta
+  numa seguinte conta uma volta. O arquivo `historico/anuncios.jsonl` foi convertido sem
+  perder dados: as 2.125 linhas do primeiro registro ficaram com `2026-10-06T13:41:00` (hora
+  da consulta à nonStop que gerou o arquivo). Arquivos antigos só com data continuam sendo
+  lidos (início do dia para vistas/preço, fim do dia para saída). Os 8 anúncios daquela
+  execução nunca chegaram ao arquivo (o check barrou antes de gravar, como deve) — o estado
+  commitado não tinha nenhuma saída.
+- **Build diário mais enxuto**: `cascata_completa.rodar()` fazia, além das contagens da
+  carteira de 77 bairros, o diagnóstico da auditoria (coluna "antes" pela regra antiga,
+  exemplos de planta SFH/MCMV, decomposição das quedas de revenda por bairro) e imprimia
+  ~190 linhas ("RODADA: producao"). Isso não alimentava nenhum painel nem check (a
+  `carteira_77` só usa revenda/planta/unidades). Agora `gerar_dados_carteira_77()` chama
+  `rodar(..., diagnostico=False)`; o diagnóstico continua disponível à mão:
+  `python3 scripts/cascata_completa.py` (ou `rodar(True, "x")`). Os números da carteira_77 são
+  idênticos nos dois modos (conferido: contagens de revenda, planta, unidades e fechamentos).

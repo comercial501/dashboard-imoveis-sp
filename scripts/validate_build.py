@@ -891,7 +891,7 @@ def check_historico_anuncios(historico, data):
     if estado is None or registros is None:
         print("[validate_build] OK 16/16 — histórico de anúncios: sem a API da nonStop hoje, arquivo não é alterado; nada a conferir.")
         return
-    hoje = data["meta"]["historico_anuncios"]["data"]
+    agora = data["meta"]["historico_anuncios"]["agora"]
     hoje_por_codigo = {r["codigo"]: r for r in registros if r.get("codigo") and r.get("valor")}
     divergencias = []
     for c, rec in hoje_por_codigo.items():
@@ -899,15 +899,23 @@ def check_historico_anuncios(historico, data):
         if h is None:
             divergencias.append(f"{c}: anúncio de hoje não está no histórico")
             continue
-        if h["saida"] is not None or h["visto_ultima"] != hoje:
+        if h["saida"] is not None or h["visto_ultima"] != agora:
             divergencias.append(f"{c}: aparece hoje mas o histórico diz saída={h['saida']}, visto_ultima={h['visto_ultima']}")
         if h["preco_atual"] != rec["valor"]:
             divergencias.append(f"{c}: preço de hoje {rec['valor']} != preco_atual {h['preco_atual']}")
     for c, h in estado.items():
         if c not in hoje_por_codigo and h["saida"] is None:
             divergencias.append(f"{c}: sumiu da rede mas continua 'ativo' no histórico")
+        # Data e hora (várias execuções por dia): primeira <= última < saída, comparando data e hora.
         if h["visto_primeira"] > h["visto_ultima"] or (h["saida"] is not None and h["saida"] <= h["visto_ultima"]):
             divergencias.append(f"{c}: datas incoerentes ({h['visto_primeira']} / {h['visto_ultima']} / {h['saida']})")
+        if h["saida"] is not None and h["saida"] > agora:
+            divergencias.append(f"{c}: saída {h['saida']} no futuro (execução de {agora})")
+        mud = [m[0] for m in h["mudancas_preco"]]
+        if mud != sorted(mud) or any(m < h["visto_primeira"] or m > h["visto_ultima"] for m in mud):
+            divergencias.append(f"{c}: mudanças de preço fora do período visto ({h['visto_primeira']} a {h['visto_ultima']}): {mud}")
+        if any(len(x) != 19 for x in (h["visto_primeira"], h["visto_ultima"]) + (() if h["saida"] is None else (h["saida"],))):
+            divergencias.append(f"{c}: data sem hora no histórico ({h['visto_primeira']} / {h['visto_ultima']} / {h['saida']})")
         seq = [h["preco_inicial"]] + [m[1] for m in h["mudancas_preco"]]
         if seq[-1] != h["preco_atual"]:
             divergencias.append(f"{c}: preco_atual {h['preco_atual']} não é o último da sequência {seq}")

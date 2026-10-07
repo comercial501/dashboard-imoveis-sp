@@ -174,8 +174,13 @@ _, corpo8, al8 = rel.montar_relatorio(novo, antigo, AGORA)
 ok("comparável" in corpo8 and not any("variação" in a for a in al8), "relatório: semana anterior de versão antiga é detectada e NÃO gera falso alerta")
 
 # ---------------------------------------------------------------------------
-# 3b. histórico de anúncios (Rodada A, item 7)
+# 3b. histórico de anúncios (Rodada A, item 7; data e hora desde 07/10/2026)
 # ---------------------------------------------------------------------------
+import validate_build as vb
+
+T1, T2, T3, T4 = "2026-10-06T13:41:00", "2026-10-06T21:37:10", "2026-10-06T21:50:00", "2026-10-07T11:02:30"
+
+
 def _rec(codigo, valor, **kw):
     base = {"codigo": codigo, "valor": valor, "bairro": "Moema", "addr_display_building": "Rua X, 10", "complemento": "ap 12",
             "tipo_imovel": "apartamento", "area": 80.0, "addr_key": "rua x|10", "created_at": "2026-03-05T15:00:00.000Z"}
@@ -183,26 +188,60 @@ def _rec(codigo, valor, **kw):
     return base
 
 
-est, r1 = ha.atualizar({}, [_rec("a1", 1_000_000), _rec("b2", 2_000_000)], "2026-10-06")
-ok(r1["novos"] == 2 and r1["ativos"] == 2 and est["a1"]["cadastro"] == "2026-03-05" and est["a1"]["visto_primeira"] == "2026-10-06",
-   "histórico: primeiro dia cria os anúncios com primeiro preço, cadastro e primeira vez visto")
-est_b, r1b = ha.atualizar(est, [_rec("a1", 1_000_000), _rec("b2", 2_000_000)], "2026-10-06")
-ok(est_b == est and r1b["novos"] == 0 and r1b["sairam"] == 0 and r1b["mudancas_de_preco"] == 0, "histórico: rodar de novo no mesmo dia não muda nada (idempotente)")
-est2, r2 = ha.atualizar(est, [_rec("a1", 950_000), _rec("c3", 500_000)], "2026-10-07")
-ok(est2["a1"]["preco_inicial"] == 1_000_000 and est2["a1"]["preco_atual"] == 950_000 and est2["a1"]["mudancas_preco"] == [["2026-10-07", 950_000]]
-   and est2["a1"]["visto_ultima"] == "2026-10-07", "histórico: mudança de preço guarda primeiro preço, preço atual e a mudança com data")
-ok(est2["b2"]["saida"] == "2026-10-07" and est2["b2"]["visto_ultima"] == "2026-10-06" and r2["sairam"] == 1 and r2["novos"] == 1 and r2["ativos"] == 2,
-   "histórico: anúncio que some da rede ganha data de saída e continua no arquivo")
-est3, r3 = ha.atualizar(est2, [_rec("a1", 950_000), _rec("b2", 2_100_000), _rec("c3", 500_000)], "2026-10-09")
+est, r1 = ha.atualizar({}, [_rec("a1", 1_000_000), _rec("b2", 2_000_000)], T1)
+ok(r1["novos"] == 2 and r1["ativos"] == 2 and est["a1"]["cadastro"] == "2026-03-05" and est["a1"]["visto_primeira"] == T1,
+   "histórico: primeira execução cria os anúncios com primeiro preço, cadastro e data+hora da primeira vez visto")
+est_b, r1b = ha.atualizar(est, [_rec("a1", 1_000_000), _rec("b2", 2_000_000)], T2)
+ok(r1b["novos"] == 0 and r1b["sairam"] == 0 and r1b["mudancas_de_preco"] == 0 and est_b["a1"]["visto_primeira"] == T1 and est_b["a1"]["visto_ultima"] == T2,
+   "histórico: segunda execução no mesmo dia só avança a última vez visto (com a hora)")
+est2, r2 = ha.atualizar(est, [_rec("a1", 950_000), _rec("c3", 500_000)], T2)
+ok(est2["a1"]["preco_inicial"] == 1_000_000 and est2["a1"]["preco_atual"] == 950_000 and est2["a1"]["mudancas_preco"] == [[T2, 950_000]]
+   and est2["a1"]["visto_ultima"] == T2, "histórico: mudança de preço guarda primeiro preço, preço atual e a mudança com data e hora")
+ok(est2["b2"]["saida"] == T2 and est2["b2"]["visto_primeira"] == T1 and est2["b2"]["visto_ultima"] == T1 and r2["sairam"] == 1 and r2["novos"] == 1 and r2["ativos"] == 2,
+   "histórico: anúncio visto numa execução e ausente na seguinte (MESMO DIA) sai com saída > última vez visto")
+est3, r3 = ha.atualizar(est2, [_rec("a1", 950_000), _rec("b2", 2_100_000), _rec("c3", 500_000)], T4)
 ok(est3["b2"]["saida"] is None and est3["b2"].get("voltas") == 1 and est3["b2"]["preco_atual"] == 2_100_000 and r3["voltaram"] == 1,
    "histórico: anúncio que volta à rede zera a saída e conta a volta")
-est4, _ = ha.atualizar(est2, [_rec("a1", 950_000), _rec("c3", 500_000)], "2026-10-07")
-ok(est4["b2"]["saida"] == "2026-10-07" and est4 == est2, "histórico: dois builds no mesmo dia depois da saída continuam idempotentes")
 ok(est["a1"]["preco_atual"] == 1_000_000 and est["a1"]["mudancas_preco"] == [], "histórico: a função não altera o estado recebido")
+# Regressão do travamento de 06/10/2026 (check 16): várias execuções no mesmo dia, anúncio que sai na segunda.
+dd = {"meta": {"historico_anuncios": {"agora": T2, "data": T2[:10], "ativos": 2, "novos": 1, "sairam": 1, "mudancas_de_preco": 1}}}
+regs_t2 = [_rec("a1", 950_000), _rec("c3", 500_000)]
+
+
+def _bloqueia(estado, registros, dados):
+    try:
+        vb.check_historico_anuncios((estado, registros), dados)
+        return False
+    except vb.ValidationError:
+        return True
+
+
+import contextlib, io
+with contextlib.redirect_stdout(io.StringIO()):
+    passou_mesmo_dia = not _bloqueia(est2, regs_t2, dd)
+ok(passou_mesmo_dia, "check 16: duas execuções no mesmo dia com um anúncio que saiu na segunda PASSA (o caso que travou em 06/10)")
+import copy as _cp
+x = _cp.deepcopy(est2); x["b2"]["saida"] = x["b2"]["visto_ultima"]
+ok(_bloqueia(x, regs_t2, dd), "check 16: saída igual à última vez visto bloqueia")
+x = _cp.deepcopy(est2); x["b2"]["saida"] = "2026-10-06T10:00:00"
+ok(_bloqueia(x, regs_t2, dd), "check 16: saída ANTES da última vez visto (data e hora) bloqueia")
+x = _cp.deepcopy(est2); x["b2"]["visto_primeira"] = "2026-10-06T18:00:00"
+ok(_bloqueia(x, regs_t2, dd), "check 16: primeira vez visto depois da última bloqueia")
+x = _cp.deepcopy(est2); x["b2"]["saida"] = "2026-10-06"
+ok(_bloqueia(x, regs_t2, dd), "check 16: data sem hora bloqueia")
+x = _cp.deepcopy(est2); x["a1"]["mudancas_preco"] = [["2026-10-05T10:00:00", 950_000]]
+ok(_bloqueia(x, regs_t2, dd), "check 16: mudança de preço antes da primeira vez visto bloqueia")
+# Arquivo antigo (só data) é convertido ao carregar, sem perder dados
 with tempfile.TemporaryDirectory() as tmp:
     arq = Path(tmp) / "h.jsonl"
     ha.salvar(est3, arq)
     ok(ha.carregar(arq) == est3, "histórico: gravar e ler o arquivo devolve o mesmo conteúdo")
+    velho = {"codigo": "z9", "bairro": "Moema", "endereco": "R", "complemento": None, "tipo": "casa", "area": 90, "addr_key": "k", "preco_inicial": 5, "preco_atual": 6,
+             "mudancas_preco": [["2026-10-06", 6]], "cadastro": "2026-01-01", "visto_primeira": "2026-10-06", "visto_ultima": "2026-10-06", "saida": "2026-10-06"}
+    arq.write_text(json.dumps(velho) + "\n", encoding="utf-8")
+    z = ha.carregar(arq)["z9"]
+    ok(z["visto_primeira"] == "2026-10-06T00:00:00" and z["saida"] == "2026-10-06T23:59:59" and z["mudancas_preco"] == [["2026-10-06T00:00:00", 6]] and z["preco_atual"] == 6,
+       "histórico: arquivo antigo (só data) vira data e hora sem perder dados, mantendo primeira <= última < saída")
     arq.write_text('{"codigo":"x"\n', encoding="utf-8")
     try:
         ha.carregar(arq)
@@ -216,6 +255,7 @@ with tempfile.TemporaryDirectory() as tmp:
     except SystemExit:
         ok(True, "histórico: código repetido para o build")
 ok(ha.data_brasilia(datetime.datetime(2026, 10, 7, 2, 30, tzinfo=datetime.timezone.utc)) == "2026-10-06", "histórico: data em horário de Brasília (02:30 UTC ainda é o dia anterior)")
+ok(ha.agora_brasilia(datetime.datetime(2026, 10, 7, 2, 30, 5, tzinfo=datetime.timezone.utc)) == "2026-10-06T23:30:05", "histórico: data e hora em horário de Brasília")
 
 # ---------------------------------------------------------------------------
 # 4. relatório com os dados reais do repositório (histórico do Git)

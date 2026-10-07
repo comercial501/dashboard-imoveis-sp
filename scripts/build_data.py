@@ -451,10 +451,11 @@ def main():
     import historico_anuncios
     historico_novo = historico_resumo = None
     if _USN_ANTES_DEDUP is not None:
-        historico_hoje = historico_anuncios.data_brasilia()
+        historico_agora = historico_anuncios.agora_brasilia()
         historico_novo, historico_resumo = historico_anuncios.atualizar(
-            historico_anuncios.carregar(), _USN_ANTES_DEDUP, historico_hoje)
-        historico_resumo["data"] = historico_hoje
+            historico_anuncios.carregar(), _USN_ANTES_DEDUP, historico_agora)
+        historico_resumo["agora"] = historico_agora
+        historico_resumo["data"] = historico_agora[:10]
         print(f"[build] histórico de anúncios: {historico_resumo}")
     else:
         print("[build] histórico de anúncios: fonte não é a API da nonStop — arquivo mantido como está")
