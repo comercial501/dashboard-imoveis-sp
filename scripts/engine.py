@@ -79,13 +79,15 @@ VALOR_OPORT_APTO_MIN_VENDAS = 4
 # venda até o último mês completo). A mediana de UM mês oscila demais — testado
 # nos dados: Itaim Bibi apartamento, ~40 vendas/mês, teve mediana de R$ 13,9 mil/m²
 # em jun/2026 contra ~R$ 9 mil nos outros meses, o que inflaria todas as vendas
-# antigas em 50% — então o índice usa uma janela de W meses (3, 6 ou 12 — a menor
-# com >= 100 vendas, pelo volume dos últimos 12 meses) centrada no mês e ajustada
-# pra caber nos dados. Bairro+tipo sem volume pra 12 meses (a maioria das casas)
-# usa a variação da cidade inteira, do mesmo tipo (janela de 6 meses).
+# antigas em 50% — então o índice usa uma janela de W meses (3, 6 ou 12) centrada
+# no mês e ajustada pra caber nos dados. Rodada A3 (07/10/2026): o índice PRÓPRIO do
+# bairro+tipo só vale se TODAS as janelas usadas (uma por mês, de jan/2024 ao mês base)
+# têm >= 100 vendas; W = a menor janela em que isso acontece. Sem nenhuma janela assim,
+# o bairro+tipo inteiro usa a variação da cidade, do mesmo tipo (janela de 6 meses) —
+# achado: Vila Mariana casa tinha índice próprio de -14,6% em 24 meses com poucas
+# vendas nas janelas antigas.
 INDICE_TEMPO_JANELAS = (3, 6, 12)
-INDICE_TEMPO_MIN_VENDAS = 100
-INDICE_TEMPO_MIN_VENDAS_JANELA = 10  # janela de um mês antigo com menos que isso usa a variação da cidade
+INDICE_TEMPO_MIN_VENDAS = 200
 INDICE_TEMPO_JANELA_CIDADE = 6
 VALOR_OPORT_APTO_MAX_P75_P25 = 1.25
 CAPTACAO_ESTRATEGICA_MAX_STOCK_MATCH = 2
@@ -1369,9 +1371,9 @@ def _compute_indice_tempo(itbi_records, periodo_12m, inicio_dados):
     """Rodada A2: fator de atualização por (bairro, tipo) e mês da venda.
     fator(mês) = índice(último mês completo) ÷ índice(mês), onde índice(mês) =
     mediana de R$/m² das revendas limpas na janela de W meses em volta do mês
-    (ver INDICE_TEMPO_*). Fator do último mês = 1. Janela do mês com poucas
-    vendas (ou bairro+tipo sem volume pra nenhuma janela) usa a variação da
-    cidade inteira (mesmo tipo, janela de INDICE_TEMPO_JANELA_CIDADE meses).
+    (ver INDICE_TEMPO_*). Fator do último mês = 1. Bairro+tipo cujas janelas não
+    têm TODAS >= INDICE_TEMPO_MIN_VENDAS vendas usa a variação da cidade inteira
+    (mesmo tipo, janela de INDICE_TEMPO_JANELA_CIDADE meses).
     Retorna {"mes_base": (a,m), "i0", "i1", "bairro_tipo": {(b,tipo): {"janela": W|None,
     "fator": {i: f}, "n_fallback": n}}, "cidade": {tipo: {i: f}}}."""
     i0, i1 = _ym_idx(inicio_dados), _ym_idx(periodo_12m[-1])
@@ -1418,21 +1420,19 @@ def _compute_indice_tempo(itbi_records, periodo_12m, inicio_dados):
 
     bt = {}
     for (bairro, tipo), por_mes in por_bt.items():
-        total12 = sum(len(por_mes.get(j, [])) for j in range(i1 - 11, i1 + 1))
-        w = next((w for w in INDICE_TEMPO_JANELAS if total12 / 12 * w >= INDICE_TEMPO_MIN_VENDAS), None)
-        if w is None:
-            bt[(bairro, tipo)] = {"janela": None, "fator": dict(cidade[tipo]), "n_fallback": i1 - i0 + 1}
+        escolhida = None
+        for w in INDICE_TEMPO_JANELAS:
+            sr = serie(por_mes, w)
+            if all(n >= INDICE_TEMPO_MIN_VENDAS for _v, n in sr.values()):
+                escolhida = (w, sr)
+                break
+        if escolhida is None:
+            bt[(bairro, tipo)] = {"janela": None, "fator": dict(cidade[tipo]), "n_fallback": i1 - i0 + 1, "min_vendas": None}
             continue
-        sr = serie(por_mes, w)
+        w, sr = escolhida
         base = sr[i1][0]
-        fator, n_fb = {}, 0
-        for i, (v, n) in sr.items():
-            if v and base and n >= INDICE_TEMPO_MIN_VENDAS_JANELA:
-                fator[i] = base / v
-            else:
-                fator[i] = cidade[tipo][i]
-                n_fb += 1
-        bt[(bairro, tipo)] = {"janela": w, "fator": fator, "n_fallback": n_fb}
+        bt[(bairro, tipo)] = {"janela": w, "fator": {i: base / v for i, (v, _n) in sr.items()}, "n_fallback": 0,
+                              "min_vendas": min(n for _v, n in sr.values())}
     return {"mes_base": periodo_12m[-1], "i0": i0, "i1": i1, "bairro_tipo": bt, "cidade": cidade}
 
 
@@ -1501,7 +1501,7 @@ def _resumo_indices(indice):
     out = {}
     for (b, t), e in sorted(indice["bairro_tipo"].items()):
         out.setdefault(b, {})[t] = {
-            "janela_meses": e["janela"], "meses_com_variacao_da_cidade": e["n_fallback"],
+            "janela_meses": e["janela"], "meses_com_variacao_da_cidade": e["n_fallback"], "vendas_na_menor_janela": e["min_vendas"],
             "fator": {fmt(i): _round(f, 4) for i, f in sorted(e["fator"].items())},
         }
     return out

@@ -2307,3 +2307,17 @@ mês da venda até o mês base. Vale para casas e apartamentos (`engine._compute
   `rodar(..., diagnostico=False)`; o diagnóstico continua disponível à mão:
   `python3 scripts/cascata_completa.py` (ou `rodar(True, "x")`). Os números da carteira_77 são
   idênticos nos dois modos (conferido: contagens de revenda, planta, unidades e fechamentos).
+
+## Rodada A3 (2026-10-07) — índice de valorização só com volume suficiente
+
+Achado: Vila Mariana casa tinha índice PRÓPRIO de -14,5% em 24 meses (vendas antigas "encareciam"
+ao serem atualizadas pra baixo) com janelas de poucas vendas. Regra nova (`engine._compute_indice_tempo`,
+espelho no `engine.js`): o índice próprio do bairro+tipo só vale se **todas as janelas usadas** (uma por
+mês, de jan/2024 ao mês base) têm **>= 200 vendas** (`INDICE_TEMPO_MIN_VENDAS`; antes 100 com cálculo pela
+média); W = a menor janela (3, 6 ou 12 meses) em que isso acontece; sem nenhuma, o bairro+tipo inteiro usa
+a variação da cidade do mesmo tipo (janela de 6 meses: apartamento +8,1% e casa +4,5% em 24 meses). Decisão
+minha: 200 (com 100 a Vila Mariana casa ainda passava — tinha 115 vendas na menor janela de 12 meses).
+`correcao_tempo.indices[bairro][tipo]` guarda `vendas_na_menor_janela`; o check 15 bloqueia índice próprio
+com menos de 200 e série "da cidade" que não esteja marcada em todos os meses. Efeito: 60 séries (de 152)
+tinham índice próprio, 35 passam a ter (apartamentos em geral viram janela de 6/12 meses; casas só em
+Tatuapé, Ipiranga e as de maior volume).

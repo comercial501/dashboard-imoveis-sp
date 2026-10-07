@@ -1232,18 +1232,17 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   const indiceBT = {};
   for (const [k, porMes] of Object.entries(porBT)) {
     const tipo = k.split("\u0001")[1];
-    let total12 = 0;
-    for (let j = i1 - 11; j <= i1; j++) total12 += (porMes[j] || []).length;
-    const w = C.indice_tempo_janelas.find((w) => (total12 / 12) * w >= C.indice_tempo_min_vendas);
-    if (w === undefined) { indiceBT[k] = { janela: null, fator: { ...cidadeFator[tipo] }, n_fallback: i1 - i0 + 1 }; continue; }
-    const sr = serieIdx(porMes, w), base = sr[i1][0];
-    const fator = {}; let nFb = 0;
-    for (const i of Object.keys(sr)) {
-      const [v, n] = sr[i];
-      if (v && base && n >= C.indice_tempo_min_vendas_janela) fator[i] = base / v;
-      else { fator[i] = cidadeFator[tipo][i]; nFb++; }
+    // Rodada A3: índice próprio só se TODAS as janelas usadas têm >= C.indice_tempo_min_vendas vendas.
+    let escolhida = null;
+    for (const w of C.indice_tempo_janelas) {
+      const sr = serieIdx(porMes, w);
+      if (Object.values(sr).every(([, n]) => n >= C.indice_tempo_min_vendas)) { escolhida = [w, sr]; break; }
     }
-    indiceBT[k] = { janela: w, fator, n_fallback: nFb };
+    if (!escolhida) { indiceBT[k] = { janela: null, fator: { ...cidadeFator[tipo] }, n_fallback: i1 - i0 + 1, min_vendas: null }; continue; }
+    const [w, sr] = escolhida, base = sr[i1][0];
+    const fator = {};
+    for (const i of Object.keys(sr)) fator[i] = base / sr[i][0];
+    indiceBT[k] = { janela: w, fator, n_fallback: 0, min_vendas: Math.min(...Object.values(sr).map(([, n]) => n)) };
   }
   const fatorTempo = (bairro, tipo, day) => {
     if (day == null) return 1.0;
@@ -1491,7 +1490,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
           for (const k of Object.keys(indiceBT).sort()) {
             const [b, t] = k.split("\u0001"), e = indiceBT[k];
             (out[b] ||= {})[t] = {
-              janela_meses: e.janela, meses_com_variacao_da_cidade: e.n_fallback,
+              janela_meses: e.janela, meses_com_variacao_da_cidade: e.n_fallback, vendas_na_menor_janela: e.min_vendas,
               fator: Object.fromEntries(Object.keys(e.fator).map(Number).sort((a, c) => a - c).map((i) => [fmt(i), round(e.fator[i], 4)])),
             };
           }

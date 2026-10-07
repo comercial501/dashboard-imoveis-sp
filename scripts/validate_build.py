@@ -848,6 +848,11 @@ def check_rodada_a(data):
             for t, e in tipos.items():
                 n_series += 1
                 fatores = e["fator"]
+                # Rodada A3: índice próprio só com volume suficiente em TODAS as janelas usadas.
+                if e["janela_meses"] is not None and (e.get("vendas_na_menor_janela") or 0) < engine.INDICE_TEMPO_MIN_VENDAS:
+                    divergencias.append(f"{b}/{t}: índice próprio com {e.get('vendas_na_menor_janela')} vendas na menor janela (mínimo {engine.INDICE_TEMPO_MIN_VENDAS})")
+                if e["janela_meses"] is None and e["meses_com_variacao_da_cidade"] != len(fatores):
+                    divergencias.append(f"{b}/{t}: sem índice próprio mas só {e['meses_com_variacao_da_cidade']} de {len(fatores)} meses marcados como variação da cidade")
                 if fatores.get(corr["mes_base"]) != 1.0:
                     divergencias.append(f"{b}/{t}: fator do mês base é {fatores.get(corr['mes_base'])}, deveria ser 1,0")
                 ruins = [m for m, f in fatores.items() if not (FATOR_TEMPO_MIN <= f <= FATOR_TEMPO_MAX)]
