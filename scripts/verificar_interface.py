@@ -76,8 +76,20 @@ def main():
         pg = br.new_page()
         pg.on("pageerror", lambda e: erros.append(str(e)[:200]))
         pg.on("console", lambda m: erros.append(m.text[:200]) if m.type == "error" else None)
+        pedidos = []
+        pg.on("request", lambda r: pedidos.append(r.url.rsplit("/", 1)[-1]))
         pg.goto(args.base, wait_until="networkidle")
         pg.wait_for_timeout(1500)
+        for pid_ in PAINEIS:  # percorre os painéis SEM usar filtro: o raw.json não pode ser pedido
+            pg.evaluate(f"()=>window.showPanel('{pid_}')")
+            pg.wait_for_timeout(120)
+        raw_antes_do_filtro = "raw.json" in pedidos
+        # "Ver lista completa" (Estoque × Demanda) é o outro caminho que carrega o raw.json
+        pg.evaluate("()=>window.showPanel('estoque-demanda')")
+        pg.evaluate("()=>document.querySelector('#estoque-demanda-table tbody tr td:last-child a').click()")
+        pg.wait_for_selector(".estoque-detalhe-row", timeout=120000)
+        lista_ok = pg.evaluate("()=>document.querySelectorAll('.estoque-detalhe-row .mini-listing-row').length>0 || !!document.querySelector('.estoque-detalhe-row .placeholder-block')")
+        pg.evaluate("()=>window.showPanel('visao-geral')")
         cab = pg.evaluate("()=>({atualizado:document.getElementById('updated-at').textContent,fontes:document.getElementById('fontes-status').innerText.replace(/\\n/g,' | ')})")
         pg.evaluate("async()=>{await window.ensureEngineLoaded(); window.recomputeAndRenderAll();}")
         pg.wait_for_timeout(800)
@@ -109,9 +121,10 @@ def main():
         paginas = "(instale pypdf pra contar páginas)"
     print(json.dumps({"cabecalho": cab, "paridade": par, "aviso_dado_parado": aviso, "paginas_pdf": paginas}, ensure_ascii=False, indent=1))
     print("ERROS DE CONSOLE:", len(erros), erros[:5])
+    print("raw.json pedido antes de usar filtro:", raw_antes_do_filtro, "| Ver lista completa abriu:", lista_ok)
     div = (par["bairros"]["divergencias"] + par["painel8"]["divergencias"] + par["preco_m2"]["divergencias"]
            + par["valor_oportunidade"]["divergencias"] + par["captacao_tipo"]["divergencias"] + par["correcao_tempo"]["divergencias"])
-    ok = (not erros and div == 0 and par["prontidao_top10_igual"] and par["top30"]["igual"]
+    ok = (not erros and not raw_antes_do_filtro and lista_ok and div == 0 and par["prontidao_top10_igual"] and par["top30"]["igual"]
           and par["valor_oportunidade"]["meta_apto"] and par["correcao_tempo"]["resumo_igual"])
     print("RESULTADO:", "OK" if ok else "FALHOU")
     return 0 if ok else 1

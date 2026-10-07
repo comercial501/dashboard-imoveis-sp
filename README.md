@@ -2322,7 +2322,7 @@ com menos de 200 e série "da cidade" que não esteja marcada em todos os meses.
 tinham índice próprio, 35 passam a ter (apartamentos em geral viram janela de 6/12 meses; casas só em
 Tatuapé, Ipiranga e as de maior volume).
 
-## Rodada B (2026-10-06) — acesso pelo celular, Cloudflare Pages (branch `rodada-b-cloudflare`)
+## Rodada B (2026-10-07) — acesso pelo celular, Cloudflare Pages
 
 - **O dashboard é 100% estático**: `index.html` + `app.js` + `engine.js` + `styles.css` +
   `data.json` + `raw.json` (carregados com `fetch` relativo; o recálculo dos filtros roda no
@@ -2352,3 +2352,14 @@ Tatuapé, Ipiranga e as de maior volume).
   12 a 330 KiB no repositório (o primeiro par inteiro custa 2,7 MiB compactado). Projeção de 12
   meses: ~40 a 130 MiB a mais (repositório de ~100–190 MiB), longe do 1 GiB recomendado pelo GitHub.
 - Passo a passo para quem vai configurar a Cloudflare: `docs/cloudflare-passo-a-passo.md`.
+- **Celular (ajustes pedidos pelo Paulo)**: (1) em tela de até 760 px o menu lateral vira uma barra
+  horizontal no topo, com rolagem pro lado (desktop continua com o menu à esquerda); o conteúdo usa a
+  largura toda e a página não rola pro lado. (2) O `raw.json` (14 MB) e o recálculo não carregam mais
+  na abertura: só quando alguém usa um filtro ou abre "Ver lista completa" no Estoque × Demanda (a
+  tabela agora sai do `data.json`); os PDFs só carregam o motor se houver filtro ativo.
+  Medido num iPhone 13 simulado (CPU 4× mais lenta, ~12 Mbps, servidor local sem compressão): antes
+  baixava 22,6 MB nos primeiros 60 s, com o `raw.json` pronto em ~24 s e uma travada de 4,8 s;
+  depois baixa 8,4 MB, não pede o `raw.json` e não trava (0 travadas acima de 1 s). Primeiro conteúdo
+  em 8–10 s nas duas versões (é o `data.json` de 8,5 MB; a Cloudflare comprime e deve reduzir muito).
+  Usar um filtro pela primeira vez leva ~17 s nesse celular simulado (baixa o `raw.json` e recalcula).
+  `verificar_interface.py` confere que o `raw.json` não é pedido antes do filtro.

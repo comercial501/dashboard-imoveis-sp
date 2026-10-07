@@ -538,13 +538,12 @@ window.addEventListener("afterprint", () => {
 });
 
 async function printFullDashboard() {
-  // Estoque × Demanda só busca engine.js/raw.json (e enche
-  // DATA._matchingListingsByBairro) na primeira vez que alguém entra nessa
-  // aba ou mexe num filtro — sem isso, o PDF completo podia sair com
-  // "Carregando lista detalhada do estoque da rede…" se baixado logo após abrir a
-  // página. Garante que já carregou antes de imprimir.
-  await ensureEngineLoaded();
-  recomputeAndRenderAll();
+  // Rodada B: sem filtro ativo o DATA já é o do servidor (data.json) — não precisa
+  // do raw.json. Com filtro ativo ele já foi carregado; garante o recálculo atual.
+  if (filtersActive()) {
+    await ensureEngineLoaded();
+    recomputeAndRenderAll();
+  }
 
   document.body.classList.add("printing-all");
   expandAllCaptacao();
@@ -621,10 +620,11 @@ function filtrosLocaisLabel(panelId) {
 }
 
 async function printPage(panelId, label) {
-  // Mesmo motivo do printFullDashboard: garante engine.js/raw.json
-  // carregados (Estoque × Demanda) antes de imprimir qualquer página.
-  await ensureEngineLoaded();
-  recomputeAndRenderAll();
+  // Mesmo motivo do printFullDashboard: só carrega o motor se houver filtro ativo.
+  if (filtersActive()) {
+    await ensureEngineLoaded();
+    recomputeAndRenderAll();
+  }
 
   const metaEl = document.getElementById(`print-meta-${panelId}`);
   if (metaEl) {
@@ -1461,12 +1461,8 @@ function renderEstoqueDemanda() {
   const container = document.getElementById("estoque-demanda-table");
   container.innerHTML = "";
 
-  if (!DATA._matchingListingsByBairro) {
-    container.appendChild(el("div", { class: "note" }, "Carregando lista detalhada do estoque da rede…"));
-    ensureEngineLoaded().then(() => recomputeAndRenderAll());
-    return;
-  }
-
+  // Rodada B (celular): a tabela sai direto do data.json; o raw.json (14 MB) e o
+  // recálculo só carregam quando alguém usa um filtro ou abre "Ver lista completa".
   const rows = DATA.ranking.map((name) => ({ bairro: name, ...DATA.bairros[name] }));
   sortableTable(container, {
     initialSortKey: "stock_demand_ratio",
@@ -1502,7 +1498,22 @@ function renderEstoqueDemanda() {
       {
         key: "detalhes", label: "Detalhes", sortable: false, render: (r) => {
           const link = el("a", { href: "#" }, "Ver lista completa");
-          link.addEventListener("click", (e) => { e.preventDefault(); toggleEstoqueDetalhe(r.bairro, e.currentTarget); });
+          link.addEventListener("click", async (e) => {
+            e.preventDefault();
+            const alvo = e.currentTarget;
+            if (!DATA._matchingListingsByBairro) {
+              // primeira vez: busca o raw.json, recalcula e reabre a mesma linha
+              alvo.textContent = "Carregando…";
+              await ensureEngineLoaded();
+              recomputeAndRenderAll();
+              const novo = [...document.querySelectorAll("#estoque-demanda-table tbody tr")]
+                .find((tr) => tr.firstElementChild && tr.firstElementChild.textContent.trim() === r.bairro);
+              const novoLink = novo && novo.querySelector("a");
+              if (novoLink) toggleEstoqueDetalhe(r.bairro, novoLink);
+              return;
+            }
+            toggleEstoqueDetalhe(r.bairro, alvo);
+          });
           return link;
         },
       },

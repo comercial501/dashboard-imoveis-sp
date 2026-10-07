@@ -350,9 +350,10 @@ svg.map-svg { width: 100%; height: auto; display: block; }
 /* -------------------------------------------------------------------- */
 /* Responsive                                                            */
 /* -------------------------------------------------------------------- */
-/* A navegação fica sempre na barra lateral esquerda, vertical, em
-   qualquer largura de tela — sem alternar pra abas horizontais no topo
-   em telas estreitas. */
+/* A navegação fica na barra lateral esquerda, vertical, em telas médias e
+   grandes. Desde 07/10/2026 (Rodada B, pedido do Paulo, acesso pelo celular),
+   SÓ em tela estreita (<= 760px) ela vira uma barra horizontal no topo, com
+   rolagem pro lado — o bloco "@media (max-width: 760px)" mais abaixo. */
 @media (max-width: 900px) {
   .sidebar { width: 190px; padding: 18px 10px; }
   nav.tabs button { font-size: 12.5px; padding: 9px 10px; }
@@ -366,6 +367,33 @@ svg.map-svg { width: 100%; height: auto; display: block; }
   .sidebar-foot { display: none; }
   nav.tabs button { font-size: 11.5px; padding: 8px; }
   .brand-text { display: none; }
+}
+
+/* Celular (Rodada B): menu horizontal no topo, conteúdo na largura toda. */
+@media (max-width: 760px) {
+  .app-shell { flex-direction: column; }
+  .sidebar {
+    width: 100%; height: auto; position: sticky; top: 3px; z-index: 60;
+    flex-direction: row; align-items: center; gap: 8px;
+    padding: 8px 10px; border-right: 0; border-bottom: 1px solid var(--border);
+    overflow-x: auto; overflow-y: hidden;
+  }
+  .brand { margin: 0 4px 0 0; flex-shrink: 0; }
+  .brand-text, .sidebar-foot { display: none; }
+  nav.tabs { flex-direction: row; gap: 4px; flex: 1 0 auto; }
+  nav.tabs button {
+    white-space: nowrap; flex-shrink: 0; font-size: 12.5px; padding: 9px 12px;
+    border-left: 0; border-bottom: 3px solid transparent; border-radius: 8px 8px 0 0;
+  }
+  nav.tabs button.active { border-left-color: transparent; border-bottom-color: var(--gold); }
+  .app { padding: 14px 12px 60px; }
+  header.app-header { margin-bottom: 14px; }
+  header.app-header h1 { font-size: 22px; }
+  header.app-header > div:last-child { flex-direction: column; align-items: flex-start !important; gap: 6px !important; }
+  .fontes-status { max-width: none; }
+  .local-filtros { gap: 8px; }
+  .local-filtros .bairro-select { width: 100%; }
+  .seg-toggle { max-width: 100%; overflow-x: auto; }
 }
 
 /* -------------------------------------------------------------------- */
