@@ -62,6 +62,21 @@ r = rodar("--manter", "1", "--apagar")
 ok(r.returncode != 0 and not apagadas, "--manter menor que 2 é recusado")
 r = rodar(e={k: v for k, v in env.items() if k != "CLOUDFLARE_API_TOKEN"})
 ok(r.returncode != 0 and not apagadas, "sem as variáveis de acesso: não faz nada")
+# --- publicar_cloudflare.sh inteiro, com npx falso: a limpeza NUNCA derruba o deploy ---
+import tempfile
+with tempfile.TemporaryDirectory() as tmp:
+    npx = Path(tmp) / "npx"
+    npx.write_text("#!/bin/bash\necho \"npx falso: $@\"\nexit 0\n"); npx.chmod(0o755)
+    estado["prod"] = "00000012-aaaa"; apagadas.clear()
+    e2 = {**env, "PATH": f"{tmp}:{os.environ['PATH']}", "GITHUB_ACTIONS": "true"}
+    r = subprocess.run(["bash", str(ROOT / "scripts" / "publicar_cloudflare.sh")], capture_output=True, text=True, env=e2, cwd=ROOT)
+    ok(r.returncode == 0 and "pages deploy" in r.stdout and "Apagaria 7" in r.stdout and not apagadas, "etapa 1: deploy + limpeza só listando (nada apagado)")
+    ok("::notice title=Limpeza de publicações da Cloudflare::" in r.stdout and "Produção na lista de apagar: não" in r.stdout, "etapa 1: resumo vira anotação do GitHub e confirma que a produção não está na lista")
+    r = subprocess.run(["bash", str(ROOT / "scripts" / "publicar_cloudflare.sh")], capture_output=True, text=True, env={**e2, "LIMPAR_APAGAR": "1"}, cwd=ROOT)
+    ok(r.returncode == 0 and set(apagadas) == esperadas, "etapa 2 (LIMPAR_APAGAR=1): apaga só as 7 antigas")
+    apagadas.clear(); estado["prod"] = None  # API "quebrada" pra limpeza: deploy tem que seguir de pé
+    r = subprocess.run(["bash", str(ROOT / "scripts" / "publicar_cloudflare.sh")], capture_output=True, text=True, env={**e2, "LIMPAR_APAGAR": "1"}, cwd=ROOT)
+    ok(r.returncode == 0 and "::warning::A limpeza" in r.stdout and not apagadas, "limpeza que falha NÃO derruba o deploy (só registra o aviso) e não apaga nada")
 srv.shutdown()
 print(); print("Todos os testes da limpeza passaram." if not falhas else f"{len(falhas)} falha(s)")
 sys.exit(1 if falhas else 0)

@@ -84,6 +84,15 @@ def main():
     print(f"{'Apagando' if args.apagar else 'Apagaria'} {len(apagar)}:")
     for d in apagar:
         print(f"  - {d['id'][:8]}  {d['created_on'][:19]}  {d.get('environment')}  {d.get('url')}")
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        # Anotação do GitHub: aparece no resumo da execução (e na API pública de anotações).
+        resumo = (f"Limpeza das publicações da Cloudflare ({'APAGANDO' if args.apagar else 'SÓ LISTANDO'}): {len(pubs)} no projeto, "
+                  f"produção atual {id_prod[:8]}. Mantém {len(manter)}: "
+                  + "; ".join(f"{d['id'][:8]} ({d['created_on'][:10]})" + (" EM PRODUÇÃO" if d["id"] == id_prod else "") for d in manter)
+                  + f". {'Apaga' if args.apagar else 'Apagaria'} {len(apagar)}: "
+                  + ("; ".join(f"{d['id'][:8]} ({d['created_on'][:10]})" for d in apagar) or "nenhuma")
+                  + f". Produção na lista de apagar: {'SIM (ERRO)' if any(d['id'] == id_prod for d in apagar) else 'não'}.")
+        print("::notice title=Limpeza de publicações da Cloudflare::" + resumo.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))
     if not args.apagar:
         print("\n(Só listei. Para apagar de verdade, rode de novo com --apagar.)")
         return 0

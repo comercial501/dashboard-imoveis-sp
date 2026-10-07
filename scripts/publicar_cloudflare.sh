@@ -20,3 +20,13 @@ npx --yes wrangler@4 pages project create "$CLOUDFLARE_PAGES_PROJECT" --producti
 # A pasta "functions/" (a trava de login) é lida do diretório atual.
 npx --yes wrangler@4 pages deploy cloudflare-dist \
   --project-name "$CLOUDFLARE_PAGES_PROJECT" --branch main --commit-dirty=true
+
+# Limpeza das publicações antigas (mantém as 5 mais recentes + a de produção).
+# NUNCA derruba o deploy: se falhar, só registra o aviso no log.
+# ETAPA 1 (aprovada em 07/10/2026): só LISTA o que apagaria. A etapa 2 troca para 1.
+LIMPAR_APAGAR="${LIMPAR_APAGAR:-0}"
+modo=""
+[ "$LIMPAR_APAGAR" = "1" ] && modo="--apagar"
+python3 scripts/limpar_publicacoes_cloudflare.py --manter 5 $modo \
+  || echo "::warning::A limpeza das publicações antigas da Cloudflare falhou (o deploy foi concluído normalmente). Veja o log acima."
+exit 0

@@ -2364,10 +2364,14 @@ Tatuapé, Ipiranga e as de maior volume).
   Usar um filtro pela primeira vez leva ~17 s nesse celular simulado (baixa o `raw.json` e recalcula).
   `verificar_interface.py` confere que o `raw.json` não é pedido antes do filtro.
 
-### Limpeza das publicações antigas da Cloudflare (proposta, branch `limpeza-cloudflare`, aguarda aprovação)
+### Limpeza das publicações antigas da Cloudflare (2026-10-07)
 Cada envio cria uma publicação com endereço próprio (`https://<código>.<projeto>.pages.dev`) e a
 Cloudflare não apaga as antigas (a documentação não prevê expiração). Todas ficam atrás do mesmo login
 (o aplicativo do Access cobre `*.torre-topio.pages.dev`). `scripts/limpar_publicacoes_cloudflare.py`
 mantém só as N mais recentes (padrão 5) e nunca apaga a que está em produção; por padrão só LISTA
-(`--apagar` apaga). Teste com API falsa: `python3 scripts/test_limpar_cloudflare.py`. Ainda não está ligado
-na Action nem foi rodado contra a API real.
+(`--apagar` apaga). Teste com API falsa: `python3 scripts/test_limpar_cloudflare.py`.
+**Ligada no fim de `scripts/publicar_cloudflare.sh`** (deploy diário e manual), aprovada em 07/10/2026 em 2
+etapas: etapa 1 (`LIMPAR_APAGAR=0`, padrão do script) só LISTA e publica o resumo como anotação do GitHub
+("Limpeza de publicações da Cloudflare", inclusive "Produção na lista de apagar: não"); etapa 2
+(`LIMPAR_APAGAR=1`) apaga, mantendo as 5 mais recentes + a de produção. Falha da limpeza só vira aviso no log
+(`::warning::`), nunca derruba o deploy.
