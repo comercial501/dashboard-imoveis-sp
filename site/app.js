@@ -369,6 +369,51 @@ function renderAll() {
 const LIMITE_DADO_PARADO_HORAS = 30;
 const CONFERIR_VERSAO_A_CADA_MS = 60 * 60 * 1000;
 const CHAVE_RECARGA = "torre_recarregou_para";
+const CHAVE_ESTADO = "torre_estado_para_restaurar";
+const TITULO_ORIGINAL_PAGINA = document.title;
+// Já interagiu? (clique, digitação, escolha — só ações DA PESSOA, não as do programa). Quem já mexeu na
+// página NUNCA é recarregado sozinho: ganha a faixa "Há dados novos" com o botão "Atualizar agora".
+let INTERAGIU = false;
+["click", "input", "change", "keydown"].forEach((tipo) =>
+  document.addEventListener(tipo, (e) => { if (e.isTrusted) INTERAGIU = true; }, true));
+
+// Estado que volta depois do "Atualizar agora": painel aberto, filtros da barra lateral, filtros e
+// alternadores de cada painel (LOCAL), bairro do Perfil e posição da rolagem. Guardado no sessionStorage
+// (some ao fechar a aba) e válido por 5 minutos.
+function capturarEstado() {
+  const ativo = document.querySelector("nav.tabs button.active");
+  const perfil = document.getElementById("perfil-select");
+  return {
+    em: Date.now(), painel: ativo ? ativo.dataset.panel : null,
+    filtros: { bairros: [...FILTERS.bairros], priceMin: FILTERS.priceMin, priceMax: FILTERS.priceMax },
+    local: JSON.parse(JSON.stringify(LOCAL)), perfil: perfil ? perfil.value : null, scrollY: window.scrollY,
+  };
+}
+
+function lerEstadoSalvo() {
+  try {
+    const bruto = sessionStorage.getItem(CHAVE_ESTADO);
+    sessionStorage.removeItem(CHAVE_ESTADO);
+    if (!bruto) return null;
+    const e = JSON.parse(bruto);
+    return Date.now() - e.em < 5 * 60 * 1000 ? e : null;
+  } catch (err) { return null; }
+}
+
+function mostrarFaixaDadosNovos(iso) {
+  const faixa = document.getElementById("faixa-dados-novos");
+  if (!faixa) return;
+  const dia = fmtDataBR(iso), hoje = fmtDataBR(new Date().toISOString());
+  document.getElementById("faixa-dados-novos-texto").textContent = dia === hoje ? "Há dados novos de hoje." : `Há dados novos de ${dia.slice(0, 5)}.`;
+  faixa.hidden = false;
+  if (!document.title.startsWith("•")) document.title = `• Dados novos — ${TITULO_ORIGINAL_PAGINA}`;
+}
+
+function esconderFaixaDadosNovos() {
+  const faixa = document.getElementById("faixa-dados-novos");
+  if (faixa) faixa.hidden = true;
+  document.title = TITULO_ORIGINAL_PAGINA;
+}
 let VERSAO_SERVIDOR_ISO = null; // generated_at_iso do que está no servidor agora (null = ainda não conferiu / sem resposta)
 let ULTIMA_CONFERENCIA_MS = 0;
 
@@ -400,8 +445,14 @@ async function conferirVersaoNoServidor() {
   const noServidor = parseInstante(v);
   const carregada = parseInstante(SERVER_DATA && (SERVER_DATA.generated_at_iso || SERVER_DATA.generated_at));
   if (noServidor && carregada && noServidor.getTime() > carregada.getTime() + 1000) {
-    // Tem versão mais nova no servidor: recarrega. Trava anti-laço: só uma recarga por versão; se mesmo
-    // assim a página continuar com dado mais velho (cache do servidor atrasado), cai no aviso normal.
+    // Tem versão mais nova no servidor. Quem JÁ interagiu não é recarregado: ganha a faixa com o botão.
+    if (INTERAGIU) {
+      mostrarFaixaDadosNovos(v);
+      atualizarAvisoDadoParado();
+      return;
+    }
+    // Quem só abriu a página: recarrega. Trava anti-laço: só uma recarga por versão; se mesmo assim a
+    // página continuar com dado mais velho (cache do servidor atrasado), cai no aviso normal.
     let ultimo = null;
     try { ultimo = sessionStorage.getItem(CHAVE_RECARGA); } catch (e) { /* sem sessionStorage */ }
     if (ultimo !== v) {
@@ -410,6 +461,7 @@ async function conferirVersaoNoServidor() {
       return;
     }
   }
+  esconderFaixaDadosNovos();
   atualizarAvisoDadoParado();
 }
 
@@ -493,9 +545,30 @@ async function main() {
     if (document.visibilityState === "visible" && Date.now() - ULTIMA_CONFERENCIA_MS >= CONFERIR_VERSAO_A_CADA_MS) conferirVersaoNoServidor();
   });
 
+  document.getElementById("faixa-dados-novos-botao").addEventListener("click", () => {
+    try { sessionStorage.setItem(CHAVE_ESTADO, JSON.stringify(capturarEstado())); } catch (e) { /* recarrega sem guardar */ }
+    location.reload();
+  });
+
   setupTabs();
-  setupFiltros();
+  const filtrosUI = setupFiltros();
+  const salvo = lerEstadoSalvo();
+  if (salvo) { // voltou do "Atualizar agora": devolve filtros e alternadores antes de desenhar
+    INTERAGIU = true; // quem tinha estado guardado já mexeu na página: nunca recarrega sozinho
+    if (salvo.local) {
+      LOCAL.prioritariosBairro = salvo.local.prioritariosBairro || "";
+      LOCAL.vo = salvo.local.vo || "ambos";
+      if (salvo.local.captacao) LOCAL.captacao = { ...LOCAL.captacao, ...salvo.local.captacao };
+    }
+    if (salvo.filtros) filtrosUI.aplicar(salvo.filtros);
+  }
   renderAll(); // já dispara o carregamento em segundo plano do engine.js/raw.json (ver renderEstoqueDemanda)
+  if (salvo) {
+    const sel = document.getElementById("perfil-select");
+    if (salvo.perfil && sel && [...sel.options].some((o) => o.value === salvo.perfil)) { sel.value = salvo.perfil; renderPerfilContent(salvo.perfil); }
+    if (salvo.painel && PANELS.some((p) => p.id === salvo.painel)) showPanel(salvo.painel);
+    setTimeout(() => window.scrollTo(0, salvo.scrollY || 0), 150);
+  }
 }
 
 const PANELS = [
@@ -787,6 +860,18 @@ function setupFiltros() {
     });
   });
 
+  // Usado pelo "Atualizar agora": devolve os filtros que a pessoa tinha na versão antiga da página.
+  function aplicar(f) {
+    FILTERS.bairros = new Set((f.bairros || []).filter((b) => SERVER_DATA.ranking.includes(b)));
+    FILTERS.priceMin = f.priceMin == null ? null : f.priceMin;
+    FILTERS.priceMax = f.priceMax == null ? null : f.priceMax;
+    listBox.querySelectorAll("input").forEach((cb) => (cb.checked = FILTERS.bairros.has(cb.value)));
+    minInput.value = FILTERS.priceMin == null ? "" : String(FILTERS.priceMin);
+    maxInput.value = FILTERS.priceMax == null ? "" : String(FILTERS.priceMax);
+    updateStatus();
+    if (filtersActive()) onFilterChange();
+  }
+
   document.getElementById("filtro-limpar-tudo").addEventListener("click", (e) => {
     e.preventDefault();
     FILTERS.bairros.clear();
@@ -802,6 +887,8 @@ function setupFiltros() {
     window.__data = DATA;
     renderAll();
   });
+
+  return { aplicar };
 }
 
 function statTile(label, value, sub) {

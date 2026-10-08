@@ -96,7 +96,7 @@ def main():
     for f in ("index.html", "app.js", "engine.js", "styles.css"):
         shutil.copy2(ROOT / "site" / f, tmp / f)
     base = json.loads((ROOT / "site" / "data.json").read_text(encoding="utf-8"))
-    (tmp / "raw.json").write_text("{}", encoding="utf-8")  # não é usado sem filtro
+    shutil.copy2(ROOT / "site" / "raw.json", tmp / "raw.json")  # só é pedido quando alguém usa um filtro
     est = Estado(tmp, base)
     est.libera_apos = 10**9
     srv = servir(tmp, est)
@@ -189,6 +189,89 @@ def main():
         est.set(horas_data=5)
         ctx, pg, erros, navs = nova_pagina(); pg.goto(URL, wait_until="networkidle"); pg.wait_for_timeout(800)
         ok(texto_aviso(pg) is None, "G1: dado de 5 h no servidor → sem aviso"); ctx.close()
+        # ============ Quem JÁ interagiu: nunca recarrega sozinho; ganha a faixa "Há dados novos" ============
+        def esperado_texto_faixa(horas):
+            dia = (AGORA - datetime.timedelta(hours=horas)).astimezone(datetime.timezone(datetime.timedelta(hours=-3))).date()
+            hoje = AGORA.astimezone(datetime.timezone(datetime.timedelta(hours=-3))).date()
+            return "Há dados novos de hoje." if dia == hoje else f"Há dados novos de {dia.strftime('%d/%m')}."
+
+        def faixa(pg):
+            return pg.evaluate("()=>{const f=document.getElementById('faixa-dados-novos'); return f.hidden?null:{texto:document.getElementById('faixa-dados-novos-texto').textContent, botao:document.getElementById('faixa-dados-novos-botao').textContent, titulo:document.title}}")
+
+        def abrir_e_interagir(acao, mobile=False):
+            est.set(horas_data=5)
+            ctx = br.new_context(**p.devices["iPhone 13"]) if mobile else br.new_context(viewport={"width": 1280, "height": 900})
+            pg = ctx.new_page(); erros = []; navs = []
+            pg.on("pageerror", lambda e: erros.append(str(e)[:150]))
+            pg.on("framenavigated", lambda f: navs.append(f.url) if f == pg.main_frame else None)
+            pg.clock.install()
+            pg.goto(URL, wait_until="networkidle"); pg.wait_for_timeout(800)
+            acao(pg)
+            est.set(horas_data=1)  # chega a versão nova
+            pg.clock.fast_forward("01:00:10"); pg.wait_for_timeout(1800)
+            return ctx, pg, erros, navs
+
+        acoes = {
+            "trocar de painel (clique na aba)": lambda pg: pg.click('nav.tabs button:has-text("Captação Ativa")'),
+            "digitar na busca de bairro": lambda pg: pg.fill("#filtro-busca-bairro", "Moe"),
+            "marcar um bairro no filtro": lambda pg: pg.check('#filtro-bairro-list input[value="Moema"]'),
+            "digitar o preço mínimo": lambda pg: pg.fill("#filtro-preco-min", "500000"),
+            "clicar no alternador Casas/Apartamentos": lambda pg: (pg.evaluate("()=>showPanel('valor-oportunidade')"), pg.click('#vo-toggle button[data-vo="casa"]')),
+        }
+        for nome, acao in acoes.items():
+            ctx, pg, erros, navs = abrir_e_interagir(acao)
+            f = faixa(pg)
+            ok(len(navs) == 1 and f is not None and f["texto"] == esperado_texto_faixa(1) and f["botao"] == "Atualizar agora",
+               f"I1: depois de [{nome}] NÃO recarrega e mostra a faixa", f"{len(navs)} navegação; faixa={f['texto'] if f else None}")
+            ok(not [e for e in erros], f"I1: sem erro de programa ({nome})"); ctx.close()
+        # sem interação nenhuma: recarrega (mesmo cenário do A, agora com raw.json real disponível)
+        ctx, pg, erros, navs = abrir_e_interagir(lambda pg: pg.evaluate("()=>showPanel('captacao')"))  # troca PROGRAMÁTICA não conta
+        ok(len(navs) == 2 and faixa(pg) is None, "I2: mudanças feitas pelo programa (sem a pessoa mexer) continuam recarregando sozinhas", f"{len(navs)} navegações")
+        ctx.close()
+
+        # ---- pessoa com filtros marcados quando chega a versão nova + "Atualizar agora" volta no mesmo estado ----
+        def montar_estado(pg):
+            pg.check('#filtro-bairro-list input[value="Moema"]'); pg.fill("#filtro-preco-min", "500000")
+            pg.wait_for_function("()=>!!window.__data && Object.keys(window.__data.bairros).length===1", timeout=60000)
+            pg.click('nav.tabs button:has-text("Captação Ativa")')
+            pg.select_option('#captacao-filtros select >> nth=2', "casa")
+            pg.click('nav.tabs button:has-text("Valor de Oportunidade")')
+            pg.click('#vo-toggle button[data-vo="apartamento"]')
+            pg.click('nav.tabs button:has-text("Captação Ativa")')
+            pg.evaluate("()=>window.scrollTo(0, 300)")
+        ctx, pg, erros, navs = abrir_e_interagir(montar_estado)
+        f = faixa(pg)
+        antes_txt = atualizado_em(pg)
+        ok(len(navs) == 1 and f is not None and "Há dados novos" in f["texto"] and f["titulo"].startswith("•"), "I3: pessoa com filtros marcados quando chega a versão nova → NÃO recarrega, faixa visível, título marcado", f"{len(navs)} navegação")
+        ok(pg.evaluate("()=>FILTERS.bairros.has('Moema')") and pg.evaluate("()=>document.querySelector('#filtro-bairro-list input[value=Moema]').checked"), "I3: os filtros da pessoa continuam intactos enquanto a faixa está na tela")
+        geo = pg.evaluate("""()=>{const f=document.getElementById('faixa-dados-novos').getBoundingClientRect(); const h=document.querySelector('header.app-header').getBoundingClientRect();
+            return {faixa_fundo:f.bottom, header_topo:h.top, largura_pagina:document.documentElement.scrollWidth, janela:innerWidth, faixa_largura:f.width}}""")
+        ok(geo["faixa_fundo"] <= geo["header_topo"] + 0.5 and geo["largura_pagina"] <= geo["janela"], "I3: no desktop a faixa fica no fluxo (não tampa o cabeçalho) e a página não rola pro lado", str(geo))
+        pg.click("#faixa-dados-novos-botao"); pg.wait_for_timeout(1500)
+        pg.wait_for_function("()=>!!window.__data && Object.keys(window.__data.bairros).length===1", timeout=60000)
+        estado = pg.evaluate("""()=>({painel:document.querySelector('nav.tabs button.active').textContent,
+            moema:document.querySelector('#filtro-bairro-list input[value=Moema]').checked, filtros:[...FILTERS.bairros], min:FILTERS.priceMin, minInput:document.getElementById('filtro-preco-min').value,
+            statusFiltro:document.getElementById('filtro-status').textContent, tipo:LOCAL.captacao.tipo, selTipo:document.querySelectorAll('#captacao-filtros select')[2].value, vo:LOCAL.vo,
+            faixaOculta:document.getElementById('faixa-dados-novos').hidden, interagiu:INTERAGIU, ranking:Object.keys(window.__data.bairros).length})""")
+        depois_txt = atualizado_em(pg)
+        ok(len(navs) == 2 and depois_txt != antes_txt, "I4: 'Atualizar agora' recarregou e trouxe os dados novos", f"{antes_txt[-30:]} → {depois_txt[-30:]}")
+        ok(estado["painel"] == "Captação Ativa", "I4: voltou no MESMO painel", estado["painel"])
+        ok(estado["moema"] and estado["filtros"] == ["Moema"] and estado["min"] == 500000 and estado["minInput"] == "500000" and "Filtro ativo" in estado["statusFiltro"] and estado["ranking"] == 1,
+           "I4: voltou com os MESMOS filtros (bairro Moema + preço mínimo) e o recálculo refeito", str(estado))
+        ok(estado["tipo"] == "casa" and estado["selTipo"] == "casa" and estado["vo"] == "apartamento", "I4: voltou com os filtros e alternadores de cada painel (Captação: só casa; Valor de Oportunidade: apartamentos)")
+        ok(estado["faixaOculta"] and estado["interagiu"] is True, "I4: a faixa some e a página restaurada continua protegida de recarga automática")
+        ctx.close()
+
+        # ---- celular com a faixa visível ----
+        ctx, pg, erros, navs = abrir_e_interagir(lambda pg: pg.click('nav.tabs button:has-text("Captação Ativa")'), mobile=True)
+        f = faixa(pg)
+        geo = pg.evaluate("""()=>{const f=document.getElementById('faixa-dados-novos').getBoundingClientRect(); const m=document.querySelector('.sidebar').getBoundingClientRect(); const h=document.querySelector('header.app-header').getBoundingClientRect();
+            return {faixa_topo:f.top, menu_fundo:m.bottom, faixa_fundo:f.bottom, header_topo:h.top, faixa_esq:f.left, faixa_dir:f.right, janela:innerWidth, largura_pagina:document.documentElement.scrollWidth, botao_dentro:document.getElementById('faixa-dados-novos-botao').getBoundingClientRect().right<=innerWidth}}""")
+        ok(f is not None and len(navs) == 1, "M1: no celular, quem já mexeu também ganha a faixa (sem recarregar)")
+        ok(geo["largura_pagina"] <= geo["janela"] and geo["faixa_esq"] >= 0 and geo["faixa_dir"] <= geo["janela"] and geo["botao_dentro"], "M2: a faixa cabe na tela do celular e a página não rola pro lado", str(geo))
+        ok(geo["faixa_topo"] >= geo["menu_fundo"] - 0.5 and geo["faixa_fundo"] <= geo["header_topo"] + 0.5, "M3: no celular a faixa não tampa o menu do topo nem o cabeçalho (fica entre os dois, no fluxo)", str(geo))
+        pg.screenshot(path=str(Path(tempfile.gettempdir()) / "faixa_celular.png"))
+        ctx.close()
         br.close()
     srv.shutdown()
     print()

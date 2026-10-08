@@ -2439,3 +2439,16 @@ continuar, verifique a aba Actions do GitHub." Se o servidor não responder na c
 aparece aviso). Teste: `python3 scripts/testar_aviso_dado_novo.py` (servidor de teste + relógio do navegador
 acelerado: aba antiga que se recarrega, servidor realmente velho, data.json atrasado, sem `versao.json`, servidor fora
 do ar, conferência de 1 em 1 hora, aba que volta a ficar visível).
+
+### Faixa "Há dados novos" para quem já mexeu na página (2026-10-08)
+A recarga automática só acontece se a pessoa AINDA NÃO interagiu (nenhum clique, tecla, busca, filtro, troca de painel ou
+alternador — só ações da pessoa contam, não as do programa). Quem já mexeu NÃO é recarregado: aparece, no topo e no fluxo da
+página (não por cima do conteúdo; no celular fica entre o menu e o cabeçalho), a faixa "Há dados novos de hoje." (ou
+"de dd/mm" se a versão nova não for de hoje) com o botão "Atualizar agora", e o título da aba ganha "•". O botão guarda no
+`sessionStorage` (válido por 5 min): painel aberto, filtros da barra lateral (bairros e faixa de preço), filtros e
+alternadores de cada painel (Captação, Imóveis Prioritários, Valor de Oportunidade), bairro do Perfil e a rolagem; ao voltar,
+tudo isso é devolvido (e o recálculo dos filtros é refeito com os dados novos). A página restaurada continua protegida de
+recarga automática. O teste cobre cada tipo de interação, o estado restaurado e a largura da página em todos os painéis no celular
+(`scripts/testar_aviso_dado_novo.py`). **Cópia local do Mac**: o LaunchAgent `com.topio.dashboard-imoveis.sync` roda `git pull --ff-only` em
+`/Users/plaghi/dashboard-imoveis-sp` às 08:20 e 12:00 (e ao ligar) e o `...server` serve `site/` dessa mesma pasta na porta
+8731 (Tailscale); `versao.json` é um arquivo versionado de `site/`, então chega junto com o resto no primeiro pull depois do merge.
