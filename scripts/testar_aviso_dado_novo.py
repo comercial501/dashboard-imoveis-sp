@@ -270,6 +270,12 @@ def main():
         ok(f is not None and len(navs) == 1, "M1: no celular, quem já mexeu também ganha a faixa (sem recarregar)")
         ok(geo["largura_pagina"] <= geo["janela"] and geo["faixa_esq"] >= 0 and geo["faixa_dir"] <= geo["janela"] and geo["botao_dentro"], "M2: a faixa cabe na tela do celular e a página não rola pro lado", str(geo))
         ok(geo["faixa_topo"] >= geo["menu_fundo"] - 0.5 and geo["faixa_fundo"] <= geo["header_topo"] + 0.5, "M3: no celular a faixa não tampa o menu do topo nem o cabeçalho (fica entre os dois, no fluxo)", str(geo))
+        larguras = {}
+        for painel in ["visao-geral", "captacao", "prioritarios", "valor-oportunidade", "perfil", "carteira-77", "estoque-demanda", "ranking", "mapa", "preco-m2"]:
+            pg.evaluate(f"()=>showPanel('{painel}')"); pg.wait_for_timeout(200)
+            larguras[painel] = pg.evaluate("()=>[document.documentElement.scrollWidth, innerWidth]")
+        ok(all(a <= b for a, b in larguras.values()), "M4: em NENHUM painel a página passa da largura do celular (inclui a Captação, que esticava 23 px)", str({k: v for k, v in larguras.items() if v[0] > v[1]}))
+        pg.evaluate("()=>showPanel('captacao')"); pg.wait_for_timeout(300)
         pg.screenshot(path=str(Path(tempfile.gettempdir()) / "faixa_celular.png"))
         ctx.close()
         br.close()

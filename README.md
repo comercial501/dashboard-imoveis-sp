@@ -2449,6 +2449,8 @@ página (não por cima do conteúdo; no celular fica entre o menu e o cabeçalho
 alternadores de cada painel (Captação, Imóveis Prioritários, Valor de Oportunidade), bairro do Perfil e a rolagem; ao voltar,
 tudo isso é devolvido (e o recálculo dos filtros é refeito com os dados novos). A página restaurada continua protegida de
 recarga automática. O teste cobre cada tipo de interação, o estado restaurado e a largura da página em todos os painéis no celular
-(`scripts/testar_aviso_dado_novo.py`). **Cópia local do Mac**: o LaunchAgent `com.topio.dashboard-imoveis.sync` roda `git pull --ff-only` em
+(`scripts/testar_aviso_dado_novo.py`). Achado no caminho: a Captação Ativa esticava a página em 23 px no iPhone (coluna de preços
+sem quebra de linha) — corrigido em `styles.css`.
+**Cópia local do Mac**: o LaunchAgent `com.topio.dashboard-imoveis.sync` roda `git pull --ff-only` em
 `/Users/plaghi/dashboard-imoveis-sp` às 08:20 e 12:00 (e ao ligar) e o `...server` serve `site/` dessa mesma pasta na porta
 8731 (Tailscale); `versao.json` é um arquivo versionado de `site/`, então chega junto com o resto no primeiro pull depois do merge.

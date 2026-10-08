@@ -409,6 +409,12 @@ svg.map-svg { width: 100%; height: auto; display: block; }
   .local-filtros { gap: 8px; }
   .local-filtros .bairro-select { width: 100%; }
   .seg-toggle { max-width: 100%; overflow-x: auto; }
+  /* Captação Ativa: a coluna de preços (P25–P75) tinha white-space:nowrap e esticava a página (+23 px no
+     iPhone). No celular a linha quebra: endereço em cima, preços embaixo, tudo dentro da tela. */
+  .addr-row { flex-wrap: wrap; padding: 10px 12px; }
+  .addr-row > div:first-child { flex: 1 1 200px; min-width: 0; }
+  .addr-row .addr-price { text-align: left !important; }
+  .addr-row .addr-price div { white-space: normal !important; }
 }
 
 /* -------------------------------------------------------------------- */
