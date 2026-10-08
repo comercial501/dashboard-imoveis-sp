@@ -359,19 +359,68 @@ function renderAll() {
 // com fresco=false ganham destaque em vermelho/laranja; nonStop não tem
 // aviso de "velho" próprio porque uma falha de busca derruba o build
 // inteiro antes de chegar a gerar um data.json novo (ver build_data.py).
-// Aviso de dado parado (Passo 5b): se o "atualizado em" tem mais de 30 horas
-// NO MOMENTO EM QUE A PÁGINA É ABERTA (conferido aqui, no navegador — não no
-// build), mostra um aviso em destaque no topo. Reconfere a cada 10 minutos
-// pra quem deixa a página aberta. Usa o relógio do computador de quem abre.
+// Aviso de dado parado. Desde 08/10/2026: ANTES de mostrar o aviso a página confere NO SERVIDOR se já
+// existe uma versão mais nova dos dados (arquivo pequeno versao.json; se não existir, o próprio
+// data.json). Se existir, a página se recarrega sozinha em vez de avisar. O aviso só aparece se o
+// PRÓPRIO SERVIDOR estiver com dados de mais de 30 horas (a idade é a do dado que está no servidor,
+// contada pelo relógio do computador de quem abre). A conferência roda ao abrir, a cada 1 hora com a
+// página aberta e quando a aba volta a ficar visível depois de mais de 1 hora (aba velha esquecida).
+// Se o servidor não responder, a conferência não decide nada (o aviso fica como estava).
 const LIMITE_DADO_PARADO_HORAS = 30;
+const CONFERIR_VERSAO_A_CADA_MS = 60 * 60 * 1000;
+const CHAVE_RECARGA = "torre_recarregou_para";
+let VERSAO_SERVIDOR_ISO = null; // generated_at_iso do que está no servidor agora (null = ainda não conferiu / sem resposta)
+let ULTIMA_CONFERENCIA_MS = 0;
+
+async function buscarVersaoNoServidor() {
+  const sufixo = `?_=${Date.now()}`;
+  try {
+    const r = await fetch("versao.json" + sufixo, { cache: "no-store" });
+    if (r.ok) {
+      const j = await r.json();
+      if (j && j.generated_at_iso && parseInstante(j.generated_at_iso)) return j.generated_at_iso;
+    }
+  } catch (e) { /* tenta o data.json */ }
+  try {
+    const r = await fetch("data.json" + sufixo, { cache: "no-store" });
+    if (r.ok) {
+      const j = await r.json();
+      const v = j.generated_at_iso || j.generated_at;
+      if (parseInstante(v)) return v;
+    }
+  } catch (e) { /* sem resposta */ }
+  return null;
+}
+
+async function conferirVersaoNoServidor() {
+  ULTIMA_CONFERENCIA_MS = Date.now();
+  const v = await buscarVersaoNoServidor();
+  if (!v) return; // servidor sem resposta: não decide nada
+  VERSAO_SERVIDOR_ISO = v;
+  const noServidor = parseInstante(v);
+  const carregada = parseInstante(SERVER_DATA && (SERVER_DATA.generated_at_iso || SERVER_DATA.generated_at));
+  if (noServidor && carregada && noServidor.getTime() > carregada.getTime() + 1000) {
+    // Tem versão mais nova no servidor: recarrega. Trava anti-laço: só uma recarga por versão; se mesmo
+    // assim a página continuar com dado mais velho (cache do servidor atrasado), cai no aviso normal.
+    let ultimo = null;
+    try { ultimo = sessionStorage.getItem(CHAVE_RECARGA); } catch (e) { /* sem sessionStorage */ }
+    if (ultimo !== v) {
+      try { sessionStorage.setItem(CHAVE_RECARGA, v); } catch (e) { /* segue sem a trava */ }
+      location.reload();
+      return;
+    }
+  }
+  atualizarAvisoDadoParado();
+}
+
 function atualizarAvisoDadoParado() {
   const box = document.getElementById("aviso-dado-parado");
-  if (!box || !SERVER_DATA) return;
-  const gerado = parseInstante(SERVER_DATA.generated_at_iso || SERVER_DATA.generated_at);
-  if (!gerado) { box.hidden = true; return; }
-  const horas = (Date.now() - gerado.getTime()) / 3600000;
+  if (!box) return;
+  const noServidor = parseInstante(VERSAO_SERVIDOR_ISO);
+  if (!noServidor) return; // não conferiu o servidor (ou ele não respondeu): mantém o aviso como está
+  const horas = (Date.now() - noServidor.getTime()) / 3600000;
   if (horas > LIMITE_DADO_PARADO_HORAS) {
-    box.textContent = `⚠ Dados sem atualização há ${Math.floor(horas)} horas — verificar a aba Actions do GitHub`;
+    box.textContent = `⚠ Dados sem atualização há ${Math.floor(horas)} horas. Recarregue a página (F5). Se o aviso continuar, verifique a aba Actions do GitHub.`;
     box.hidden = false;
   } else {
     box.hidden = true;
@@ -437,8 +486,12 @@ async function main() {
   const fonte = m.usn && m.usn.fonte === "nonstop_api" ? "API nonStop" : "export nonStop";
   document.getElementById("fontes-foot").textContent = `ITBI (Prefeitura) · ${fonte}`;
   renderFontesStatus();
-  atualizarAvisoDadoParado();
-  setInterval(atualizarAvisoDadoParado, 10 * 60 * 1000);
+  conferirVersaoNoServidor(); // ao abrir: se o servidor tem versão mais nova, recarrega; senão decide o aviso
+  setInterval(conferirVersaoNoServidor, CONFERIR_VERSAO_A_CADA_MS);
+  setInterval(atualizarAvisoDadoParado, 10 * 60 * 1000); // só reavalia a idade com o que já sabe do servidor
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && Date.now() - ULTIMA_CONFERENCIA_MS >= CONFERIR_VERSAO_A_CADA_MS) conferirVersaoNoServidor();
+  });
 
   setupTabs();
   setupFiltros();

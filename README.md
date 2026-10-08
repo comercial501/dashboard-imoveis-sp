@@ -2424,3 +2424,18 @@ só a coerência do que foi gravado (falha de API não bloqueia).
 - Correção: a Rodada A2 declarou uma segunda função `fmtMesAno` em `site/app.js` e ela substituía a original; todos os rótulos
   de período passaram a sair "jul/2025" em vez de "jul/25". A nova se chama `fmtMesAnoCompleto`; os rótulos de período voltaram ao curto.
 - Checks do build: agora 18. `scripts/test_rotina.py` ganhou testes de pagamento (regra, 100%, inconsistências) e do Banco Central.
+
+## Aviso de dado parado: confere o servidor antes de avisar (2026-10-08)
+
+Antes de mostrar o aviso "Dados sem atualização há X horas", a página confere no servidor se já existe uma versão
+mais nova dos dados. O servidor publica um arquivo minúsculo, `site/versao.json` (`{"generated_at_iso": ...}`, escrito
+pelo build junto com o `data.json`, commitado pela Action e enviado à Cloudflare); se ele não existir, a página usa o
+próprio `data.json`. (1) Se a versão do servidor é mais nova que a da página, ela se recarrega sozinha (trava
+anti-laço: uma recarga por versão, via `sessionStorage`; se o `data.json` continuar atrasado depois da recarga, cai
+no aviso normal). (2) Confere ao abrir, a cada 1 hora com a página aberta e quando uma aba esquecida (mais de 1 hora
+sem conferir) volta a ficar visível. (3) O aviso só aparece se o PRÓPRIO SERVIDOR estiver com dados de mais de 30 h
+(idade contada pelo relógio de quem abre): "Dados sem atualização há X horas. Recarregue a página (F5). Se o aviso
+continuar, verifique a aba Actions do GitHub." Se o servidor não responder na conferência, nada muda (nem some nem
+aparece aviso). Teste: `python3 scripts/testar_aviso_dado_novo.py` (servidor de teste + relógio do navegador
+acelerado: aba antiga que se recarrega, servidor realmente velho, data.json atrasado, sem `versao.json`, servidor fora
+do ar, conferência de 1 em 1 hora, aba que volta a ficar visível).

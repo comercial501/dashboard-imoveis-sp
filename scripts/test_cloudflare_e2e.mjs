@@ -28,7 +28,7 @@ try {
   const t0 = Date.now();
   while (Date.now() - t0 < 120000) { try { await fetch(`http://127.0.0.1:${SITE_PORTA}/`); break; } catch { await new Promise((r) => setTimeout(r, 1000)); } }
   const get = (caminho, tok) => fetch(`http://127.0.0.1:${SITE_PORTA}${caminho}`, { headers: tok ? { "cf-access-jwt-assertion": tok } : {} });
-  const arquivos = ["/", "/index.html", "/app.js", "/engine.js", "/styles.css", "/data.json", "/raw.json"];
+  const arquivos = ["/", "/index.html", "/app.js", "/engine.js", "/styles.css", "/data.json", "/raw.json", "/versao.json"];
   for (const a of arquivos) { const r = await get(a); ok(r.status === 403, `anônimo: ${a} → ${r.status}`); }
   for (const a of ["/serve_no_cache.py", "/itbi_clean_log.json", "/historico/anuncios.jsonl", "/output/preco_m2_por_bairro.csv", "/_headers", "/functions/_middleware.js"]) { const r = await get(a); ok(r.status === 403, `anônimo: ${a} → ${r.status}`); }
   let r = await get("/data.json", await token(falso.privateKey)); ok(r.status === 403, "token falsificado: data.json → 403");

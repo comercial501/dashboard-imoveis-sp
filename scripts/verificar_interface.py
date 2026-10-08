@@ -59,10 +59,10 @@ JS_PARIDADE = """()=>{
   return out;}"""
 
 JS_AVISO = """()=>{
-  const box=document.getElementById("aviso-dado-parado"); const original=SERVER_DATA.generated_at_iso; const r={};
-  const t=(h)=>{SERVER_DATA.generated_at_iso=new Date(Date.now()-h*3600000).toISOString(); atualizarAvisoDadoParado(); return box.hidden?"oculto":box.textContent;};
-  r.h29=t(29); r.h30=t(30); r.h31=t(31); r.h120=t(120);
-  SERVER_DATA.generated_at_iso=original; atualizarAvisoDadoParado(); r.real=box.hidden?"oculto":box.textContent; return r;}"""
+  const box=document.getElementById("aviso-dado-parado"); const original=VERSAO_SERVIDOR_ISO; const r={};
+  const t=(h)=>{VERSAO_SERVIDOR_ISO=new Date(Date.now()-h*3600000).toISOString(); atualizarAvisoDadoParado(); return box.hidden?"oculto":box.textContent;};
+  r.h29=t(29); r.h31=t(31); r.h120=t(120);
+  VERSAO_SERVIDOR_ISO=original; atualizarAvisoDadoParado(); r.real=box.hidden?"oculto":box.textContent; return r;}"""
 
 
 def main():

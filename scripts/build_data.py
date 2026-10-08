@@ -36,6 +36,7 @@ from parse_itbi import parse_itbi_years
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "site" / "data.json"
 OUT_RAW = ROOT / "site" / "raw.json"
+OUT_VERSAO = ROOT / "site" / "versao.json"  # arquivo minúsculo: a página confere se há dados mais novos sem baixar o data.json
 # Fica em site/ (não em data/, que é ignorado pelo git) de propósito — o
 # usuário pediu pra poder auditar esse log, então ele precisa ser
 # versionado/committed junto com data.json e raw.json a cada execução.
@@ -579,6 +580,7 @@ def main():
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"[build] {OUT} escrito ({OUT.stat().st_size:,} bytes)")
+    OUT_VERSAO.write_text(json.dumps({"generated_at_iso": data["generated_at_iso"]}), encoding="utf-8")
 
     raw = build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, carteira_77["bairros"], data["meta"]["limiar_escassez_real"], unidades_endereco)
     raw["search_interest"] = search_interest or {}

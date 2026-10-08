@@ -16,7 +16,7 @@ import sys
 import urllib.error
 import urllib.request
 
-CAMINHOS = ["/", "/index.html", "/data.json", "/raw.json", "/app.js", "/engine.js", "/styles.css",
+CAMINHOS = ["/", "/index.html", "/data.json", "/raw.json", "/versao.json", "/app.js", "/engine.js", "/styles.css",
             "/itbi_clean_log.json", "/historico/anuncios.jsonl", "/output/preco_m2_por_bairro.csv",
             "/output/shortlist_google_ads.csv", "/output/valor_pago_por_bairro.csv", "/_headers",
             "/functions/_middleware.js", "/serve_no_cache.py", "/README.md", "/.env"]
