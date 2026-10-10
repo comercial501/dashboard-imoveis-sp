@@ -100,6 +100,8 @@
       const fV = fatorAndar(efeito, v[4]);
       return v[2] * v[6] / v[3] / fV * fUser;
     });
+    const eq = {}; // cada venda "equivalente" à metragem e ao andar informados
+    sel.forEach((i, k) => { eq[i] = m2[k] * area; });
     const n = m2.length;
     const midM2 = mediana(m2);
     let loM2, hiM2;
@@ -136,6 +138,7 @@
       similares,
       ultima_venda: Math.max(...sel.map((i) => vs[i][1])),
       _ids: sel,
+      _eq: eq,
     };
   }
 
@@ -172,15 +175,19 @@
     res.maximo = arred(est / (1 - m));
     const q = t ? t.q : null;
     const ids = res._ids; delete res._ids;
+    const eqs = res._eq; delete res._eq;
     if (q && q.length === QTS.length) {
       // Escada de preços: quantas vendas parecidas chegaram a cada preço (erro medido nos testes com vendas reais).
       res.escada = ESCADA.map((pp) => [100 - pp, arred(est * interp(QTS, q, pp))]);
       res.teto_verde = arred(est * interp(QTS, q, 100 - p.veredito_verde * 100));
       res.teto_amarelo = arred(est * interp(QTS, q, 100 - p.veredito_amarelo * 100));
       res.piso_mercado = res.escada[0][1];
-      const vs = dados.vendas;
-      const valores = ids.map((i) => vs[i][2] * vs[i][6]);
+      const valores = ids.map((i) => eqs[i]); // equivalentes à metragem informada (não o preço total de plantas diferentes)
       res.maior_venda = arred(Math.max(...valores));
+      // vendas fora do padrão: equivalente abaixo do percentil 10 ou acima do 90 do que vendas parecidas costumam ter
+      const lo = est * interp(QTS, q, 10), hi = est * interp(QTS, q, 90);
+      res.similares_eq = res.similares.map((i) => arred(eqs[i]));
+      res.similares_flag = res.similares.map((i) => (eqs[i] < lo ? -1 : (eqs[i] > hi ? 1 : 0)));
       const pedido = entrada.preco_pedido;
       if (pedido) {
         const x = pedido / est;
@@ -197,6 +204,10 @@
         res.pedido_n_chegaram = valores.filter((v) => v >= pedido).length;
         res.pedido_acima_do_verde = Math.max(0, pedido - res.teto_verde);
       }
+    }
+    if (res.similares_eq === undefined) { // sem tabela de precisão: só o equivalente, sem marcar atípicas
+      res.similares_eq = res.similares.map((i) => arred(eqs[i]));
+      res.similares_flag = res.similares.map(() => 0);
     }
     return res;
   }
@@ -652,7 +663,7 @@
         h("div", { class: "calc-veredito-frase" }, `${em100(r.pedido_chegaram_pct, r.pedido_alem_dos_testes)} vendas parecidas chegaram a esse valor ou mais.`.replace(/^./, (c) => c.toUpperCase())),
         h("div", {}, `${vx} O pedido está ${brl(Math.abs(ent.preco_pedido - r.estimativa))} (${num(Math.abs(r.pedido_vs_estimativa_pct), 1)}%) ${sinal} da estimativa de ${brl(r.estimativa)}.`),
         r.pedido_acima_do_verde > 0 ? h("div", {}, h("b", {}, `Para entrar no preço de mercado, o pedido precisaria baixar ${brl(r.pedido_acima_do_verde)} (até ${brl(r.teto_verde)}).`)) : null,
-        h("div", {}, `Nas ${r.n} vendas parecidas usadas (${NIVEL_CURTO[r.nivel]}), a mais cara fechou por ${brl(r.maior_venda)} — ${r.pedido_n_chegaram === 0 ? "nenhuma chegou ao pedido" : `${r.pedido_n_chegaram} ${r.pedido_n_chegaram === 1 ? "chegou" : "chegaram"} ao pedido ou mais`}.`),
+        h("div", {}, `Nas ${r.n} vendas parecidas usadas (${NIVEL_CURTO[r.nivel]}), levadas para a sua metragem, a mais alta equivale a ${brl(r.maior_venda)} — ${r.pedido_n_chegaram === 0 ? "nenhuma chegou ao pedido" : `${r.pedido_n_chegaram} ${r.pedido_n_chegaram === 1 ? "chegou" : "chegaram"} ao pedido ou mais`}.`),
         r.confianca === "baixa" ? h("div", { class: "calc-ajuda" }, "Como a confiança é baixa (poucas vendas no prédio), o veredito é um indicativo.") : null,
         h("div", { class: "calc-ajuda" }, "A comparação é com o que foi PAGO nas vendas (guias de ITBI), não com preços de anúncio.")));
     }
@@ -677,15 +688,27 @@
     }
     out.append(card);
 
-    // vendas parecidas
+    // vendas parecidas: cada uma levada para a metragem (e o andar) informados, pra poder comparar com a estimativa e com o pedido
     const vs = DADOS.vendas;
-    const linhasV = r.similares.map((i) => {
+    const areaTxt = `${num(ent.area, ent.area % 1 ? 1 : 0)} m²`;
+    const FLAG = { "-1": "abaixo do padrão", "1": "acima do padrão" };
+    const linhasV = r.similares.map((i, k) => {
       const v = vs[i], p = DADOS.predios[v[0]];
-      return [ymLabel(v[1]), v[0] === ent.predio ? "mesmo prédio" : p[1], v[4] != null ? `${v[4]}º` : "—", `${num(v[3], v[3] % 1 ? 1 : 0)} m²`, brl(v[2]), brl(arred(v[2] * v[6])), v[5] != null ? String(v[5]) : "—"];
+      const igual = Math.abs(v[3] - ent.area) / ent.area <= 0.03;
+      const flag = r.similares_flag[k];
+      return { atipica: flag !== 0, cels: [ymLabel(v[1]), v[0] === ent.predio ? "mesmo prédio" : p[1], v[4] != null ? `${v[4]}º` : "—",
+        h("span", {}, `${num(v[3], v[3] % 1 ? 1 : 0)} m²`, igual ? h("span", { class: "calc-tag-igual" }, "igual") : null),
+        brl(v[2]), brl(arred(v[2] * v[6])), `R$ ${num(arred(v[2] * v[6] / v[3]))}`,
+        h("span", {}, h("b", {}, brl(r.similares_eq[k])), flag !== 0 ? h("span", { class: `calc-tag-atipica ${flag < 0 ? "baixa" : "alta"}` }, FLAG[String(flag)]) : null),
+        v[5] != null ? String(v[5]) : "—"] };
     });
+    const nAtip = r.similares_flag.filter((f) => f !== 0).length;
     out.append(h("section", { class: "card" }, h("h2", {}, "Vendas parecidas (ITBI)"),
-      h("div", { class: "card-sub" }, `As ${linhasV.length} mais parecidas entre as ${r.n} usadas no cálculo — valor realmente registrado na guia de ITBI. “Atualizado” = o mesmo valor corrigido para ${mesBaseTxt}. O andar é estimado pelo número do apartamento no ITBI (ex.: apto 152 = 15º); “Vagas” só aparece quando está escrita no complemento.`),
-      tabela(["Mês da venda", "Onde", "Andar", "Área construída", "Valor pago", "Atualizado", "Vagas"], linhasV)));
+      h("div", { class: "card-sub" }, `${linhasV.length === r.n ? `As ${r.n} vendas usadas no cálculo` : `As ${linhasV.length} mais parecidas entre as ${r.n} usadas no cálculo`} — valor realmente registrado na guia de ITBI, em ordem de semelhança com o seu apartamento. Como as metragens podem ser diferentes, a última coluna leva cada venda para ${areaTxt} (valor atualizado para ${mesBaseTxt}, R$/m² × ${areaTxt}, com ajuste de andar): é ela que se compara com a estimativa e com o pedido. O andar é estimado pelo número do apartamento (ex.: apto 152 = 15º); “Vagas” só aparece quando está escrita no complemento.`),
+      h("div", { class: "table-scroll" }, h("table", { class: "data-table calc-tabela-vendas" },
+        h("thead", {}, h("tr", {}, ["Mês da venda", "Onde", "Andar", "Área construída", "Valor pago", "Atualizado", "R$/m²", `Equivale a ${areaTxt}`, "Vagas"].map((c) => h("th", {}, c)))),
+        h("tbody", {}, linhasV.map((l) => h("tr", { class: l.atipica ? "calc-linha-atipica" : "" }, l.cels.map((c) => h("td", {}, c))))))),
+      nAtip ? h("p", { class: "calc-ajuda calc-nota-atipica" }, `${nAtip === 1 ? "A venda marcada" : `As ${nAtip} vendas marcadas`} “fora do padrão” ficou entre os 10% mais baixos ou mais altos preços que vendas parecidas costumam ter. Pode ser acabamento, estado ou condições diferentes das demais, ou valor declarado diferente do real. Entram no cálculo, mas a mediana não é puxada por elas.`) : null));
 
     // anúncios parecidos
     const anuncios = anunciosParecidos(DADOS, ent, r.estimativa);

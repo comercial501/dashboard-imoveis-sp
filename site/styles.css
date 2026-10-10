@@ -635,3 +635,14 @@ table.data-table tbody tr:hover { background: #f7f5f0; }
 .calc-veredito-frase { font-size: 17px; font-weight: 700; }
 .calc-veredito.critical { border-left-color: var(--status-critical); background: var(--status-critical-bg); }
 @media (max-width: 760px) { .calc-escada-grade { grid-template-columns: repeat(2, 1fr); } }
+
+/* Calculadora: tabela de vendas parecidas com o valor equivalente à metragem informada */
+.calc-tabela-vendas td, .calc-tabela-vendas th { white-space: nowrap; }
+.calc-tabela-vendas td:nth-child(2) { white-space: normal; min-width: 110px; }
+.calc-linha-atipica td { color: var(--text-muted); }
+.calc-linha-atipica td b { color: var(--text-secondary); }
+.calc-tag-igual { margin-left: 6px; font-size: 10.5px; font-weight: 700; color: var(--status-good); text-transform: uppercase; letter-spacing: .03em; }
+.calc-tag-atipica { margin-left: 8px; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: .03em; }
+.calc-tag-atipica.baixa { background: var(--status-warning-bg); color: var(--status-warning); }
+.calc-tag-atipica.alta { background: var(--status-neutral-bg); color: var(--text-secondary); }
+.calc-nota-atipica { margin-top: 10px; }

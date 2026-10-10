@@ -147,6 +147,25 @@ for v in d_sem_q["precisao"].values():
 r = cp.estimar(d_sem_q, cp.indexar(d_sem_q), {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None, "preco_pedido": 5_000_000})
 confere("tabela sem quantis: não inventa veredito", ("veredito" not in r, "teto_verde" not in r), (True, True))
 
+# vendas parecidas: cada uma "equivale" à metragem informada (valor atualizado ÷ área × área informada); atípicas são marcadas
+r = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 105.0, "andar": None, "preco_pedido": 1_500_000})
+confere("equivalente na metragem 105 (venda de 100 m² a R$ 1.000.000)", sorted(r["similares_eq"])[0], 1_050_000)
+confere("uma entrada de equivalente por venda mostrada", len(r["similares_eq"]) == len(r["similares"]) == len(r["similares_flag"]), True)
+confere("sem atípicas quando os preços são parecidos", set(r["similares_flag"]), {0})
+confere("maior venda é o equivalente, não o total", r["maior_venda"], 1_155_000)  # 1.100.000 x 1,05
+d4 = dados_sinteticos()
+d4["vendas"].append([0, 202506, 450_000, 100.0, None, None, 1.0])   # venda bem abaixo das demais do mesmo prédio e metragem
+d4["vendas"].append([0, 202507, 2_300_000, 100.0, None, None, 1.0]) # e uma bem acima
+r4 = cp.estimar(d4, cp.indexar(d4), {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None})
+flags = {d4["vendas"][i][2]: f for i, f in zip(r4["similares"], r4["similares_flag"])}
+confere("venda de R$ 450 mil entre plantas iguais: abaixo do padrão", flags[450_000], -1)
+confere("venda de R$ 2,3 mi: acima do padrão", flags[2_300_000], 1)
+confere("venda normal não é marcada", flags[1_000_000], 0)
+# metragens diferentes: o equivalente leva cada venda para a metragem informada (R$/m² x m²)
+d5 = dados_sinteticos()
+r5 = cp.estimar(d5, cp.indexar(d5), {"predio": 1, "rua": 0, "bairro": 0, "area": 50.0, "andar": None})
+confere("vendas de 50 m² (R$ 500.000) equivalem a R$ 500.000 em 50 m²", set(r5["similares_eq"]), {500_000})
+
 # margem: combinação com poucos testes (rua|baixa n=30) usa o nível inteiro (rua|*, 32%), nunca um número de amostra pequena
 d3 = dados_sinteticos()
 d3["precisao"]["rua|media"] = {"n": 30, "mediano": 0.9, "p75": 0.9}  # só 30 testes: não vale

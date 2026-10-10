@@ -52,7 +52,7 @@ CALC_VEREDITO_VERDE = 0.30    # 30%+ (3 em cada 10): preço de mercado (verde)
 CALC_VEREDITO_AMARELO = 0.15  # 15% a 30%: acima do mercado (amarelo, exige negociação); abaixo de 15%: fora do mercado (vermelho)
 CALC_QTS = (1, 2, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 75, 80, 85, 90, 95, 98, 99)  # percentis guardados da razão preço pago ÷ estimativa
 CALC_ESCADA = (10, 25, 50, 75, 90)  # percentis da escada de preços (90% / 75% / 50% / 25% / 10% das vendas chegaram)
-CALC_MAX_SIMILARES = 8
+CALC_MAX_SIMILARES = 15
 CALC_MAX_ANUNCIOS = 8
 CALC_TOL_ANUNCIO_AREA = 0.25          # anúncio parecido: área útil informada ±25%
 CALC_TOL_ANUNCIO_VALOR = 0.30         # sem área útil informada: valor dentro de ±30% da estimativa
@@ -384,6 +384,7 @@ def _estimar_base(dados, idx, entrada):
         v = vs[i]
         f_v = _fator_andar(efeito, v[4])
         m2.append(v[2] * v[6] / v[3] / f_v * f_user)
+    eq = {i: m2[k] * area for k, i in enumerate(sel)}  # cada venda "equivalente" à metragem e ao andar informados
     n = len(m2)
     mid_m2 = _mediana(m2)
     if n >= p["min_quartis"]:
@@ -417,6 +418,7 @@ def _estimar_base(dados, idx, entrada):
         "similares": similares,
         "ultima_venda": max(vs[i][1] for i in sel),
         "_ids": sel,
+        "_eq": eq,
     }
 
 
@@ -441,6 +443,7 @@ def estimar(dados, idx, entrada):
     res["minimo"], res["maximo"] = _arred(est / (1 + m)), _arred(est / (1 - m))
     q = t.get("q") if t else None
     ids = res.pop("_ids")
+    eqs = res.pop("_eq")
     vs = dados["vendas"]
     if q and len(q) == len(CALC_QTS):
         # Escada de preços: quantas vendas parecidas chegaram a cada preço (do erro medido nos testes com vendas reais).
@@ -448,8 +451,12 @@ def estimar(dados, idx, entrada):
         res["teto_verde"] = _arred(est * _interp(CALC_QTS, q, 100 - p["veredito_verde"] * 100))
         res["teto_amarelo"] = _arred(est * _interp(CALC_QTS, q, 100 - p["veredito_amarelo"] * 100))
         res["piso_mercado"] = res["escada"][0][1]
-        valores = [vs[i][2] * vs[i][6] for i in ids]
+        valores = [eqs[i] for i in ids]  # equivalentes à metragem informada (não o preço total de plantas diferentes)
         res["maior_venda"] = _arred(max(valores))
+        # vendas fora do padrão: equivalente abaixo do percentil 10 ou acima do 90 do que vendas parecidas costumam ter
+        lo, hi = est * _interp(CALC_QTS, q, 10), est * _interp(CALC_QTS, q, 90)
+        res["similares_eq"] = [_arred(eqs[i]) for i in res["similares"]]
+        res["similares_flag"] = [-1 if eqs[i] < lo else (1 if eqs[i] > hi else 0) for i in res["similares"]]
         pedido = entrada.get("preco_pedido")
         if pedido:
             x = pedido / est
@@ -468,6 +475,9 @@ def estimar(dados, idx, entrada):
             res["pedido_vs_estimativa_pct"] = _dec((x - 1) * 100, 1)
             res["pedido_n_chegaram"] = sum(1 for v in valores if v >= pedido)
             res["pedido_acima_do_verde"] = max(0, pedido - res["teto_verde"])
+    if "similares_eq" not in res:  # sem tabela de precisão: só o equivalente, sem marcar atípicas
+        res["similares_eq"] = [_arred(eqs[i]) for i in res["similares"]]
+        res["similares_flag"] = [0 for _ in res["similares"]]
     return res
 
 
