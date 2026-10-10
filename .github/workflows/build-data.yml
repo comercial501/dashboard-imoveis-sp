@@ -64,7 +64,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add site/data.json site/raw.json site/versao.json site/itbi_clean_log.json output/preco_m2_por_bairro.csv historico/anuncios.jsonl
+          git add site/data.json site/raw.json site/calculadora.json site/versao.json site/itbi_clean_log.json output/preco_m2_por_bairro.csv historico/anuncios.jsonl
           if git diff --cached --quiet; then
             echo "Sem mudanças em site/data.json / site/raw.json / site/itbi_clean_log.json / output/preco_m2_por_bairro.csv / historico/anuncios.jsonl."
           else
