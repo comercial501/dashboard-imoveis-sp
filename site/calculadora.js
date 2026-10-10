@@ -556,7 +556,7 @@
   const NIVEL_CURTO = { predio: "vendas do próprio prédio", rua: "vendas da rua", bairro: "vendas do bairro" };
   const CONF_TEXTO = {
     alta: ["Confiança alta", "good", "Vendas suficientes no próprio prédio, com preços próximos entre si."],
-    media: ["Confiança média", "warning", "Poucas vendas parecidas, ou preços bem diferentes entre si. Use a faixa, não só o número do meio."],
+    media: ["Confiança média", "warning", "Poucas vendas parecidas, ou preços bem diferentes entre si. Olhe a régua de cores, não só o número do meio."],
     baixa: ["Confiança baixa", "critical", "Sem vendas parecidas suficientes no prédio: a comparação é com a rua ou o bairro. Serve de referência, não de preço."],
   };
 
