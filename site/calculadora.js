@@ -385,9 +385,9 @@
       lista.replaceChildren();
       if (!entrada.value.trim()) { fechar(); return; }
       if (!atuais.length) {
-        const planoB = h("button", { type: "button", class: "calc-link" }, "Calcular só pelo bairro");
-        planoB.addEventListener("mousedown", (ev) => { ev.preventDefault(); fechar(); boxBairro.hidden = false; selBairro.focus(); });
-        lista.appendChild(h("li", { class: "calc-sem-sugestao", role: "option" }, "Nenhum endereço com esse nome. Confira a grafia (a Prefeitura abrevia: “Cd” = Conde, “Pde” = Padre…). Se está certo, é porque não há venda de apartamento registrada nessa rua desde 2024. ", planoB));
+        const botaoB = h("button", { type: "button", class: "calc-link" }, "Calcular só pelo bairro");
+        botaoB.addEventListener("mousedown", (ev) => { ev.preventDefault(); fechar(); boxBairro.hidden = false; selBairro.focus(); });
+        lista.appendChild(h("li", { class: "calc-sem-sugestao", role: "option" }, "Nenhum endereço com esse nome. Confira a grafia (a Prefeitura abrevia: “Cd” = Conde, “Pde” = Padre…). Se está certo, é porque não há venda de apartamento registrada nessa rua desde 2024. ", botaoB));
       }
       atuais.forEach((s, k) => {
         const li = h("li", { role: "option", class: "calc-sugestao" },
@@ -420,11 +420,14 @@
     });
     const boxBairro = h("div", { class: "calc-so-bairro", hidden: true }, h("span", { class: "calc-ajuda" }, "O cálculo usa só as vendas de apartamento do bairro (confiança baixa, margem larga):"), selBairro);
     const linkBairro = h("button", { type: "button", class: "calc-link", onclick: () => { boxBairro.hidden = !boxBairro.hidden; } }, "Não achei o endereço — calcular só pelo bairro");
-    form.append(h("div", { class: "calc-passo" }, h("div", { class: "calc-passo-titulo" }, "1. Onde fica?"), caixaBusca, h("div", {}, linkBairro), boxBairro, boxLocal));
+    const planoB = h("div", { class: "calc-plano-b" }, linkBairro);
+    form.append(h("div", { class: "calc-passo" }, h("div", { class: "calc-passo-titulo" }, "1. Onde fica?"), caixaBusca, planoB, boxBairro, boxLocal));
 
     function renderLocalEscolhido() {
       boxLocal.replaceChildren();
       const s = ESTADO.local;
+      planoB.hidden = !!s;                     // endereço escolhido: o plano B some
+      if (s) boxBairro.hidden = true;
       if (!s) return;
       boxLocal.append(h("div", { class: "calc-local-card" },
         h("div", {}, h("b", {}, s.rotulo), h("div", { class: "calc-ajuda" }, `${s.bairroNome} · São Paulo${s.soBairro ? " · só pelo bairro: o cálculo usa as vendas de apartamento do bairro" : s.semVendas ? " · sem vendas registradas neste número: o cálculo usa as vendas da mesma rua" : ""}`)),

@@ -140,6 +140,8 @@ def main():
         tela["sugestoes"] = pg.evaluate("()=>[...document.querySelectorAll('.calc-sugestao')].map(l=>l.innerText.replace(/\\n/g,' | '))")
         pg.click(".calc-sugestao >> nth=0")
         tela["local_escolhido"] = pg.inner_text(".calc-local-card").replace("\n", " | ")
+        # com o endereço escolhido, o plano B ("só pelo bairro") não pode aparecer (parecia "não achei" com o endereço achado)
+        tela["plano_b_escondido_com_endereco"] = (not pg.is_visible("#calc-so-bairro")) and (not pg.is_visible(".calc-plano-b"))
         tela["chips_metragem"] = pg.evaluate("()=>[...document.querySelectorAll('.calc-metragens .calc-chip')].map(b=>b.textContent)")
         # erro sem área
         pg.click(".calc-botao")
@@ -239,7 +241,9 @@ def main():
         pg.click(".calc-local-card .calc-link")
         pg.fill("#calc-endereco", "Rua Que Nao Existe Nenhuma 12")
         pg.wait_for_selector(".calc-sem-sugestao button", timeout=5000)
+        fluxos["plano_b_antes_de_abrir"] = {"link_visivel": pg.is_visible(".calc-plano-b"), "caixa_aberta": pg.is_visible("#calc-so-bairro")}
         pg.click(".calc-sem-sugestao button")
+        fluxos["plano_b_depois_de_abrir"] = pg.is_visible("#calc-so-bairro")
         pg.select_option("#calc-so-bairro", label="Vila Mariana")
         pg.fill("#calc-area", "120")
         pg.click(".calc-botao")
@@ -284,7 +288,8 @@ def main():
           and t["fluxos"]["conde_de_itu"] and "Conde" in t["fluxos"]["conde_de_itu"][0]
           and t["fluxos"]["apto"]["andar_tela"] == str(t["fluxos"]["apto"]["andar_esperado"]) and t["fluxos"]["apto"]["area_tela"] == str(t["fluxos"]["apto"]["area_esperada"])
           and t["fluxos"]["apto"]["nivel_predio_sem_aviso"] and t["fluxos"]["aviso_sumiu_depois_de_tocar"] and "área construída do cadastro" in t["fluxos"]["erro_so_util"]
-          and "Confiança baixa" in t["fluxos"]["so_bairro"]["selo"].replace("CONFIANÇA BAIXA", "Confiança baixa") and t["paridade_andar_final"]["divergencias"] == 0)
+          and t["plano_b_escondido_com_endereco"] and t["fluxos"]["plano_b_antes_de_abrir"] == {"link_visivel": True, "caixa_aberta": False}
+          and t["fluxos"]["plano_b_depois_de_abrir"] and "Confiança baixa" in t["fluxos"]["so_bairro"]["selo"].replace("CONFIANÇA BAIXA", "Confiança baixa") and t["paridade_andar_final"]["divergencias"] == 0)
     print("RESULTADO:", "OK" if ok else "FALHOU")
     return 0 if ok else 1
 
