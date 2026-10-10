@@ -1320,7 +1320,7 @@ function renderPerfilContent(name) {
 // ---------------------------------------------------------------------------
 // Mapa de Oportunidade (Painel 6)
 // ---------------------------------------------------------------------------
-const MAP_COLOR_RAMP = ["#2a2416", "#4d3f1e", "#7a6127", "#a6852f", "#c9a84c", "#f0d078"];
+const MAP_COLOR_RAMP = ["#efe7d0", "#e2d3a4", "#d0b76c", "#b99a44", "#9a7a30", "#6b5116"]; // claro (pouco) -> escuro (muito), tema papel claro
 
 function renderMapa() {
   const box = document.getElementById("mapa-content");

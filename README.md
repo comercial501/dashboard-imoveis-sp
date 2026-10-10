@@ -2541,3 +2541,14 @@ número sem vendas, endereço inexistente, erro de preenchimento, celular de 375
 O "PDF completo" não inclui a calculadora; "Baixar esta página" nela imprime o resultado (o formulário some na impressão).
 **Próximos passos possíveis (não feitos)**: efeito de vagas (a vaga só aparece em ~26% das guias), casas/studios/coberturas,
 número da unidade além do andar (a mesma "final" costuma ser a mesma planta).
+
+## Tema "Papel claro" (2026-10-10, escolhido pelo Paulo entre duas propostas)
+O visual passa de preto com dourado para claro e suave: fundo creme (`--page`), cartões brancos com sombra leve e cantos de 16 px,
+texto grafite (não preto puro), menu lateral bege com o item ativo numa "pílula" branca, dourado mais escuro (`--gold`) para ter
+leitura no claro, status (verde/amarelo/vermelho) mais sóbrios. **Só estilo**: dados, números, textos e funcionamento não mudam, e
+o menu continua à esquerda. Tudo vem das variáveis do `:root` de `site/styles.css`; o que tinha cor fixa foi trocado por variável
+(`--on-gold`, `--shadow-card`, `--shadow-pop`): texto do menu e do nome da marca, valor dos cartões, botões dourados, medalhas,
+barra e marcas da calculadora, sombras. Também mudaram: a escala de cores do Mapa (agora do claro ao escuro, `MAP_COLOR_RAMP` em
+`app.js`), o logo do menu (traços grafite) e o ícone da aba (`index.html`). A impressão em PDF já era clara e segue igual.
+Conferido: os 12 painéis no computador e no celular, aviso de dado parado e faixa "Há dados novos", `verificar_interface.py`,
+`verificar_calculadora.py`, `testar_aviso_dado_novo.py` e `test_rotina.py` sem erro. Para voltar ao visual antigo: reverter este commit.
