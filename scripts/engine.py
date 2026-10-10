@@ -48,6 +48,9 @@ from normalize import (
 )
 from normalize import TARGETS
 from clean_itbi import FAIXAS_METRAGEM, faixa_metragem
+from datetime import datetime, timezone
+
+import calculadora_preco
 
 # ---------------------------------------------------------------------------
 # Constantes (idênticas ao Perl — ver itbi_methodology_spec.md §19)
@@ -2231,7 +2234,13 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
     captacao_estrategica = _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out)
     captacao_top30 = _compute_captacao_top30(captacao_estrategica)
 
+    # Calculadora de preço (protótipo, 2026-10-10): dados em arquivo à parte (site/calculadora.json), pra não
+    # engordar o data.json; build_data.py tira esta chave antes de gravar o data.json.
+    calculadora = calculadora_preco.preparar_dados(itbi_records, usn_records, indice_tempo, _fator_tempo,
+                                                   datetime.now(timezone.utc).isoformat(), centroids)
+
     return {
+        "_calculadora": calculadora,
         "meta": {
             "years": years,
             "primary_year": year_full,

@@ -2,7 +2,7 @@
 """
 Monta a pasta que vai pra Cloudflare Pages (cloudflare-dist/) — só o que o
 dashboard precisa para abrir: a página, o código e os dois arquivos de dados
-que ele carrega (data.json, raw.json e o minúsculo versao.json), mais o _headers. Nada de CSV, histórico
+que ele carrega (data.json, raw.json, a calculadora e o minúsculo versao.json), mais o _headers. Nada de CSV, histórico
 de anúncios, log de limpeza nem o servidor local. Confere que os arquivos
 existem e que cada um cabe no limite do Pages (25 MiB).
 
@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PUBLICOS = ["index.html", "app.js", "engine.js", "styles.css", "data.json", "raw.json", "versao.json"]
+PUBLICOS = ["index.html", "app.js", "engine.js", "styles.css", "data.json", "raw.json", "versao.json", "calculadora.js", "calculadora.json"]
 LIMITE_PAGES = 25 * 1024 * 1024
 AVISO_PAGES = 20 * 1024 * 1024  # avisa antes de chegar no limite
 

@@ -2464,3 +2464,66 @@ Prontidão — por isso a Prontidão não mudou. A regra do "bairro com menos de
 a valer sobre a lista já recortada. O quadro da Visão Geral conta os endereços de 2+ revendas na faixa (`meta.enderecos_captacao_painel`).
 O filtro "faixa de valor" da Captação perdeu as faixas abaixo de R$ 800 mil. `validate_build` check 11 confere que nada abaixo do
 mínimo aparece no painel nem no Top 30; `verificar_interface.py` confere servidor × navegador (4.504 endereços nos dois).
+
+## Calculadora de preço de apartamento (2026-10-10, protótipo — aba nova "Calculadora de preço")
+Pedido do Paulo: digitar um endereço, informar o apartamento e receber uma estimativa de preço com base em ITBI e nonStop
+(como a calculadora QPreço do QuintoAndar), para precificar na captação e saber se o preço pedido está dentro do mercado.
+Só apartamento por enquanto (casa, studio e cobertura ficam para depois). **Não altera nenhum painel existente**; o único
+reaproveitamento é a correção de tempo da Rodada A2 e a camada limpa de revenda.
+
+**Arquivos**: `scripts/calculadora_preco.py` (dados + cálculo), `site/calculadora.js` (espelho do cálculo + tela, carregado só
+quando a aba abre), `site/calculadora.json` (gerado a cada build, ~4,6 MB, baixado só quando a aba abre; o `git add` do
+workflow inclui o arquivo e a pasta da Cloudflare também), `scripts/test_calculadora.py` (regras, com casos que têm que falhar),
+`scripts/verificar_calculadora.py` (paridade Python × navegador + tela + celular), `scripts/backtest_calculadora.py` (precisão).
+
+**Dados (`preparar_dados`)**: revendas limpas de apartamento de jan/2024 em diante (as vendas registradas com data de 2020–2023
+ficam de fora: o índice de tempo só começa em 2024) com área entre 10 e 2.000 m² (área de 4 m² no cadastro é erro de digitação).
+Cada venda guarda o valor pago, a área, o andar, as vagas (quando escritas) e o fator que atualiza o valor para o último mês
+completo (o mesmo índice por bairro da Rodada A2). 85.495 vendas em 13.566 prédios. O mesmo prédio às vezes cai em 2–3 bairros
+vizinhos na resolução de bairro (ex.: Rua João Cachoeira, 892) — o prédio é juntado no bairro com mais vendas quando os bairros
+ficam a até 3 km um do outro (1.132 casos; endereços homônimos em bairros distantes continuam separados).
+
+**Andar**: lido do complemento do ITBI (`AP 152` = 15º andar, `AP 1704` = 17º, `AP 62` = 6º). A numeração é do prédio: se ele tem
+unidade de 4 dígitos, as de 3 dígitos seguem a lógica das centenas (801 = 8º); o andar fica marcado como estimado na tela. Lido em
+93% das vendas. O efeito do andar no preço foi **medido** (mesma planta, mesmo prédio, preço de hoje, mediana por faixa de andar:
+1–3, 4–7, 8–11, 12–15, 16+; faixa com menos de 200 vendas não ajusta; teto de ±10%): é pequeno — andares baixos valem um pouco
+menos, andar alto não mostrou valorização nítida. O andar entra na escolha das vendas mais parecidas e como ajuste pela medição.
+
+**Área**: o ITBI e o IPTU usam a MESMA área (área construída do cadastro), diferente da área útil da planta (10% a 80% menor,
+conforme o prédio). Por isso o cálculo compara a **área construída** (a tela pede a do carnê do IPTU e mostra as metragens já
+vendidas no prédio para tocar e usar). A área útil é opcional: só para mostrar o R$/m² útil e achar anúncios parecidos.
+
+**Cálculo (`estimar`)**: três níveis, o primeiro com vendas parecidas suficientes vence — (1) mesmo prédio: 3+ vendas com área até
+10% diferente (se faltar, até 20%); (2) mesma rua e bairro: 5+ (15%, depois 25%); (3) bairro: 10+ (15%, depois 30%); se nenhum
+nível tem vendas suficientes, **não responde** (em vez de chutar). Estimativa = mediana do R$/m² das vendas parecidas, atualizadas e
+ajustadas pelo andar, × a área. Confiança: alta = prédio com 5+ vendas e P75÷P25 ≤ 1,25; média = prédio com menos vendas ou preços
+dispersos, ou rua com 8+ vendas e P75÷P25 ≤ 1,35; baixa = o resto. Quartos, banheiros, suítes, vagas, condomínio e IPTU **não
+mudam o preço** (o ITBI não traz esses dados): servem para escolher os anúncios parecidos e para o resumo (custo mensal etc.).
+
+**Faixa provável = erro medido, não palpite** (`calibrar_precisao`): a faixa de "vendas parecidas" (P25–P75) cobriria só ~44% das
+vendas reais no prédio. Por isso, a cada build o programa tira ~3.000 vendas reais do cálculo por nível (prédio: a venda sai;
+rua: o prédio inteiro sai; bairro: prédio e rua saem), estima o preço delas só com as outras e mede o erro. A faixa provável é o
+valor estimado com a margem em que 3 de cada 4 testes do mesmo nível e confiança acertaram (combinação com menos de 100 testes usa
+o nível inteiro; margem entre 3% e 60%). Resultado medido nesta base: **prédio — erro mediano 9,5% (7,5% com confiança alta),
+margem ~20% (~15% com confiança alta); rua — erro mediano ~19%, margem ~32%; bairro — erro mediano ~20%, margem ~35%**; viés perto
+de zero. Conferência com amostras sorteadas diferentes (`backtest_calculadora.py`, 5.000 vendas, duas sementes): o preço pago caiu
+dentro da faixa provável em 72%–77% das vezes, em todos os níveis. A tela mostra isso ("em N testes com vendas reais…"). Ressalva:
+a calibração e a conferência usam a mesma base de vendas (não é um teste "no futuro").
+
+**Veredito do preço pedido** (opcional): abaixo / dentro / acima da faixa provável. A comparação é com o que foi PAGO (guias de ITBI),
+não com preço de anúncio (o gap pedido × pago de apartamento segue suspenso). **À venda agora (nonStop)**: anúncios ativos do mesmo
+prédio primeiro; depois do mesmo bairro, com os mesmos quartos e área útil até 25% diferente (sem área útil informada: preço até 30%
+diferente da estimativa). **Endereço**: busca por texto sem acento, com sugestões (prédios com vendas); número sem vendas oferece "usar
+a rua" (compara com a rua e, se faltar, o bairro). Bairros fora dos 77 não aparecem.
+
+**Travas**: `validate_build` check **19** (`check_calculadora`) — vendas do arquivo = revenda limpa de apartamento recontada nos
+registros (sem planta), valor/área/fator/andar/mês no padrão, andar lido em 60%+, mês base igual ao da correção de tempo, todo
+anúncio existe no estoque de hoje, tabela de precisão com 100+ testes por nível e erro do prédio menor que o do bairro, e 25 prédios
+conhecidos recalculados (estimativa dentro do que se pagou). O build fica em 19 checagens. Achados do caminho: o check barrou o
+primeiro build (vendas de 2020–2023 e áreas de 4–6 m²) e o teste de celular achou tabela estourando a largura (corrigido).
+Testes: `python3 scripts/test_calculadora.py`; `python3 scripts/verificar_calculadora.py` (com `site/serve_no_cache.py 8899`
+rodando): 260 casos Python × navegador sem divergência (arredondamento idêntico nos dois lados), endereço digitado de verdade,
+número sem vendas, endereço inexistente, erro de preenchimento, celular de 375 px sem rolagem lateral e zero erro de console.
+O "PDF completo" não inclui a calculadora; "Baixar esta página" nela imprime o resultado (o formulário some na impressão).
+**Próximos passos possíveis (não feitos)**: efeito de vagas (a vaga só aparece em ~26% das guias), casas/studios/coberturas,
+número da unidade além do andar (a mesma "final" costuma ser a mesma planta).

@@ -387,6 +387,7 @@ function capturarEstado() {
     em: Date.now(), painel: ativo ? ativo.dataset.panel : null,
     filtros: { bairros: [...FILTERS.bairros], priceMin: FILTERS.priceMin, priceMax: FILTERS.priceMax },
     local: JSON.parse(JSON.stringify(LOCAL)), perfil: perfil ? perfil.value : null, scrollY: window.scrollY,
+    calc: window.CALC && window.CALC.estado ? JSON.parse(JSON.stringify(window.CALC.estado)) : null, // formulário da calculadora
   };
 }
 
@@ -561,6 +562,7 @@ async function main() {
       if (salvo.local.captacao) LOCAL.captacao = { ...LOCAL.captacao, ...salvo.local.captacao };
     }
     if (salvo.filtros) filtrosUI.aplicar(salvo.filtros);
+    if (salvo.calc) window.CALC_ESTADO_SALVO = salvo.calc; // a calculadora devolve o que estava preenchido ao carregar
   }
   renderAll(); // já dispara o carregamento em segundo plano do engine.js/raw.json (ver renderEstoqueDemanda)
   if (salvo) {
@@ -582,6 +584,7 @@ const PANELS = [
   { id: "prioritarios", label: "Imóveis Prioritários" },
   { id: "valor-oportunidade", label: "Valor de Oportunidade" },
   { id: "preco-m2", label: "Valor pago por bairro" },
+  { id: "calculadora", label: "Calculadora de preço" },
   { id: "carteira-77", label: "Carteira 77" },
 ];
 
@@ -614,7 +617,24 @@ function setupTabs() {
   });
 }
 
+// Calculadora de preço: o script (calculadora.js) e os dados (calculadora.json) só são baixados na primeira vez
+// que a aba abre — quem nunca usa a calculadora não paga nada por ela.
+let CALC_CARREGADA = false;
+function ensureCalculadoraLoaded() {
+  if (CALC_CARREGADA) return;
+  CALC_CARREGADA = true;
+  const s = document.createElement("script");
+  s.src = "calculadora.js";
+  s.onerror = () => {
+    CALC_CARREGADA = false;
+    const r = document.getElementById("calc-root");
+    if (r) r.textContent = "Não consegui carregar a calculadora. Recarregue a página (F5).";
+  };
+  document.head.appendChild(s);
+}
+
 function showPanel(id) {
+  if (id === "calculadora") ensureCalculadoraLoaded();
   document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.dataset.panel === id));
   document.querySelectorAll("nav.tabs button").forEach((b) => b.classList.toggle("active", b.dataset.panel === id));
   window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });

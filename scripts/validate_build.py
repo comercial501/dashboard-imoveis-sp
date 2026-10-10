@@ -164,12 +164,12 @@ def check_linhas_lidas(year_to_path, itbi_stats):
             f"{sheets_checked} abas, {header_rows} são cabeçalho (esperado {esperado} "
             f"linhas de dado), mas o parser leu {lido}. Diferença: {lido - esperado:+d}."
         )
-    print(f"[validate_build] OK 1/18 — linhas lidas batem: {lido} == {total_rows} totais - {header_rows} cabeçalho, em {sheets_checked} abas.")
+    print(f"[validate_build] OK 1/19 — linhas lidas batem: {lido} == {total_rows} totais - {header_rows} cabeçalho, em {sheets_checked} abas.")
 
 
 def check_variacao_bairros(new_bairros, old_data_path):
     if not old_data_path.exists():
-        print("[validate_build] OK 2/18 — sem versão publicada anterior pra comparar (primeira execução).")
+        print("[validate_build] OK 2/19 — sem versão publicada anterior pra comparar (primeira execução).")
         return
     try:
         old_data = json.loads(old_data_path.read_text(encoding="utf-8"))
@@ -206,7 +206,7 @@ def check_variacao_bairros(new_bairros, old_data_path):
             f"Se a mudança é esperada (correção deliberada de metodologia), rode de novo com "
             f"ALLOW_LARGE_CHANGES=1 no ambiente."
         )
-    print(f"[validate_build] OK 2/18 — nenhum bairro variou mais que {VARIACAO_MAX*100:.0f}% em volume_primary_year.")
+    print(f"[validate_build] OK 2/19 — nenhum bairro variou mais que {VARIACAO_MAX*100:.0f}% em volume_primary_year.")
 
 
 def check_formato_paineis(data):
@@ -227,7 +227,7 @@ def check_formato_paineis(data):
     if not isinstance(data.get("ranking"), list) or len(data["ranking"]) != len(TARGETS):
         raise ValidationError(f"'ranking' deveria ter {len(TARGETS)} bairros, tem {len(data.get('ranking'))}.")
 
-    print(f"[validate_build] OK 3/18 — formato de data.json íntegro: {len(bairros)} bairros, todas as chaves esperadas presentes.")
+    print(f"[validate_build] OK 3/19 — formato de data.json íntegro: {len(bairros)} bairros, todas as chaves esperadas presentes.")
 
 
 def check_consistencia_carteira_77(data):
@@ -265,7 +265,7 @@ def check_consistencia_carteira_77(data):
             f"consistência carteira_77 FALHOU — {len(divergencias)} divergência(s) entre bairros_out e "
             f"carteira_77 (deveriam ser idênticos):\n{linhas}{a_mais}"
         )
-    print(f"[validate_build] OK 4/18 — {len(TARGETS)} bairros batem exato com carteira_77 em {len(campos)} campos.")
+    print(f"[validate_build] OK 4/19 — {len(TARGETS)} bairros batem exato com carteira_77 em {len(campos)} campos.")
 
 
 def check_prontidao_consistencia(data):
@@ -300,7 +300,7 @@ def check_prontidao_consistencia(data):
             f"bairro(s) com amostra pequena (< 100 revendas em 12m) no top 10 do Prontidão: {top10_amostra_pequena} "
             "— não deveriam ocupar posição de topo (gate de merge pedido pelo usuário)."
         )
-    print(f"[validate_build] OK 5/18 — Prontidão: {len(TARGETS)} bairros com nota, top 10 sem amostra pequena.")
+    print(f"[validate_build] OK 5/19 — Prontidão: {len(TARGETS)} bairros com nota, top 10 sem amostra pequena.")
 
 
 def check_perfil_v1_obsoleto(data):
@@ -357,7 +357,7 @@ def check_perfil_v1_obsoleto(data):
     if divergencias:
         linhas = "\n".join(f"  - {d}" for d in divergencias[:30])
         raise ValidationError(f"perfil vencedor v1 ainda em uso onde deveria ser v2:\n{linhas}")
-    print("[validate_build] OK 6/18 — nenhum painel (site/app.js) lê mais os campos do perfil v1 (metragem); todos usam a faixa de preço v2.")
+    print("[validate_build] OK 6/19 — nenhum painel (site/app.js) lê mais os campos do perfil v1 (metragem); todos usam a faixa de preço v2.")
 
 
 def check_faixa_metragem_apartamento_suspensa(data):
@@ -401,7 +401,7 @@ def check_faixa_metragem_apartamento_suspensa(data):
     if divergencias:
         linhas = "\n".join(f"  - {d}" for d in divergencias)
         raise ValidationError(f"faixa_metragem() voltou a comparar apartamento ITBI x anúncio:\n{linhas}")
-    print("[validate_build] OK 7/18 — faixa_metragem() não compara apartamento ITBI x anúncio em nenhum painel.")
+    print("[validate_build] OK 7/19 — faixa_metragem() não compara apartamento ITBI x anúncio em nenhum painel.")
 
 
 def check_selos_idade_bonus(data, usn_records):
@@ -490,7 +490,7 @@ def check_selos_idade_bonus(data, usn_records):
     n_esc = sum(1 for b in TARGETS if bairros[b]["selo_escassez_real"])
     n_fora = sum(1 for b in TARGETS if bairros[b]["estoque_fora_do_perfil"])
     n_antigos = sum(1 for im in ip if im.get("anuncio_antigo"))
-    print(f"[validate_build] OK 10/18 — selos ({n_esc} pouco estoque na rede, {n_fora} estoque da rede fora do perfil, exclusivos e só com 100+ revendas), {n_antigos} anúncios antigos mantidos nas contas (idade = cadastro mais antigo entre duplicatas), bônus de captação na escala.")
+    print(f"[validate_build] OK 10/19 — selos ({n_esc} pouco estoque na rede, {n_fora} estoque da rede fora do perfil, exclusivos e só com 100+ revendas), {n_antigos} anúncios antigos mantidos nas contas (idade = cadastro mais antigo entre duplicatas), bônus de captação na escala.")
 
 
 def check_captacao_limpa(data):
@@ -553,7 +553,7 @@ def check_captacao_limpa(data):
     n_end = len(data.get("captacao_ativa", []))
     n_faixa = sum(1 for c in data["captacao_ativa"] if not c["poucas_vendas"])
     n_painel = sum(len(g["enderecos"]) for g in data.get("captacao_estrategica", []))
-    print(f"[validate_build] OK 11/18 — Captação Ativa: {n_end} endereços com 2+ revendas limpas na base, preço por mediana ({n_faixa} com faixa P25-P75, o resto 'poucas vendas'), sem mínimo-máximo; o painel mostra só mediana >= R$ {minimo:,.0f} ({n_painel} endereços, Top 30 incluso).".replace(",", "."))
+    print(f"[validate_build] OK 11/19 — Captação Ativa: {n_end} endereços com 2+ revendas limpas na base, preço por mediana ({n_faixa} com faixa P25-P75, o resto 'poucas vendas'), sem mínimo-máximo; o painel mostra só mediana >= R$ {minimo:,.0f} ({n_painel} endereços, Top 30 incluso).".replace(",", "."))
 
 
 def check_camada_limpa_unica(data, itbi_records):
@@ -685,7 +685,7 @@ def check_camada_limpa_unica(data, itbi_records):
         linhas = "\n".join(f"  - {d}" for d in divergencias[:20])
         raise ValidationError(f"cálculo de preço fora da camada limpa única:\n{linhas}")
     n_clean = sum(1 for r in itbi_records if r["is_clean_sale"])
-    print(f"[validate_build] OK 12/18 — camada limpa única: {n_clean} registros limpos; faixa v2, Preço por m² e Captação batem com a recomputação só da camada limpa; nenhum corte extra.")
+    print(f"[validate_build] OK 12/19 — camada limpa única: {n_clean} registros limpos; faixa v2, Preço por m² e Captação batem com a recomputação só da camada limpa; nenhum corte extra.")
 
 
 def check_faixas_amostra(data):
@@ -763,7 +763,7 @@ def check_faixas_amostra(data):
         for t, m in bairros[b]["perfil_vencedor_faixa_preco_v2_meta"].items():
             k = "poucas vendas" if m["poucas_vendas"] else f"{m['janela_meses']} meses"
             cont[k] = cont.get(k, 0) + 1
-    print(f"[validate_build] OK 13/18 — faixas de preço com proteção de amostra: {dict(sorted(cont.items()))}; {n_ader_ausente} imóveis com aderência ausente (peso redistribuído).")
+    print(f"[validate_build] OK 13/19 — faixas de preço com proteção de amostra: {dict(sorted(cont.items()))}; {n_ader_ausente} imóveis com aderência ausente (peso redistribuído).")
 
 
 def check_buscas_google(data):
@@ -778,7 +778,7 @@ def check_buscas_google(data):
     bairros = data["bairros"]
     com = {b: v["search_interest"] for b, v in bairros.items() if v.get("search_interest")}
     if not com:
-        print("[validate_build] OK 14/18 — sem dado de busca do Google (fonte opcional); nada a conferir.")
+        print("[validate_build] OK 14/19 — sem dado de busca do Google (fonte opcional); nada a conferir.")
         return
     gerado = datetime.datetime.fromisoformat(data["generated_at_iso"])
     divergencias = []
@@ -800,7 +800,7 @@ def check_buscas_google(data):
     if divergencias:
         linhas = "\n".join(f"  - {d}" for d in divergencias[:20])
         raise ValidationError(f"datas de busca do Google por bairro incoerentes:\n{linhas}")
-    print(f"[validate_build] OK 14/18 — buscas do Google por bairro: {len(com)} bairros com data própria (de {datas[0][:10]} a {datas[-1][:10]}), {n_frescos} frescos.")
+    print(f"[validate_build] OK 14/19 — buscas do Google por bairro: {len(com)} bairros com data própria (de {datas[0][:10]} a {datas[-1][:10]}), {n_frescos} frescos.")
 
 
 FATOR_TEMPO_MIN, FATOR_TEMPO_MAX = 0.5, 2.0  # atualização de preço além disso = índice quebrado (ruído de amostra)
@@ -892,7 +892,7 @@ def check_rodada_a(data):
     if divergencias:
         linhas = "\n".join(f"  - {d}" for d in divergencias[:20])
         raise ValidationError(f"Rodada A — {len(divergencias)} divergência(s):\n{linhas}")
-    print(f"[validate_build] OK 15/18 — Rodada A/A2: Prontidão com 5 fatores (pesos {pesos}); {n_apto} achados de apartamento todos pelo prédio homogêneo (>= 4 vendas, P75/P25 <= 1,25); Top 30 da Captação com {len(top)} endereços na ordem certa; vendas atualizadas pro preço de {corr['mes_base']} ({n_series} séries bairro+tipo, fator do mês base = 1,0).")
+    print(f"[validate_build] OK 15/19 — Rodada A/A2: Prontidão com 5 fatores (pesos {pesos}); {n_apto} achados de apartamento todos pelo prédio homogêneo (>= 4 vendas, P75/P25 <= 1,25); Top 30 da Captação com {len(top)} endereços na ordem certa; vendas atualizadas pro preço de {corr['mes_base']} ({n_series} séries bairro+tipo, fator do mês base = 1,0).")
 
 
 def check_historico_anuncios(historico, data):
@@ -903,7 +903,7 @@ def check_historico_anuncios(historico, data):
     manual) não há o que conferir."""
     estado, registros = historico if historico else (None, None)
     if estado is None or registros is None:
-        print("[validate_build] OK 16/18 — histórico de anúncios: sem a API da nonStop hoje, arquivo não é alterado; nada a conferir.")
+        print("[validate_build] OK 16/19 — histórico de anúncios: sem a API da nonStop hoje, arquivo não é alterado; nada a conferir.")
         return
     agora = data["meta"]["historico_anuncios"]["agora"]
     hoje_por_codigo = {r["codigo"]: r for r in registros if r.get("codigo") and r.get("valor")}
@@ -940,7 +940,7 @@ def check_historico_anuncios(historico, data):
         linhas = "\n".join(f"  - {d}" for d in divergencias[:20])
         raise ValidationError(f"histórico de anúncios incoerente ({len(divergencias)}):\n{linhas}")
     r = data["meta"]["historico_anuncios"]
-    print(f"[validate_build] OK 16/18 — histórico de anúncios: {r['ativos']} ativos = {len(hoje_por_codigo)} na rede hoje; {r['novos']} novos, {r['sairam']} saíram, {r['mudancas_de_preco']} mudanças de preço; {len(estado)} anúncios no arquivo.")
+    print(f"[validate_build] OK 16/19 — histórico de anúncios: {r['ativos']} ativos = {len(hoje_por_codigo)} na rede hoje; {r['novos']} novos, {r['sairam']} saíram, {r['mudancas_de_preco']} mudanças de preço; {len(estado)} anúncios no arquivo.")
 
 
 def check_forma_pagamento(data):
@@ -994,7 +994,7 @@ def check_forma_pagamento(data):
     if divergencias:
         linhas = "\n".join(f"  - {d}" for d in divergencias[:20])
         raise ValidationError(f"forma de pagamento incoerente ({len(divergencias)}):\n{linhas}")
-    print(f"[validate_build] OK 17/18 — forma de pagamento: {n_perfis} perfis (bairro × revenda/planta × tipo), categorias somam 100%, nenhum % financiado acima de 100%, carteira_77 confere.")
+    print(f"[validate_build] OK 17/19 — forma de pagamento: {n_perfis} perfis (bairro × revenda/planta × tipo), categorias somam 100%, nenhum % financiado acima de 100%, carteira_77 confere.")
 
 
 def check_contexto_credito(data):
@@ -1040,7 +1040,7 @@ def check_contexto_credito(data):
         linhas = "\n".join(f"  - {d}" for d in divergencias[:20])
         raise ValidationError(f"contexto de crédito incoerente ({len(divergencias)}):\n{linhas}")
     aviso = f" ({n_desatualizadas} série(s) desatualizada(s) — falha da API não trava a publicação)" if n_desatualizadas else ""
-    print(f"[validate_build] OK 18/18 — contexto de crédito: {len(ctx['series'])} séries do Banco Central coerentes{aviso}.")
+    print(f"[validate_build] OK 18/19 — contexto de crédito: {len(ctx['series'])} séries do Banco Central coerentes{aviso}.")
 
 
 VARIACAO_MAX_ESTOQUE = 0.30
@@ -1055,18 +1055,18 @@ def check_variacao_estoque_nonstop(usn_meta, out_path):
     Só de um lado (queda): um AUMENTO de estoque nunca é perigoso, então
     não trava por isso — mirror de VARIACAO_MAX/ALLOW_LARGE_CHANGES."""
     if not out_path.exists():
-        print("[validate_build] OK 8/18 — sem versão publicada anterior pra comparar estoque (primeira execução).")
+        print("[validate_build] OK 8/19 — sem versão publicada anterior pra comparar estoque (primeira execução).")
         return
     try:
         old_data = json.loads(out_path.read_text(encoding="utf-8"))
     except Exception as e:
-        print(f"[validate_build] AVISO — não consegui ler a versão anterior pra comparar estoque ({e!r}); pulando checagem 8/18.")
+        print(f"[validate_build] AVISO — não consegui ler a versão anterior pra comparar estoque ({e!r}); pulando checagem 8/19.")
         return
 
     old_n = (old_data.get("meta", {}).get("usn") or {}).get("rows_apos_dedup")
     new_n = usn_meta.get("rows_apos_dedup")
     if old_n is None or new_n is None or old_n == 0:
-        print("[validate_build] OK 8/18 — sem 'rows_apos_dedup' na versão anterior ou atual pra comparar (campo novo); pulando.")
+        print("[validate_build] OK 8/19 — sem 'rows_apos_dedup' na versão anterior ou atual pra comparar (campo novo); pulando.")
         return
 
     variacao = (new_n - old_n) / old_n
@@ -1078,13 +1078,13 @@ def check_variacao_estoque_nonstop(usn_meta, out_path):
             "queda real de estoque."
         )
         if os.environ.get("ALLOW_LARGE_CHANGES", "").strip() == "1":
-            print(f"[validate_build] AVISO 8/18 — {msg} Mas ALLOW_LARGE_CHANGES=1 está setado — publicando mesmo assim.")
+            print(f"[validate_build] AVISO 8/19 — {msg} Mas ALLOW_LARGE_CHANGES=1 está setado — publicando mesmo assim.")
             return
         raise ValidationError(
             f"{msg} Travando a publicação e mantendo os dados anteriores. Se a queda é real e esperada, "
             "rode de novo com ALLOW_LARGE_CHANGES=1 no ambiente."
         )
-    print(f"[validate_build] OK 8/18 — estoque nonStop não caiu mais que {VARIACAO_MAX_ESTOQUE*100:.0f}% ({old_n} -> {new_n}).")
+    print(f"[validate_build] OK 8/19 — estoque nonStop não caiu mais que {VARIACAO_MAX_ESTOQUE*100:.0f}% ({old_n} -> {new_n}).")
 
 
 def check_dedup_aplicada(usn_records):
@@ -1106,14 +1106,111 @@ def check_dedup_aplicada(usn_records):
             "usn_records que chegaram no motor — a deduplicação deveria ter rodado antes "
             "(ver build_data.py._get_usn_records) e não rodou, ou rodou e não é idempotente."
         )
-    print(f"[validate_build] OK 9/18 — {len(usn_records)} anúncios no estoque, nenhuma duplicata (endereço+área+preço ±3%) restante.")
+    print(f"[validate_build] OK 9/19 — {len(usn_records)} anúncios no estoque, nenhuma duplicata (endereço+área+preço ±3%) restante.")
 
 
-def validate_before_publish(year_to_path, itbi_stats, data, out_path, usn_records, itbi_records, historico=None):
+def check_calculadora(calc, data, itbi_records, usn_records):
+    """Calculadora de preço (aba nova, 2026-10-10): confere o calculadora.json ANTES de publicar. Trava se:
+    a lista de vendas não for exatamente a revenda limpa de apartamento (mesma camada do resto do painel, sem
+    planta), se algum valor/área/fator/andar sair do padrão, se o mês base não bater com a correção de tempo,
+    se algum anúncio não existir no estoque de hoje, ou se o cálculo falhar no teste com endereços conhecidos
+    (a estimativa tem que ficar dentro da faixa e a faixa dentro do que se pagou)."""
+    import calculadora_preco as cp
+    from clean_itbi import VALOR_MIN_REAL, VALOR_MAX_REAL
+    from normalize import excel_serial_to_ym
+
+    if not calc:
+        raise ValidationError("calculadora.json não foi gerado")
+    div = []
+    esperadas = [r for r in itbi_records
+                 if r["tipo_imovel"] == "apartamento" and r.get("is_revenda") and r.get("is_clean_sale")
+                 and r["bairro"] in TARGETS and r["day"] is not None and r.get("area") and r.get("addr_key")
+                 and cp.AREA_MIN <= r["area"] <= cp.AREA_MAX and excel_serial_to_ym(r["day"]) >= (2024, 1)]
+    if len(calc["vendas"]) != len(esperadas):
+        div.append(f"{len(calc['vendas'])} vendas no arquivo, mas a camada limpa tem {len(esperadas)} revendas de apartamento")
+    n_pred = len(calc["predios"])
+    n_ruas = len(calc["ruas"])
+    n_bairros = len(calc["bairros"])
+    lim_ym = excel_serial_to_ym(max(r["day"] for r in esperadas))
+    ym_max = lim_ym[0] * 100 + lim_ym[1]
+    n_andar = sum(1 for v in calc["vendas"] if v[4] is not None)
+    for v in calc["vendas"]:
+        pi, ym, valor, area, andar, vagas, fator = v
+        if not (0 <= pi < n_pred):
+            div.append(f"venda com prédio inexistente ({pi})")
+        elif not (VALOR_MIN_REAL <= valor <= VALOR_MAX_REAL):
+            div.append(f"valor fora do padrão: {valor}")
+        elif not (area and cp.AREA_MIN <= area <= cp.AREA_MAX):
+            div.append(f"área fora do padrão: {area}")
+        elif not (0.5 <= fator <= 2.5):
+            div.append(f"fator de atualização fora do padrão: {fator}")
+        elif ym < 202401 or ym > ym_max:
+            div.append(f"mês da venda fora do período dos dados: {ym}")
+        elif andar is not None and not (1 <= andar <= 60):
+            div.append(f"andar fora de 1–60: {andar}")
+        if len(div) > 15:
+            break
+    for p in calc["predios"]:
+        if not (0 <= p[2] < n_bairros and 0 <= p[3] < n_ruas):
+            div.append(f"prédio com bairro/rua inexistente: {p[1]}")
+            break
+    pct_andar = n_andar / len(calc["vendas"]) if calc["vendas"] else 0
+    if pct_andar < 0.60:
+        div.append(f"andar lido em só {pct_andar:.0%} das vendas (esperado 60%+; o formato do complemento do ITBI pode ter mudado)")
+    ef = calc["efeito_andar"]
+    if len(ef) != len(cp.CALC_ANDAR_FAIXAS) or any(not (cp.CALC_ANDAR_CAP[0] <= e["fator"] <= cp.CALC_ANDAR_CAP[1]) for e in ef):
+        div.append(f"tabela de efeito do andar fora do padrão: {ef}")
+    prec = calc.get("precisao") or {}
+    for nivel in ("predio", "rua", "bairro"):
+        t = prec.get(f"{nivel}|*")
+        if not t or t["n"] < cp.CALC_PRECISAO_MIN_TESTES:
+            div.append(f"tabela de precisão sem testes suficientes para o nível {nivel}: {t}")
+        elif not (cp.CALC_MARGEM_MIN <= t["p75"] <= cp.CALC_MARGEM_MAX and 0 < t["mediano"] <= t["p75"]):
+            div.append(f"erro medido fora do padrão no nível {nivel}: {t}")
+    if all(prec.get(f"{n}|*") for n in ("predio", "rua", "bairro")) and not (prec["predio|*"]["p75"] < prec["bairro|*"]["p75"]):
+        div.append("o erro no prédio deveria ser menor que o do bairro (a comparação com o próprio prédio perdeu a vantagem)")
+    corr = (data.get("valor_oportunidade") or {}).get("correcao_tempo") or {}
+    if corr.get("mes_base") != calc["mes_base"]:
+        div.append(f"mês base da calculadora ({calc['mes_base']}) diferente do da correção de tempo ({corr.get('mes_base')})")
+    codigos = {u["codigo"] for u in usn_records}
+    for a in calc["anuncios"]:
+        if a[8] not in codigos:
+            div.append(f"anúncio {a[8]} não existe no estoque de hoje")
+            break
+        if not (0 <= a[1] < n_bairros) or a[4] <= 0:
+            div.append(f"anúncio {a[8]} com bairro/valor inválido")
+            break
+    # teste com endereços conhecidos: prédios com 8+ vendas — a estimativa usa a metragem mais comum do próprio prédio
+    idx = cp.indexar(calc)
+    testados = 0
+    for pi, ids in sorted(idx["predio"].items()):
+        if len(ids) < 8 or testados >= 25:
+            continue
+        areas = [calc["vendas"][i][3] for i in ids]
+        area = max(set(areas), key=lambda a: (areas.count(a), a))
+        if areas.count(area) < 4:
+            continue
+        r = cp.estimar(calc, idx, {"predio": pi, "rua": calc["predios"][pi][3], "bairro": calc["predios"][pi][2], "area": area, "andar": None})
+        testados += 1
+        if not r["ok"] or r["nivel"] != "predio" or not (r["minimo"] <= r["estimativa"] <= r["maximo"]):
+            div.append(f"teste de prédio conhecido falhou: {calc['predios'][pi][1]} -> {r}")
+            continue
+        hoje = [calc["vendas"][i][2] * calc["vendas"][i][6] for i in ids if abs(calc["vendas"][i][3] - area) / area <= 0.20]
+        if not (min(hoje) * 0.999 <= r["estimativa"] <= max(hoje) * 1.001):
+            div.append(f"estimativa fora do que se pagou em {calc['predios'][pi][1]}: {r['estimativa']} vs {min(hoje):.0f}–{max(hoje):.0f}")
+    if testados < 10:
+        div.append(f"só {testados} prédios com 8+ vendas pra testar o cálculo (esperado 10+)")
+    if div:
+        linhas = "\n".join(f"  - {d}" for d in div[:20])
+        raise ValidationError(f"calculadora incoerente ({len(div)}):\n{linhas}")
+    print(f"[validate_build] OK 19/19 — calculadora: {len(calc['vendas'])} vendas de {n_pred} prédios (= revenda limpa de apartamento, sem planta), andar lido em {pct_andar:.0%}, {len(calc['anuncios'])} anúncios do estoque de hoje, cálculo conferido em {testados} prédios conhecidos; erro medido em testes com vendas reais: mediano {prec['predio|*']['mediano']:.0%} no prédio, {prec['rua|*']['mediano']:.0%} na rua, {prec['bairro|*']['mediano']:.0%} no bairro.")
+
+
+def validate_before_publish(year_to_path, itbi_stats, data, out_path, usn_records, itbi_records, historico=None, calculadora=None):
     """Chamado por build_data.py logo antes de escrever site/data.json.
     Levanta SystemExit (para o processo com código != 0) se qualquer
     checagem falhar — build_data.py não deve capturar essa exceção."""
-    print("[validate_build] rodando as 18 checagens antes de publicar...")
+    print("[validate_build] rodando as 19 checagens antes de publicar...")
     check_linhas_lidas(year_to_path, itbi_stats)
     check_variacao_bairros(data["bairros"], out_path)
     check_formato_paineis(data)
@@ -1132,4 +1229,5 @@ def validate_before_publish(year_to_path, itbi_stats, data, out_path, usn_record
     check_historico_anuncios(historico, data)
     check_forma_pagamento(data)
     check_contexto_credito(data)
+    check_calculadora(calculadora, data, itbi_records, usn_records)
     print("[validate_build] todas as checagens passaram — liberado pra publicar.")

@@ -20,7 +20,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 PAINEIS = ["visao-geral", "ranking", "prontidao", "estoque-demanda", "perfil", "mapa", "captacao",
-           "prioritarios", "valor-oportunidade", "preco-m2", "carteira-77"]
+           "prioritarios", "valor-oportunidade", "preco-m2", "calculadora", "carteira-77"]
 
 JS_PARIDADE = """()=>{
   const eq=(a,b)=>{ if(a===b) return true; if(a==null&&b==null) return true; if(typeof a==="number"&&typeof b==="number") return Math.abs(a-b)<=0.011; return JSON.stringify(a)===JSON.stringify(b); };

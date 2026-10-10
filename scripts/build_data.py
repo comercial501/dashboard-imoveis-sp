@@ -36,6 +36,7 @@ from parse_itbi import parse_itbi_years
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "site" / "data.json"
 OUT_RAW = ROOT / "site" / "raw.json"
+OUT_CALCULADORA = ROOT / "site" / "calculadora.json"  # dados da aba Calculadora (carregado só quando a aba abre)
 OUT_VERSAO = ROOT / "site" / "versao.json"  # arquivo minúsculo: a página confere se há dados mais novos sem baixar o data.json
 # Fica em site/ (não em data/, que é ignorado pelo git) de propósito — o
 # usuário pediu pra poder auditar esse log, então ele precisa ser
@@ -483,6 +484,7 @@ def main():
 
     result = engine.compute(itbi_records, usn_records, years, carteira_77["bairros"], periodo_12m_externo, unidades_endereco)
     print(f"[build] motor de cálculo concluído ({time.time() - t_start:.1f}s total)")
+    calculadora = result.pop("_calculadora")
 
     _write_preco_m2_csv(result["preco_m2_painel"], OUT_PRECO_M2_CSV)
     print(f"[build] {OUT_PRECO_M2_CSV} escrito ({len(result['preco_m2_painel'])} linhas)")
@@ -540,6 +542,8 @@ def main():
     data["meta"]["total_itbi_planta_todos_anos"] = resolucao_stats["planta_todos_anos"]
     data["meta"]["total_itbi_fora_carteira_ou_incerto"] = resolucao_stats["fora_carteira_ou_incerto"]
     data["meta"]["usn"] = usn_meta
+    calculadora["gerado_em_iso"] = data["generated_at_iso"]
+    data["meta"]["calculadora"] = {**calculadora["resumo"], "mes_base": calculadora["mes_base"]}
     if historico_resumo is not None:
         data["meta"]["historico_anuncios"] = historico_resumo
 
@@ -572,7 +576,7 @@ def main():
     # falhar — nem o CSV nem o raw.json chegam a ser escritos, o data.json
     # anterior fica intacto no disco/git.
     validate_build.validate_before_publish(year_to_path, itbi_stats, data, OUT, usn_records, itbi_records,
-                                           historico=(historico_novo, _USN_ANTES_DEDUP))
+                                           historico=(historico_novo, _USN_ANTES_DEDUP), calculadora=calculadora)
 
     if historico_novo is not None:
         historico_anuncios.salvar(historico_novo)
@@ -581,6 +585,8 @@ def main():
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"[build] {OUT} escrito ({OUT.stat().st_size:,} bytes)")
+    OUT_CALCULADORA.write_text(json.dumps(calculadora, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(f"[build] {OUT_CALCULADORA} escrito ({OUT_CALCULADORA.stat().st_size:,} bytes)")
     OUT_VERSAO.write_text(json.dumps({"generated_at_iso": data["generated_at_iso"]}), encoding="utf-8")
 
     raw = build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, carteira_77["bairros"], data["meta"]["limiar_escassez_real"], unidades_endereco)

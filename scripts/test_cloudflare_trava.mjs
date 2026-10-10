@@ -55,7 +55,7 @@ r = await chamar(await token({ kid: "chave-que-nao-existe" }));
 ok(r.status === 403 && !r.passou, "chave desconhecida: 403");
 r = await chamar(await token({ payload: { aud: AUD } }));
 ok(r.status === 200 && r.passou, "aud como texto (não lista) também vale");
-for (const caminho of ["/", "/index.html", "/data.json", "/raw.json", "/app.js", "/engine.js", "/styles.css", "/qualquer/coisa.csv"]) {
+for (const caminho of ["/", "/index.html", "/data.json", "/raw.json", "/calculadora.js", "/calculadora.json", "/app.js", "/engine.js", "/styles.css", "/qualquer/coisa.csv"]) {
   const x = await chamar(null, env, `https://site.pages.dev${caminho}`);
   ok(x.status === 403 && !x.passou, `sem login: ${caminho} → 403`);
 }
