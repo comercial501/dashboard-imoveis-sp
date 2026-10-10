@@ -1165,7 +1165,7 @@ def check_calculadora(calc, data, itbi_records, usn_records):
     if len(ef) != len(cp.CALC_ANDAR_FAIXAS) or any(not (cp.CALC_ANDAR_CAP[0] <= e["fator"] <= cp.CALC_ANDAR_CAP[1]) for e in ef):
         div.append(f"tabela de efeito do andar fora do padrão: {ef}")
     prec = calc.get("precisao") or {}
-    for nivel in ("predio", "rua", "bairro"):
+    for nivel in ("predio", "predio_poucas", "rua", "bairro"):
         t = prec.get(f"{nivel}|*")
         if not t or t["n"] < cp.CALC_PRECISAO_MIN_TESTES:
             div.append(f"tabela de precisão sem testes suficientes para o nível {nivel}: {t}")
@@ -1176,8 +1176,11 @@ def check_calculadora(calc, data, itbi_records, usn_records):
         if not q or len(q) != len(cp.CALC_QTS) or any(b < a for a, b in zip(q, q[1:])) or not (0.85 <= q[cp.CALC_QTS.index(50)] <= 1.15) or q[0] <= 0:
             div.append(f"quantis do veredito fora do padrão em {k}: {q}")
             break
-    if all(prec.get(f"{n}|*") for n in ("predio", "rua", "bairro")) and not (prec["predio|*"]["p75"] < prec["bairro|*"]["p75"]):
-        div.append("o erro no prédio deveria ser menor que o do bairro (a comparação com o próprio prédio perdeu a vantagem)")
+    if all(prec.get(f"{n}|*") for n in ("predio", "predio_poucas", "rua", "bairro")):
+        if not (prec["predio|*"]["p75"] < prec["bairro|*"]["p75"]):
+            div.append("o erro no prédio deveria ser menor que o do bairro (a comparação com o próprio prédio perdeu a vantagem)")
+        if not (prec["predio_poucas|*"]["p75"] < prec["bairro|*"]["p75"]):
+            div.append("com 1 ou 2 vendas no prédio o erro deveria ser menor que o do bairro (senão não vale usar o prédio)")
     corr = (data.get("valor_oportunidade") or {}).get("correcao_tempo") or {}
     if corr.get("mes_base") != calc["mes_base"]:
         div.append(f"mês base da calculadora ({calc['mes_base']}) diferente do da correção de tempo ({corr.get('mes_base')})")
@@ -1214,7 +1217,7 @@ def check_calculadora(calc, data, itbi_records, usn_records):
     if div:
         linhas = "\n".join(f"  - {d}" for d in div[:20])
         raise ValidationError(f"calculadora incoerente ({len(div)}):\n{linhas}")
-    print(f"[validate_build] OK 19/19 — calculadora: {len(calc['vendas'])} vendas de {n_pred} prédios (= revenda limpa de apartamento, sem planta), andar lido em {pct_andar:.0%}, {len(calc['anuncios'])} anúncios do estoque de hoje, cálculo conferido em {testados} prédios conhecidos; erro medido em testes com vendas reais: mediano {prec['predio|*']['mediano']:.0%} no prédio, {prec['rua|*']['mediano']:.0%} na rua, {prec['bairro|*']['mediano']:.0%} no bairro.")
+    print(f"[validate_build] OK 19/19 — calculadora: {len(calc['vendas'])} vendas de {n_pred} prédios (= revenda limpa de apartamento, sem planta), andar lido em {pct_andar:.0%}, {len(calc['anuncios'])} anúncios do estoque de hoje, cálculo conferido em {testados} prédios conhecidos; erro medido em testes com vendas reais: mediano {prec['predio|*']['mediano']:.0%} no prédio, {prec['predio_poucas|*']['mediano']:.0%} com só 1–2 vendas no prédio, {prec['rua|*']['mediano']:.0%} na rua, {prec['bairro|*']['mediano']:.0%} no bairro.")
 
 
 def validate_before_publish(year_to_path, itbi_stats, data, out_path, usn_records, itbi_records, historico=None, calculadora=None):

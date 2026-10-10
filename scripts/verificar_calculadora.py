@@ -73,7 +73,7 @@ JS_CASOS = """(casos)=>{
 def comparar(py, js):
     difs = []
     for k in ("ok", "nivel", "n", "confianca", "area_ampliada", "faixa_nome", "estimativa", "minimo", "maximo", "m2", "similares", "ultima_venda", "veredito", "tolerancia_area", "motivo", "vendas_minimo", "vendas_maximo", "margem_pct", "precisao_testes", "precisao_mediana_pct",
-              "similares_eq", "similares_flag", "escada", "teto_verde", "teto_amarelo", "piso_mercado", "maior_venda", "pedido_chegaram_pct", "pedido_alem_dos_testes", "pedido_n_chegaram", "pedido_acima_do_verde"):
+              "segunda_opiniao", "segunda_diverge", "similares_eq", "similares_flag", "escada", "teto_verde", "teto_amarelo", "piso_mercado", "maior_venda", "pedido_chegaram_pct", "pedido_alem_dos_testes", "pedido_n_chegaram", "pedido_acima_do_verde"):
         if py.get(k) != js.get(k):
             difs.append((k, py.get(k), js.get(k)))
     for k in ("razao_p75_p25", "fator_andar", "pedido_vs_estimativa_pct"):  # arredondamento agora é idêntico: sem tolerância

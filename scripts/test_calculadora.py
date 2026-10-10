@@ -68,7 +68,9 @@ def dados_sinteticos():
         "mes_base": "2026-06", "bairros": ["B"], "ruas": [["Rua A", 0], ["Rua B", 0]],
         "predios": [["RUA A|1", "Rua A, 1", 0, 0], ["RUA A|2", "Rua A, 2", 0, 0], ["RUA B|3", "Rua B, 3", 0, 1]],
         "precisao": {"predio|alta": {"n": 500, "mediano": 0.07, "p75": 0.15, "q": Q_SINT}, "predio|media": {"n": 500, "mediano": 0.12, "p75": 0.25, "q": Q_SINT},
-                     "predio|*": {"n": 1000, "mediano": 0.1, "p75": 0.2, "q": Q_SINT}, "rua|*": {"n": 400, "mediano": 0.19, "p75": 0.32, "q": Q_SINT},
+                     "predio|*": {"n": 1000, "mediano": 0.1, "p75": 0.2, "q": Q_SINT},
+                     "predio_poucas|media": {"n": 500, "mediano": 0.13, "p75": 0.24, "q": Q_SINT}, "predio_poucas|baixa": {"n": 500, "mediano": 0.15, "p75": 0.29, "q": Q_SINT},
+                     "predio_poucas|*": {"n": 1000, "mediano": 0.14, "p75": 0.26, "q": Q_SINT}, "rua|*": {"n": 400, "mediano": 0.19, "p75": 0.32, "q": Q_SINT},
                      "rua|baixa": {"n": 30, "mediano": 0.9, "p75": 0.9}, "bairro|*": {"n": 900, "mediano": 0.2, "p75": 0.35, "q": Q_SINT}, "bairro|baixa": {"n": 900, "mediano": 0.2, "p75": 0.35, "q": Q_SINT}},
         "vendas": vendas, "anuncios": [], "efeito_andar": [{"de": a, "ate": b, "n": 0, "fator": 1.0} for a, b in cp.CALC_ANDAR_FAIXAS],
         "parametros": {
@@ -95,11 +97,34 @@ confere("faixa provável = margem medida (alta: 15%)", (r["margem_pct"], r["mini
 confere("vendas parecidas: mínimo e máximo próprios", (r["vendas_minimo"] <= r["estimativa"] <= r["vendas_maximo"]), True)
 confere("metragem 5% maior: área é só escala", cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 105.0, "andar": None})["estimativa"], 1_102_500)
 
-# prédio 1: 2 vendas de 100 m² -> não bastam (mín. 3), cai pra rua (prédios 0 e 1 = 8 vendas de ~100 m² dentro de 15%)
+# prédio 1: só 2 vendas parecidas de 100 m² -> não bastam pra "prédio" (mín. 3), mas ainda valem mais que a rua: "predio_poucas"
 r = cp.estimar(d, idx, {"predio": 1, "rua": 0, "bairro": 0, "area": 100.0, "andar": None})
-confere("prédio sem vendas parecidas suficientes cai pra rua", (r["ok"], r["nivel"], r["n"]), (True, "rua", 8))
-confere("na rua com poucos dados a confiança não é alta", r["confianca"] in ("media", "baixa"), True)
-# a mesma, mas com a metragem das 4 vendas de 50 m²: só 4 no prédio (>= 3) -> prédio, faixa mín–máx (menos de 5)
+confere("2 vendas no prédio: usa o prédio (poucas), confiança média", (r["ok"], r["nivel"], r["n"], r["confianca"]), (True, "predio_poucas", 2, "media"))
+confere("poucas vendas: margem própria da tabela (24%)", r["margem_pct"], 24.0)
+confere("poucas vendas: segunda opinião pela rua (8 vendas)", (r["segunda_opiniao"]["nivel"], r["segunda_opiniao"]["n"]), ("rua", 8))
+confere("poucas vendas: mediana de 2 vendas de R$ 900.000 em 100 m² = R$ 900.000", r["estimativa"], 900_000)
+# a rua (prédios 0 e 1) diria ~R$ 1.000.000; o prédio diz R$ 900.000 (-10%): dentro da margem de 24%, não diverge
+confere("segunda opinião dentro da margem: não diverge", r["segunda_diverge"], False)
+# prédio com 1 única venda parecida: confiança baixa
+d6 = dados_sinteticos()
+d6["vendas"] = [v for v in d6["vendas"] if not (v[0] == 1 and v[3] == 100.0)] + [[1, 202506, 900_000, 100.0, None, None, 1.0]]
+r6 = cp.estimar(d6, cp.indexar(d6), {"predio": 1, "rua": 0, "bairro": 0, "area": 100.0, "andar": None})
+confere("1 venda no prédio: usa o prédio, confiança baixa", (r6["nivel"], r6["n"], r6["confianca"]), ("predio_poucas", 1, "baixa"))
+confere("1 venda: margem própria (29%)", r6["margem_pct"], 29.0)
+# segunda opinião divergente: a venda do prédio é muito diferente da rua -> avisa
+d7 = dados_sinteticos()
+d7["vendas"] = [v for v in d7["vendas"] if not (v[0] == 1 and v[3] == 100.0)] + [[1, 202506, 300_000, 100.0, None, None, 1.0]]
+r7 = cp.estimar(d7, cp.indexar(d7), {"predio": 1, "rua": 0, "bairro": 0, "area": 100.0, "andar": None})
+confere("1 venda muito abaixo da rua: segunda opinião diverge", r7["segunda_diverge"], True)
+# sem nenhuma venda parecida no prédio (só plantas bem diferentes): cai pra rua, como antes
+r8 = cp.estimar(d, idx, {"predio": 1, "rua": 0, "bairro": 0, "area": 75.0, "andar": None})
+confere("prédio sem nenhuma venda parecida: vai pra rua ou bairro", (r8["ok"], r8["nivel"] in ("rua", "bairro")), (True, True)) if r8["ok"] else None
+# a segunda opinião só existe quando o prédio tem poucas vendas
+r9 = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None})
+confere("prédio com vendas suficientes: sem segunda opinião", "segunda_opiniao" in r9, False)
+# a calibração mede o nível novo separado do "prédio"
+tabc = cp.calibrar_precisao(dados_sinteticos())
+confere("calibrar_precisao nunca mistura 'predio' com 'predio_poucas'", all(k.split("|")[0] in ("predio", "predio_poucas", "rua", "bairro") for k in tabc), True)
 r = cp.estimar(d, idx, {"predio": 1, "rua": 0, "bairro": 0, "area": 50.0, "andar": None})
 confere("4 vendas parecidas: prédio, faixa mín-máx, confiança média", (r["nivel"], r["faixa_nome"], r["confianca"]), ("predio", "min_max", "media"))
 # endereço sem vendas (só a rua): predio=None

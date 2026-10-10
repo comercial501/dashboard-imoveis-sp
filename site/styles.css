@@ -646,3 +646,7 @@ table.data-table tbody tr:hover { background: #f7f5f0; }
 .calc-tag-atipica.baixa { background: var(--status-warning-bg); color: var(--status-warning); }
 .calc-tag-atipica.alta { background: var(--status-neutral-bg); color: var(--text-secondary); }
 .calc-nota-atipica { margin-top: 10px; }
+
+/* Calculadora: prédio com só 1 ou 2 vendas parecidas (aviso + segunda opinião) */
+.calc-poucas { margin: 10px 0; padding: 12px 14px; border-radius: 10px; background: var(--status-warning-bg); border-left: 4px solid var(--status-warning); font-size: 13.5px; display: grid; gap: 4px; }
+.calc-poucas-alerta { font-weight: 700; color: var(--status-warning); }

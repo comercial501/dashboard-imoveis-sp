@@ -33,6 +33,7 @@ MESMO_PREDIO_KM = 3.0                  # o mesmo endereço em bairros a até 3 k
 INICIO_VENDAS_YM = 202401              # só vendas de jan/2024 em diante (início do índice de correção de tempo)
 CALC_TOL_AREA_PREDIO = (0.10, 0.20)   # tolerância de área: 1ª tentativa, 2ª tentativa (ampliada)
 CALC_MIN_PREDIO = 3                   # vendas parecidas mínimas pra usar o nível "prédio"
+CALC_TOL_AREA_POUCAS = 0.20           # prédio com só 1 ou 2 vendas parecidas (nível "predio_poucas"): tolerância de área
 CALC_TOL_AREA_RUA = (0.15, 0.25)
 CALC_MIN_RUA = 5
 CALC_TOL_AREA_BAIRRO = (0.15, 0.30)
@@ -42,7 +43,7 @@ CALC_ALTA_MIN_VENDAS = 5              # confiança alta: prédio com 5+ vendas p
 CALC_RAZAO_MAX_ALTA = 1.25            # P75 ÷ P25 de até 1,25 (mesma regra do Valor de Oportunidade)
 CALC_MEDIA_RUA_MIN = 8                # confiança média na rua: 8+ vendas parecidas
 CALC_RAZAO_MAX_MEDIA_RUA = 1.35
-CALC_PRECISAO_TESTES = 3000           # vendas retiradas e re-estimadas, por nível, pra medir o erro de verdade
+CALC_PRECISAO_TESTES = 6000           # vendas retiradas e re-estimadas, por nível, pra medir o erro de verdade
 CALC_PRECISAO_MIN_TESTES = 100        # combinação nível+confiança com menos testes que isso usa o nível inteiro
 CALC_MARGEM_FALLBACK = 0.35           # sem teste suficiente nem no nível inteiro (não deve acontecer)
 CALC_MARGEM_MIN, CALC_MARGEM_MAX = 0.03, 0.60
@@ -366,6 +367,12 @@ def _estimar_base(dados, idx, entrada):
         sel, tol, ampliada = _escolher_nivel(dados, idx["predio"].get(entrada["predio"], []), area, p["tol_area_predio"], p["min_predio"])
         if sel:
             escolhido = ("predio", sel, tol, ampliada)
+        else:
+            # só 1 ou 2 vendas parecidas no prédio: ainda é a melhor referência (testes: erro ~13-15% contra ~20% da rua/bairro),
+            # mas com confiança menor, margem própria e segunda opinião (ver estimar)
+            sel = _selecionar(dados, idx["predio"].get(entrada["predio"], []), area, CALC_TOL_AREA_POUCAS)
+            if sel:
+                escolhido = ("predio_poucas", sel, CALC_TOL_AREA_POUCAS, True)
     if escolhido is None and entrada.get("rua") is not None:
         sel, tol, ampliada = _escolher_nivel(dados, idx["rua"].get(entrada["rua"], []), area, p["tol_area_rua"], p["min_rua"])
         if sel:
@@ -396,6 +403,8 @@ def _estimar_base(dados, idx, entrada):
 
     if nivel == "predio" and n >= p["alta_min_vendas"] and razao is not None and razao <= p["razao_max_alta"]:
         confianca = "alta"
+    elif nivel == "predio_poucas":
+        confianca = "media" if n >= 2 else "baixa"   # no máximo média: poucas vendas
     elif nivel == "predio" or (nivel == "rua" and n >= p["media_rua_min"] and razao is not None and razao <= p["razao_max_media_rua"]):
         confianca = "media"
     else:
@@ -441,6 +450,13 @@ def estimar(dados, idx, entrada):
     res["precisao_testes"] = t["n"] if t else 0
     res["precisao_mediana_pct"] = _dec(t["mediano"] * 100, 1) if t else None
     res["minimo"], res["maximo"] = _arred(est / (1 + m)), _arred(est / (1 - m))
+    if res["nivel"] == "predio_poucas":
+        # segunda opinião: o que a rua (ou o bairro) diria, sem separar o prédio. Se divergir mais que a margem de erro, a tela avisa.
+        alt = _estimar_base(dados, idx, {**entrada, "predio": None})
+        if alt["ok"]:
+            res["segunda_opiniao"] = {"nivel": alt["nivel"], "n": alt["n"], "estimativa": alt["estimativa"],
+                                      "diferenca_pct": _dec((alt["estimativa"] / est - 1) * 100, 1)}
+            res["segunda_diverge"] = abs(alt["estimativa"] / est - 1) > m
     q = t.get("q") if t else None
     ids = res.pop("_ids")
     eqs = res.pop("_eq")
@@ -506,12 +522,12 @@ def calibrar_precisao(dados):
             ent = {"predio": pi if modo == "predio" else None, "rua": p[3] if modo != "bairro" else None,
                    "bairro": p[2], "area": v[3], "andar": v[4]}
             r = _estimar_base(dados, sub, ent)
-            if not r["ok"] or r["nivel"] != modo:
+            if not r["ok"] or not r["nivel"].startswith(modo):
                 continue
             real = v[2] * v[6]
             e = abs(r["estimativa"] - real) / real
-            erros.setdefault(f"{modo}|{r['confianca']}", []).append((e, real / r["estimativa"]))
-            erros.setdefault(f"{modo}|*", []).append((e, real / r["estimativa"]))
+            erros.setdefault(f"{r['nivel']}|{r['confianca']}", []).append((e, real / r["estimativa"]))
+            erros.setdefault(f"{r['nivel']}|*", []).append((e, real / r["estimativa"]))
     out = {}
     for k, pares in sorted(erros.items()):
         e = [x[0] for x in pares]

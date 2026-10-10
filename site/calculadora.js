@@ -31,6 +31,7 @@
     return a[lo] + (a[hi] - a[lo]) * frac;
   }
 
+  const TOL_AREA_POUCAS = 0.20; // prédio com só 1 ou 2 vendas parecidas
   const ANDAR_FAIXAS = [[1, 3], [4, 7], [8, 11], [12, 15], [16, 99]];
 
   function faixaAndar(andar) {
@@ -82,6 +83,12 @@
     if (entrada.predio != null) {
       const r = escolherNivel(dados, idx.predio[entrada.predio] || [], area, p.tol_area_predio, p.min_predio);
       if (r) escolhido = { nivel: "predio", ...r };
+      else {
+        // só 1 ou 2 vendas parecidas no prédio: ainda é a melhor referência (testes: erro ~13-15% contra ~20% da rua/bairro),
+        // mas com confiança menor, margem própria e segunda opinião (ver estimar)
+        const sel1 = selecionar(dados, idx.predio[entrada.predio] || [], area, TOL_AREA_POUCAS);
+        if (sel1.length) escolhido = { nivel: "predio_poucas", sel: sel1, tol: TOL_AREA_POUCAS, ampliada: true };
+      }
     }
     if (escolhido === null && entrada.rua != null) {
       const r = escolherNivel(dados, idx.rua[entrada.rua] || [], area, p.tol_area_rua, p.min_rua);
@@ -113,6 +120,7 @@
 
     let confianca;
     if (nivel === "predio" && n >= p.alta_min_vendas && razao !== null && razao <= p.razao_max_alta) confianca = "alta";
+    else if (nivel === "predio_poucas") confianca = n >= 2 ? "media" : "baixa"; // no máximo média: poucas vendas
     else if (nivel === "predio" || (nivel === "rua" && n >= p.media_rua_min && razao !== null && razao <= p.razao_max_media_rua)) confianca = "media";
     else confianca = "baixa";
 
@@ -173,6 +181,14 @@
     res.precisao_mediana_pct = t ? Math.round(t.mediano * 100 * 10) / 10 : null;
     res.minimo = arred(est / (1 + m));
     res.maximo = arred(est / (1 - m));
+    if (res.nivel === "predio_poucas") {
+      // segunda opinião: o que a rua (ou o bairro) diria, sem separar o prédio
+      const alt = estimarBase(dados, idx, { ...entrada, predio: null });
+      if (alt.ok) {
+        res.segunda_opiniao = { nivel: alt.nivel, n: alt.n, estimativa: alt.estimativa, diferenca_pct: Math.round((alt.estimativa / est - 1) * 100 * 10) / 10 };
+        res.segunda_diverge = Math.abs(alt.estimativa / est - 1) > m;
+      }
+    }
     const q = t ? t.q : null;
     const ids = res._ids; delete res._ids;
     const eqs = res._eq; delete res._eq;
@@ -561,10 +577,11 @@
   // ---- resultado ------------------------------------------------------------
   const NIVEL_TEXTO = {
     predio: (r, ent) => `${r.n} ${r.n === 1 ? "venda parecida" : "vendas parecidas"} no mesmo prédio`,
+    predio_poucas: (r, ent) => `Só ${r.n} ${r.n === 1 ? "venda parecida" : "vendas parecidas"} no mesmo prédio (ainda é a melhor referência, mas é pouco)`,
     rua: (r) => `${r.n} vendas parecidas na mesma rua (outros prédios, mesmo bairro)`,
     bairro: (r, ent) => `${r.n} vendas parecidas no bairro ${DADOS.bairros[ent.bairro]} (não há vendas parecidas suficientes no prédio nem na rua)`,
   };
-  const NIVEL_CURTO = { predio: "vendas do próprio prédio", rua: "vendas da rua", bairro: "vendas do bairro" };
+  const NIVEL_CURTO = { predio: "vendas do próprio prédio", predio_poucas: "poucas vendas do próprio prédio", rua: "vendas da rua", bairro: "vendas do bairro" };
   const CONF_TEXTO = {
     alta: ["Confiança alta", "good", "Vendas suficientes no próprio prédio, com preços próximos entre si."],
     media: ["Confiança média", "warning", "Poucas vendas parecidas, ou preços bem diferentes entre si. Olhe a régua de cores, não só o número do meio."],
@@ -612,7 +629,7 @@
   // batido (é o sinal de que digitaram a área útil): avisa e oferece as metragens do cadastro pra tocar e recalcular.
   function avisoMetragem(ent, r) {
     const s = ESTADO.local;
-    if (!s || s.predio == null || (r.ok && r.nivel === "predio")) return null;
+    if (!s || s.predio == null || (r.ok && r.nivel.startsWith("predio"))) return null;
     const ms = metragensDoPredio(s.predio);
     if (!ms.length) return null;
     return h("section", { class: "card calc-aviso-area" }, h("h3", {}, "Confira a metragem"),
@@ -637,7 +654,10 @@
       out.append(h("section", { class: "card" }, h("h2", {}, "Calculadora em atualização"), h("p", {}, "Os dados desta publicação ainda não têm a tabela de preços por faixa. Tente de novo depois da próxima atualização diária (08:00).")));
       return;
     }
-    const [confNome, confCor, confExpl] = CONF_TEXTO[r.confianca];
+    const [confNome, confCor, confExplBase] = CONF_TEXTO[r.confianca];
+    const confExpl = r.nivel === "predio_poucas"
+      ? `Só ${r.n} ${r.n === 1 ? "venda parecida" : "vendas parecidas"} no próprio prédio: ainda é a melhor referência que temos (mais precisa que a rua ou o bairro), mas use com cautela.`
+      : confExplBase;
     const mesBase = DADOS.mes_base.split("-").map(Number);
     const mesBaseTxt = `${MESES[mesBase[1] - 1]}/${mesBase[0]}`;
     const iptuMes = paraNumero(ESTADO.iptu) != null ? paraNumero(ESTADO.iptu) / 12 : null;
@@ -651,6 +671,10 @@
         h("div", { class: "calc-selos" }, h("span", { class: "badge neutral", title: confExpl }, `${confNome} ${PONTOS[r.confianca]}`))),
       h("div", { class: "calc-anunciar" }, h("b", {}, `Para anunciar: até ${brl(r.teto_verde)}`), ` — acima de ${brl(r.teto_amarelo)} o imóvel fica fora do mercado.`),
       renderBarra(r, ent.preco_pedido),
+      r.nivel === "predio_poucas" ? h("div", { class: "calc-poucas" },
+        h("b", {}, `Atenção: só ${r.n} ${r.n === 1 ? "venda parecida" : "vendas parecidas"} neste prédio.`),
+        r.segunda_opiniao ? h("div", {}, `Segunda opinião — ${r.segunda_opiniao.nivel === "rua" ? "pela rua" : "pelo bairro"} (${r.segunda_opiniao.n} vendas): ${brl(r.segunda_opiniao.estimativa)} (${r.segunda_opiniao.diferenca_pct > 0 ? "+" : ""}${num(r.segunda_opiniao.diferenca_pct, 1)}% em relação à estimativa do prédio).`) : null,
+        r.segunda_diverge ? h("div", { class: "calc-poucas-alerta" }, "As duas estimativas divergem mais do que a margem de erro: confira a metragem, o andar e o estado do imóvel antes de apresentar o preço ao proprietário.") : null) : null,
       h("p", { class: "calc-ajuda" }, `Como medimos: em ${r.precisao_testes.toLocaleString("pt-BR")} testes com vendas reais, em casos como este (${NIVEL_CURTO[r.nivel]}, ${confNome.toLowerCase()}), o erro típico foi de ${num(r.precisao_mediana_pct, 0)}%. As cores dizem quantas vendas parecidas chegaram a cada preço. ${confExpl}`),
       h("div", { class: "calc-escada" }, h("div", { class: "calc-rotulo" }, "Por quanto as vendas parecidas fecharam (valores atualizados)"),
         h("div", { class: "calc-escada-grade" }, r.escada.map(([sh, v]) => h("div", { class: "calc-escada-item" }, h("div", { class: "calc-escada-valor" }, brl(v)), h("div", { class: "calc-ajuda" }, `${sh} em cada 100 chegaram a pelo menos isso`))))));
@@ -664,7 +688,7 @@
         h("div", {}, `${vx} O pedido está ${brl(Math.abs(ent.preco_pedido - r.estimativa))} (${num(Math.abs(r.pedido_vs_estimativa_pct), 1)}%) ${sinal} da estimativa de ${brl(r.estimativa)}.`),
         r.pedido_acima_do_verde > 0 ? h("div", {}, h("b", {}, `Para entrar no preço de mercado, o pedido precisaria baixar ${brl(r.pedido_acima_do_verde)} (até ${brl(r.teto_verde)}).`)) : null,
         h("div", {}, `Nas ${r.n} vendas parecidas usadas (${NIVEL_CURTO[r.nivel]}), levadas para a sua metragem, a mais alta equivale a ${brl(r.maior_venda)} — ${r.pedido_n_chegaram === 0 ? "nenhuma chegou ao pedido" : `${r.pedido_n_chegaram} ${r.pedido_n_chegaram === 1 ? "chegou" : "chegaram"} ao pedido ou mais`}.`),
-        r.confianca === "baixa" ? h("div", { class: "calc-ajuda" }, "Como a confiança é baixa (poucas vendas no prédio), o veredito é um indicativo.") : null,
+        (r.confianca === "baixa" || r.nivel === "predio_poucas") ? h("div", { class: "calc-ajuda" }, `Como há poucas vendas ${r.nivel === "predio_poucas" ? "parecidas no prédio" : "para comparar"}, o veredito é um indicativo.`) : null,
         h("div", { class: "calc-ajuda" }, "A comparação é com o que foi PAGO nas vendas (guias de ITBI), não com preços de anúncio.")));
     }
 
@@ -740,8 +764,9 @@
       `Estimativa de preço — ${s.rotulo} (${s.bairroNome})`,
       `Apartamento${ent.andar != null ? `, ${ent.andar}º andar` : ""}, ${num(ent.area, ent.area % 1 ? 1 : 0)} m² de área construída${ent.area_util ? ` (${num(ent.area_util)} m² úteis)` : ""}.`,
       `Valor estimado: cerca de ${brl(r.estimativa)}.`,
-      `Base: ${r.n} vendas parecidas ${r.nivel === "predio" ? "no mesmo prédio" : r.nivel === "rua" ? "na mesma rua" : "no bairro"}, valores de guias de ITBI atualizados para ${MESES[mesBase[1] - 1]}/${mesBase[0]}. ${CONF_TEXTO[r.confianca][0]}.`,
+      `Base: ${r.n} vendas parecidas ${r.nivel.startsWith("predio") ? "no mesmo prédio" : r.nivel === "rua" ? "na mesma rua" : "no bairro"}, valores de guias de ITBI atualizados para ${MESES[mesBase[1] - 1]}/${mesBase[0]}. ${CONF_TEXTO[r.confianca][0]}.`,
     ];
+    if (r.nivel === "predio_poucas") linhas.push(`Atenção: só ${r.n} ${r.n === 1 ? "venda parecida" : "vendas parecidas"} no prédio${r.segunda_opiniao ? `; ${r.segunda_opiniao.nivel === "rua" ? "pela rua" : "pelo bairro"} a estimativa seria ${brl(r.segunda_opiniao.estimativa)}` : ""}.`);
     linhas.push(`Para anunciar: até ${brl(r.teto_verde)} (preço de mercado). Acima de ${brl(r.teto_amarelo)}, fora do mercado.`);
     if (r.veredito) linhas.push(`Preço pretendido de ${brl(ent.preco_pedido)}: ${VEREDITO[r.veredito][0].toLowerCase()} — ${em100(r.pedido_chegaram_pct, r.pedido_alem_dos_testes)} vendas parecidas chegaram a esse valor (${r.pedido_vs_estimativa_pct > 0 ? "+" : ""}${num(r.pedido_vs_estimativa_pct, 1)}% sobre a estimativa).`);
     linhas.push(`As faixas vêm de testes com vendas reais: verde = pelo menos ${Math.round(DADOS.parametros.veredito_verde * 10)} em cada 10 vendas parecidas chegaram àquele preço.`);

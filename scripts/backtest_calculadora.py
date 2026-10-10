@@ -51,9 +51,12 @@ def main():
             ent = {"predio": pi if modo == "predio" else None, "rua": rua if modo != "bairro" else None, "bairro": bairro,
                    "area": v[3], "andar": v[4], "preco_pedido": None}
             r = cp.estimar(d, sub, ent)
-            if not r["ok"] or r["nivel"] != modo:
+            if not r["ok"] or not r["nivel"].startswith(modo):
                 continue
             real = v[2] * v[6]
+            if r["nivel"] == "predio_poucas":
+                res.setdefault("predio_poucas", []).append((abs(r["estimativa"] - real) / real, r["minimo"] <= real <= r["maximo"], r["confianca"], (r["estimativa"] - real) / real, r["n"]))
+                continue
             linhas.append((abs(r["estimativa"] - real) / real, r["minimo"] <= real <= r["maximo"], r["confianca"], (r["estimativa"] - real) / real, r["n"]))
         res[modo] = linhas
 

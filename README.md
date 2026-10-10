@@ -2563,3 +2563,15 @@ barra e marcas da calculadora, sombras. Também mudaram: a escala de cores do Ma
 `app.js`), o logo do menu (traços grafite) e o ícone da aba (`index.html`). A impressão em PDF já era clara e segue igual.
 Conferido: os 12 painéis no computador e no celular, aviso de dado parado e faixa "Há dados novos", `verificar_interface.py`,
 `verificar_calculadora.py`, `testar_aviso_dado_novo.py` e `test_rotina.py` sem erro. Para voltar ao visual antigo: reverter este commit.
+
+### Prédio com só 1 ou 2 vendas parecidas (2026-10-10, pedido do Paulo)
+Antes, com menos de 3 vendas parecidas no prédio (área até 10%, depois 20%), a calculadora ignorava o prédio e usava a rua (5+) ou o
+bairro (10+). Testes com vendas reais (a venda sai do cálculo e é re-estimada) mostraram que 1 ou 2 vendas do MESMO prédio ainda
+acertam mais que a rua ou o bairro: erro mediano 15,6% com 1 venda e 14,1% com 2, contra ~20% na rua/bairro (e ~10% com 3+ no prédio).
+Novo nível `predio_poucas` (área até 20%): confiança no máximo média (2 vendas = média, 1 venda = baixa); margem e cortes de cor
+calibrados à parte (`predio_poucas|media`, `predio_poucas|baixa` na tabela `precisao`; com menos de 100 testes cai no nível inteiro);
+**segunda opinião**: a estimativa da rua (ou do bairro) aparece ao lado, e se divergir mais que a margem de erro a tela avisa
+("confira a metragem, o andar e o estado do imóvel antes de apresentar o preço ao proprietário"). O veredito diz que é um indicativo.
+Os cortes de cor continuam os mesmos (verde 3+ em 10, amarelo 15–30 em 100, vermelho abaixo de 15 em 100 — Paulo mandou manter).
+`calibrar_precisao` agora usa 6.000 testes por nível. `validate_build` check 19 exige a tabela do nível novo com 100+ testes e erro
+menor que o do bairro. Tela: nunca mostra "Confira a metragem" quando o prédio tem alguma venda parecida (só se cair para rua/bairro).
