@@ -50,6 +50,9 @@ confere("sem vaga escrita", cp.vagas_do_complemento("AP 152"), None)
 
 
 # --- cálculo ---------------------------------------------------------------------------------------------------
+Q_SINT = [0.55, 0.62, 0.72, 0.82, 0.86, 0.90, 0.93, 0.95, 0.98, 1.00, 1.03, 1.07, 1.10, 1.14, 1.20, 1.30, 1.45, 1.70, 2.00]  # p1..p99
+
+
 def dados_sinteticos():
     # bairro 0; rua 0 com prédios 0 e 1; rua 1 com o prédio 2. venda = [predio, ym, valor, area, andar, vagas, fator]
     vendas = []
@@ -64,14 +67,14 @@ def dados_sinteticos():
     return {
         "mes_base": "2026-06", "bairros": ["B"], "ruas": [["Rua A", 0], ["Rua B", 0]],
         "predios": [["RUA A|1", "Rua A, 1", 0, 0], ["RUA A|2", "Rua A, 2", 0, 0], ["RUA B|3", "Rua B, 3", 0, 1]],
-        "precisao": {"predio|alta": {"n": 500, "mediano": 0.07, "p75": 0.15}, "predio|media": {"n": 500, "mediano": 0.12, "p75": 0.25},
-                     "predio|*": {"n": 1000, "mediano": 0.1, "p75": 0.2}, "rua|*": {"n": 400, "mediano": 0.19, "p75": 0.32},
-                     "rua|baixa": {"n": 30, "mediano": 0.9, "p75": 0.9}, "bairro|*": {"n": 900, "mediano": 0.2, "p75": 0.35}, "bairro|baixa": {"n": 900, "mediano": 0.2, "p75": 0.35}},
+        "precisao": {"predio|alta": {"n": 500, "mediano": 0.07, "p75": 0.15, "q": Q_SINT}, "predio|media": {"n": 500, "mediano": 0.12, "p75": 0.25, "q": Q_SINT},
+                     "predio|*": {"n": 1000, "mediano": 0.1, "p75": 0.2, "q": Q_SINT}, "rua|*": {"n": 400, "mediano": 0.19, "p75": 0.32, "q": Q_SINT},
+                     "rua|baixa": {"n": 30, "mediano": 0.9, "p75": 0.9}, "bairro|*": {"n": 900, "mediano": 0.2, "p75": 0.35, "q": Q_SINT}, "bairro|baixa": {"n": 900, "mediano": 0.2, "p75": 0.35, "q": Q_SINT}},
         "vendas": vendas, "anuncios": [], "efeito_andar": [{"de": a, "ate": b, "n": 0, "fator": 1.0} for a, b in cp.CALC_ANDAR_FAIXAS],
         "parametros": {
             "tol_area_predio": [0.10, 0.20], "min_predio": 3, "tol_area_rua": [0.15, 0.25], "min_rua": 5,
             "tol_area_bairro": [0.15, 0.30], "min_bairro": 10, "min_quartis": 5, "alta_min_vendas": 5, "razao_max_alta": 1.25,
-            "media_rua_min": 8, "razao_max_media_rua": 1.35, "precisao_min_testes": 100, "margem_fallback": 0.35, "margem_min": 0.03, "margem_max": 0.60, "max_similares": 8, "max_anuncios": 8,
+            "media_rua_min": 8, "razao_max_media_rua": 1.35, "veredito_abaixo": 0.75, "veredito_verde": 0.30, "veredito_amarelo": 0.15, "precisao_min_testes": 100, "margem_fallback": 0.35, "margem_min": 0.03, "margem_max": 0.60, "max_similares": 8, "max_anuncios": 8,
             "tol_anuncio_area": 0.25, "tol_anuncio_valor": 0.30,
         },
     }
@@ -114,11 +117,35 @@ for area in (12.0, 400.0, 75.0):
 r = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 112.0, "andar": None})
 confere("tolerância ampliada sinalizada", (r["nivel"], r["area_ampliada"], r["tolerancia_area"]), ("predio", True, 0.20))
 
-# veredito
-est = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None})
-for fator, esperado in ((0.5, "abaixo"), (0.99 * est["minimo"] / est["estimativa"], "abaixo"), (1.0, "dentro"), (est["maximo"] / est["estimativa"], "dentro"), (1.01 * est["maximo"] / est["estimativa"], "acima"), (1.5, "acima")):
-    r = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None, "preco_pedido": est["estimativa"] * fator})
-    confere(f"veredito x{fator:.2f}", r["veredito"], esperado)
+# veredito = quantas vendas parecidas chegaram àquele preço (quantis Q_SINT: preço pago ÷ estimativa)
+est = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None, "preco_pedido": 1_050_000})
+confere("escada: 90/75/50/25/10 em cada 100", [x[0] for x in est["escada"]], [90, 75, 50, 25, 10])
+confere("escada: preço da mediana = estimativa", est["escada"][2][1], 1_050_000)
+confere("teto verde = quantil 70 (1,07 x estimativa)", est["teto_verde"], 1_123_500)
+confere("teto amarelo = quantil 85 (1,20 x estimativa)", est["teto_amarelo"], 1_260_000)
+confere("piso do mercado = quantil 10 (0,82 x estimativa)", est["piso_mercado"], 861_000)
+confere("ordem estimativa <= verde <= amarelo", est["estimativa"] <= est["teto_verde"] <= est["teto_amarelo"], True)
+E = 1_050_000
+casos = ((0.60, "abaixo"), (1.00, "dentro"), (1.069, "dentro"), (1.08, "alto"), (1.19, "alto"), (1.21, "fora"), (1.60, "fora"), (3.00, "fora"))
+for f, esperado in casos:
+    r = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None, "preco_pedido": E * f})
+    confere(f"veredito pedido = {f} x estimativa", r["veredito"], esperado)
+r = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None, "preco_pedido": 2_000_000})
+confere("pedido absurdo (R$ 2 mi) é VERMELHO (fora do mercado)", r["veredito"], "fora")
+confere("pedido absurdo: 1 em cada 100 ou menos chegou", (r["pedido_alem_dos_testes"], r["pedido_chegaram_pct"]), (False, 1))
+r3 = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None, "preco_pedido": 3_500_000})
+confere("pedido além do maior preço dos testes", (r3["veredito"], r3["pedido_alem_dos_testes"]), ("fora", True))
+confere("pedido absurdo: nenhuma das vendas parecidas chegou", r["pedido_n_chegaram"], 0)
+confere("pedido absurdo: quanto baixar pra entrar no verde", r["pedido_acima_do_verde"], 2_000_000 - r["teto_verde"])
+r = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None, "preco_pedido": E * 1.00})
+confere("pedido na mediana: metade das vendas chegou (50%)", r["pedido_chegaram_pct"], 50)
+r = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None})
+confere("sem pedido: sem veredito, mas com a escada", ("veredito" not in r, "escada" in r), (True, True))
+d_sem_q = dados_sinteticos()
+for v in d_sem_q["precisao"].values():
+    v.pop("q", None)
+r = cp.estimar(d_sem_q, cp.indexar(d_sem_q), {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None, "preco_pedido": 5_000_000})
+confere("tabela sem quantis: não inventa veredito", ("veredito" not in r, "teto_verde" not in r), (True, True))
 
 # margem: combinação com poucos testes (rua|baixa n=30) usa o nível inteiro (rua|*, 32%), nunca um número de amostra pequena
 d3 = dados_sinteticos()

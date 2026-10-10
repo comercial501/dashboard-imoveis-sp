@@ -135,7 +135,23 @@
       m2: arred(midM2), fator_andar: Math.round(fUser * 10000) / 10000,
       similares,
       ultima_venda: Math.max(...sel.map((i) => vs[i][1])),
+      _ids: sel,
     };
+  }
+
+  const QTS = [1, 2, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 75, 80, 85, 90, 95, 98, 99];
+  const ESCADA = [10, 25, 50, 75, 90];
+  // Interpolação linear (xs crescente), pontas fixas. Espelho de calculadora_preco._interp.
+  function interp(xs, ys, x) {
+    if (x <= xs[0]) return ys[0];
+    if (x >= xs[xs.length - 1]) return ys[ys.length - 1];
+    for (let i = 0; i < xs.length - 1; i++) {
+      if (xs[i] <= x && x <= xs[i + 1]) {
+        if (xs[i + 1] === xs[i]) return ys[i];
+        return ys[i] + (ys[i + 1] - ys[i]) * (x - xs[i]) / (xs[i + 1] - xs[i]);
+      }
+    }
+    return ys[ys.length - 1];
   }
 
   // Estimativa + faixa provável (do erro medido a cada build, dados.precisao) + veredito do preço pedido.
@@ -154,14 +170,33 @@
     res.precisao_mediana_pct = t ? Math.round(t.mediano * 100 * 10) / 10 : null;
     res.minimo = arred(est / (1 + m));
     res.maximo = arred(est / (1 - m));
-    const pedido = entrada.preco_pedido;
-    if (pedido) {
-      let veredito;
-      if (pedido < res.minimo) veredito = "abaixo";
-      else if (pedido <= res.maximo) veredito = "dentro";
-      else veredito = "acima";
-      res.veredito = veredito;
-      res.pedido_vs_estimativa_pct = Math.round((pedido / est - 1) * 100 * 10) / 10;
+    const q = t ? t.q : null;
+    const ids = res._ids; delete res._ids;
+    if (q && q.length === QTS.length) {
+      // Escada de preços: quantas vendas parecidas chegaram a cada preço (erro medido nos testes com vendas reais).
+      res.escada = ESCADA.map((pp) => [100 - pp, arred(est * interp(QTS, q, pp))]);
+      res.teto_verde = arred(est * interp(QTS, q, 100 - p.veredito_verde * 100));
+      res.teto_amarelo = arred(est * interp(QTS, q, 100 - p.veredito_amarelo * 100));
+      res.piso_mercado = res.escada[0][1];
+      const vs = dados.vendas;
+      const valores = ids.map((i) => vs[i][2] * vs[i][6]);
+      res.maior_venda = arred(Math.max(...valores));
+      const pedido = entrada.preco_pedido;
+      if (pedido) {
+        const x = pedido / est;
+        const chegaram = 1 - interp(q, QTS, x) / 100;
+        let veredito;
+        if (chegaram >= p.veredito_abaixo) veredito = "abaixo";
+        else if (chegaram >= p.veredito_verde) veredito = "dentro";
+        else if (chegaram >= p.veredito_amarelo) veredito = "alto";
+        else veredito = "fora";
+        res.veredito = veredito;
+        res.pedido_chegaram_pct = arred(chegaram * 100);
+        res.pedido_alem_dos_testes = x >= q[q.length - 1];
+        res.pedido_vs_estimativa_pct = Math.round((x - 1) * 100 * 10) / 10;
+        res.pedido_n_chegaram = valores.filter((v) => v >= pedido).length;
+        res.pedido_acima_do_verde = Math.max(0, pedido - res.teto_verde);
+      }
     }
     return res;
   }
@@ -451,7 +486,7 @@
       h("div", { class: "calc-grade" },
         campoNumero("calc-apto", "Número do apartamento — opcional", "Ex.: 152. Eu descubro o andar e a metragem do cadastro pelo número", { chave: "apto", min: 0, max: 9999, placeholder: "Ex.: 152" }),
         campoNumero("calc-andar", "Andar", "Só o número (preenchido sozinho se você informar o apartamento)", { chave: "andar", min: 0, max: 60, placeholder: "Ex.: 15" }),
-        campoNumero("calc-area", "Área construída (m²) — a do carnê do IPTU", "NÃO é a área útil da planta (a do cadastro costuma ser bem maior). Sem o carnê, informe o número do apartamento", { chave: "area", min: 10, max: 2000, step: "any", decimal: true, placeholder: "Ex.: 140" }),
+        campoNumero("calc-area", "Área construída (m²) — do carnê do IPTU", "Não é a área útil (a do cadastro é bem maior). Sem o carnê, use o número do apartamento", { chave: "area", min: 10, max: 2000, step: "any", decimal: true, placeholder: "Ex.: 140" }),
         campoNumero("calc-area-util", "Área útil (m²) — opcional", "A da planta. Só para mostrar o R$/m² útil e achar anúncios parecidos", { chave: "areaUtil", min: 10, max: 2000, step: "any", decimal: true, placeholder: "Ex.: 110" })),
       h("div", { class: "calc-ajuda calc-nota-area", id: "calc-area-nota" }, ESTADO.areaNota), metragens));
 
@@ -525,25 +560,35 @@
     baixa: ["Confiança baixa", "critical", "Sem vendas parecidas suficientes no prédio: a comparação é com a rua ou o bairro. Serve de referência, não de preço."],
   };
 
+  // Quantas vendas parecidas chegaram a um preço (texto simples, "em cada 100")
+  const em100 = (pct, alem) => (alem || pct < 1) ? "menos de 1 em cada 100" : `${pct} em cada 100`;
+  const PONTOS = { alta: "●●●", media: "●●○", baixa: "●○○" };
+
+  // Régua em 3 cores: verde = preço de mercado, amarelo = acima, vermelho = fora do mercado. Marcas: Estimativa e Pedido.
   function renderBarra(r, pedido) {
-    const base = Math.min(r.minimo, pedido || r.minimo);
-    const topo = Math.max(r.maximo, pedido || r.maximo);
-    const folga = (topo - base) * 0.25 || r.estimativa * 0.1;
-    const lo = base - folga, hi = topo + folga;
+    const lo = Math.min(r.piso_mercado, pedido || Infinity) * 0.97;
+    const hi = Math.max(r.teto_amarelo * 1.12, (pedido || 0) * 1.04);
     const pos = (v) => `${Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)).toFixed(2)}%`;
+    const zona = (de, ate, cls) => h("div", { class: `calc-zona ${cls}`, style: `left:${pos(de)};width:calc(${pos(ate)} - ${pos(de)})` });
     const barra = h("div", { class: "calc-barra" + (pedido ? " com-pedido" : "") },
-      h("div", { class: "calc-barra-faixa", style: `left:${pos(r.minimo)};width:calc(${pos(r.maximo)} - ${pos(r.minimo)})` }),
+      zona(lo, r.estimativa, "abaixo"), zona(r.estimativa, r.teto_verde, "verde"), zona(r.teto_verde, r.teto_amarelo, "amarelo"), zona(r.teto_amarelo, hi, "vermelho"),
       h("div", { class: "calc-marca calc-marca-est", style: `left:${pos(r.estimativa)}` }, h("span", {}, "Estimativa")));
     if (pedido) barra.append(h("div", { class: `calc-marca calc-marca-pedido ${r.veredito}`, style: `left:${pos(pedido)}` }, h("span", {}, "Pedido")));
+    const p = DADOS.parametros;
+    const linha = (cor, titulo, texto) => h("div", { class: "calc-legenda-linha" }, h("span", { class: `calc-ponto ${cor}` }), h("div", {}, h("b", {}, titulo), " ", texto));
     return h("div", {},
       barra,
-      h("div", { class: "calc-barra-rotulos" }, h("span", {}, `${brl(r.minimo)}`, h("small", {}, " (limite baixo)")), h("span", {}, `${brl(r.maximo)}`, h("small", {}, " (limite alto)"))));
+      h("div", { class: "calc-legenda" },
+        linha("verde", `Até ${brl(r.teto_verde)} — preço de mercado.`, `${Math.round(p.veredito_verde * 10)} ou mais em cada 10 vendas parecidas chegaram a esse valor.`),
+        linha("amarelo", `De ${brl(r.teto_verde)} a ${brl(r.teto_amarelo)} — acima do mercado.`, `De ${Math.round(p.veredito_amarelo * 100)} a ${Math.round(p.veredito_verde * 100)} em cada 100 chegaram. Exige negociação.`),
+        linha("vermelho", `Acima de ${brl(r.teto_amarelo)} — fora do mercado.`, `Menos de ${Math.round(p.veredito_amarelo * 100)} em cada 100 vendas parecidas chegaram a esse valor.`)));
   }
 
   const VEREDITO = {
-    abaixo: ["Abaixo da faixa provável", "good", "O preço pedido está abaixo do que vendas parecidas costumam alcançar. Dá para pedir mais."],
-    dentro: ["Dentro da faixa provável", "good", "O preço pedido está dentro do que vendas parecidas costumam alcançar."],
-    acima: ["Acima da faixa provável", "warning", "O preço pedido está acima do que vendas parecidas costumam alcançar — vale conferir o que justifica a diferença (acabamento, vista, reforma)."],
+    abaixo: ["Abaixo do mercado", "good", "O pedido está abaixo do que a maioria das vendas parecidas alcançou. Dá para pedir mais."],
+    dentro: ["No preço de mercado", "good", "O pedido está dentro do que o mercado paga por apartamentos parecidos."],
+    alto: ["Acima do mercado", "warning", "O pedido está acima do que a maioria das vendas parecidas alcançou: vai exigir negociação."],
+    fora: ["Fora do mercado", "critical", "Pouquíssimas vendas parecidas chegaram a esse valor. Anunciar assim é arriscar ficar parado."],
   };
 
   function tabela(cabecalhos, linhas, classe) {
@@ -577,6 +622,10 @@
         h("p", { class: "muted small" }, "Regra: no prédio precisa de 3+ vendas com área até 20% diferente; na rua, 5+ (até 25%); no bairro, 10+ (até 30%).")));
       return;
     }
+    if (r.teto_verde == null) { // arquivo de dados antigo (sem a tabela de preços): pede a próxima atualização
+      out.append(h("section", { class: "card" }, h("h2", {}, "Calculadora em atualização"), h("p", {}, "Os dados desta publicação ainda não têm a tabela de preços por faixa. Tente de novo depois da próxima atualização diária (08:00).")));
+      return;
+    }
     const [confNome, confCor, confExpl] = CONF_TEXTO[r.confianca];
     const mesBase = DADOS.mes_base.split("-").map(Number);
     const mesBaseTxt = `${MESES[mesBase[1] - 1]}/${mesBase[0]}`;
@@ -588,16 +637,23 @@
       h("div", { class: "calc-topo" },
         h("div", {}, h("div", { class: "calc-rotulo" }, "O apartamento vale cerca de"), h("div", { class: "calc-valor" }, brl(r.estimativa)),
           h("div", { class: "calc-ajuda" }, `R$ ${num(r.m2)}/m² da área construída` + (ent.area_util ? ` · R$ ${num(r.estimativa / ent.area_util)}/m² da área útil` : ""))),
-        h("div", { class: "calc-selos" }, h("span", { class: `badge ${confCor === "good" ? "gold" : confCor}` }, confNome))),
+        h("div", { class: "calc-selos" }, h("span", { class: "badge neutral", title: confExpl }, `${confNome} ${PONTOS[r.confianca]}`))),
+      h("div", { class: "calc-anunciar" }, h("b", {}, `Para anunciar: até ${brl(r.teto_verde)}`), ` — acima de ${brl(r.teto_amarelo)} o imóvel fica fora do mercado.`),
       renderBarra(r, ent.preco_pedido),
-      h("p", { class: "calc-ajuda" }, `Faixa provável: em ${r.precisao_testes.toLocaleString("pt-BR")} testes com vendas reais, em casos como este (${NIVEL_CURTO[r.nivel]}, ${confNome.toLowerCase()}), o preço pago ficou dentro desta faixa em 3 de cada 4 vendas — erro típico de ${num(r.precisao_mediana_pct, 0)}%, margem de ${num(r.margem_pct, 0)}%. `, confExpl));
+      h("p", { class: "calc-ajuda" }, `Como medimos: em ${r.precisao_testes.toLocaleString("pt-BR")} testes com vendas reais, em casos como este (${NIVEL_CURTO[r.nivel]}, ${confNome.toLowerCase()}), o erro típico foi de ${num(r.precisao_mediana_pct, 0)}%. As cores dizem quantas vendas parecidas chegaram a cada preço. ${confExpl}`),
+      h("div", { class: "calc-escada" }, h("div", { class: "calc-rotulo" }, "Por quanto as vendas parecidas fecharam (valores atualizados)"),
+        h("div", { class: "calc-escada-grade" }, r.escada.map(([sh, v]) => h("div", { class: "calc-escada-item" }, h("div", { class: "calc-escada-valor" }, brl(v)), h("div", { class: "calc-ajuda" }, `${sh} em cada 100 chegaram a pelo menos isso`))))));
 
     if (r.veredito) {
       const [vt, vc, vx] = VEREDITO[r.veredito];
+      const sinal = r.pedido_vs_estimativa_pct > 0 ? "acima" : "abaixo";
       card.append(h("div", { class: `calc-veredito ${vc}` },
-        h("b", {}, `${vt} — pedido de ${brl(ent.preco_pedido)}`),
-        h("div", {}, `${vx} (${r.pedido_vs_estimativa_pct > 0 ? "+" : ""}${num(r.pedido_vs_estimativa_pct, 1)}% em relação à estimativa de ${brl(r.estimativa)}.)`),
-        r.confianca === "baixa" ? h("div", { class: "calc-ajuda" }, `Como a confiança é baixa, a faixa é larga (${brl(r.minimo)} a ${brl(r.maximo)}): o veredito é só um indicativo.`) : null,
+        h("div", { class: "calc-veredito-titulo" }, h("span", { class: "calc-veredito-selo" }, vt.toUpperCase()), h("b", {}, `Pedido de ${brl(ent.preco_pedido)}`)),
+        h("div", { class: "calc-veredito-frase" }, `${em100(r.pedido_chegaram_pct, r.pedido_alem_dos_testes)} vendas parecidas chegaram a esse valor ou mais.`.replace(/^./, (c) => c.toUpperCase())),
+        h("div", {}, `${vx} O pedido está ${brl(Math.abs(ent.preco_pedido - r.estimativa))} (${num(Math.abs(r.pedido_vs_estimativa_pct), 1)}%) ${sinal} da estimativa de ${brl(r.estimativa)}.`),
+        r.pedido_acima_do_verde > 0 ? h("div", {}, h("b", {}, `Para entrar no preço de mercado, o pedido precisaria baixar ${brl(r.pedido_acima_do_verde)} (até ${brl(r.teto_verde)}).`)) : null,
+        h("div", {}, `Nas ${r.n} vendas parecidas usadas (${NIVEL_CURTO[r.nivel]}), a mais cara fechou por ${brl(r.maior_venda)} — ${r.pedido_n_chegaram === 0 ? "nenhuma chegou ao pedido" : `${r.pedido_n_chegaram} ${r.pedido_n_chegaram === 1 ? "chegou" : "chegaram"} ao pedido ou mais`}.`),
+        r.confianca === "baixa" ? h("div", { class: "calc-ajuda" }, "Como a confiança é baixa (poucas vendas no prédio), o veredito é um indicativo.") : null,
         h("div", { class: "calc-ajuda" }, "A comparação é com o que foi PAGO nas vendas (guias de ITBI), não com preços de anúncio.")));
     }
 
@@ -607,7 +663,7 @@
         h("li", {}, `${NIVEL_TEXTO[r.nivel](r, ent)}, com área construída até ${num(r.tolerancia_area * 100)}% diferente de ${num(ent.area, ent.area % 1 ? 1 : 0)} m²${r.area_ampliada ? " (ampliamos a tolerância porque havia poucas vendas na tolerância menor)" : ""}.`),
         h("li", {}, `Cada venda foi atualizada pelo preço de ${mesBaseTxt} (último mês completo), pela variação de R$/m² do mesmo bairro — assim uma venda antiga não puxa o preço pra baixo. A venda mais recente usada é de ${ymLabel(r.ultima_venda)}.`),
         h("li", {}, `O número do meio é a mediana dessas vendas, já atualizadas. As vendas parecidas foram de ${brl(r.vendas_minimo)} a ${brl(r.vendas_maximo)} (${r.faixa_nome === "p25_p75" ? "do 25º ao 75º percentil — metade delas" : "da menor à maior, por serem poucas"}).`),
-        h("li", {}, `A faixa provável (${brl(r.minimo)} a ${brl(r.maximo)}) é mais larga que as vendas parecidas de propósito: vem do erro medido ao tirar vendas reais do cálculo e estimar o preço delas com as outras. Preço de apartamento varia por acabamento, vista e estado — coisas que o ITBI não mostra.`),
+        h("li", {}, `As cores vêm de ${r.precisao_testes.toLocaleString("pt-BR")} testes: tiramos vendas reais do cálculo, estimamos o preço delas só com as outras e vimos quantas fecharam por cada valor. Verde = pelo menos ${Math.round(DADOS.parametros.veredito_verde * 10)} em cada 10 vendas parecidas chegaram àquele preço; amarelo = de ${Math.round(DADOS.parametros.veredito_amarelo * 100)} a ${Math.round(DADOS.parametros.veredito_verde * 100)} em cada 100; vermelho = menos de ${Math.round(DADOS.parametros.veredito_amarelo * 100)} em cada 100. Preço de apartamento varia por acabamento, vista e estado — coisas que o ITBI não mostra.`),
         ent.andar != null
           ? h("li", {}, r.fator_andar === 1 ? `Andar ${ent.andar}: nos dados, esta faixa de andar não tem diferença de preço medida em relação ao resto do prédio — sem ajuste.` : `Andar ${ent.andar}: nos dados, esta faixa de andar paga ${num(Math.abs(r.fator_andar - 1) * 100, 1)}% ${r.fator_andar > 1 ? "a mais" : "a menos"} que a mediana do mesmo prédio — já considerado.`)
           : h("li", {}, "Andar não informado (ou térreo): sem ajuste de andar."),
@@ -660,11 +716,12 @@
     const linhas = [
       `Estimativa de preço — ${s.rotulo} (${s.bairroNome})`,
       `Apartamento${ent.andar != null ? `, ${ent.andar}º andar` : ""}, ${num(ent.area, ent.area % 1 ? 1 : 0)} m² de área construída${ent.area_util ? ` (${num(ent.area_util)} m² úteis)` : ""}.`,
-      `Valor estimado: cerca de ${brl(r.estimativa)} (faixa de ${brl(r.minimo)} a ${brl(r.maximo)}).`,
+      `Valor estimado: cerca de ${brl(r.estimativa)}.`,
       `Base: ${r.n} vendas parecidas ${r.nivel === "predio" ? "no mesmo prédio" : r.nivel === "rua" ? "na mesma rua" : "no bairro"}, valores de guias de ITBI atualizados para ${MESES[mesBase[1] - 1]}/${mesBase[0]}. ${CONF_TEXTO[r.confianca][0]}.`,
     ];
-    if (r.veredito) linhas.push(`Preço pretendido de ${brl(ent.preco_pedido)}: ${VEREDITO[r.veredito][0].toLowerCase()} (${r.pedido_vs_estimativa_pct > 0 ? "+" : ""}${num(r.pedido_vs_estimativa_pct, 1)}% sobre a estimativa).`);
-    linhas.push(`Faixa provável: ${brl(r.minimo)} a ${brl(r.maximo)} (em testes com vendas reais, o preço pago ficou dentro de faixas assim em 3 de cada 4 casos).`);
+    linhas.push(`Para anunciar: até ${brl(r.teto_verde)} (preço de mercado). Acima de ${brl(r.teto_amarelo)}, fora do mercado.`);
+    if (r.veredito) linhas.push(`Preço pretendido de ${brl(ent.preco_pedido)}: ${VEREDITO[r.veredito][0].toLowerCase()} — ${em100(r.pedido_chegaram_pct, r.pedido_alem_dos_testes)} vendas parecidas chegaram a esse valor (${r.pedido_vs_estimativa_pct > 0 ? "+" : ""}${num(r.pedido_vs_estimativa_pct, 1)}% sobre a estimativa).`);
+    linhas.push(`As faixas vêm de testes com vendas reais: verde = pelo menos ${Math.round(DADOS.parametros.veredito_verde * 10)} em cada 10 vendas parecidas chegaram àquele preço.`);
     if (nAnuncios) linhas.push(`Há ${nAnuncios} anúncio(s) parecido(s) à venda hoje na rede.`);
     linhas.push("Acabamento, reforma, vista e estado do prédio não entram no cálculo e podem mudar o valor.");
     return linhas.join("\n");

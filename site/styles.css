@@ -599,3 +599,39 @@ body.printing-all .panel[data-panel="calculadora"] { display: none !important; }
 table.data-table tbody tr:hover { background: #f7f5f0; }
 .calc-marca-pedido { color: #fff; }
 .calc-marca-pedido span { color: #fff; }
+
+/* ---- Calculadora: alinhamento dos campos (rótulo e ajuda em cima, caixa sempre na base da linha) ---- */
+.calc-grade { align-items: stretch; row-gap: 20px; }
+.calc-campo { display: flex; flex-direction: column; }
+.calc-campo .calc-input { margin-top: auto; }
+.calc-campo .calc-ajuda { margin-bottom: 6px; }
+
+/* ---- Calculadora: régua em 3 cores, legenda, escada de preços e veredito (pedido × mercado) ---- */
+.calc-anunciar { margin: 14px 0 6px; padding: 12px 14px; border-radius: 10px; background: var(--status-good-bg); font-size: 15px; }
+.calc-zona { position: absolute; top: 0; bottom: 0; }
+.calc-zona.abaixo { background: rgba(46, 139, 87, .22); border-radius: 7px 0 0 7px; }
+.calc-zona.verde { background: rgba(46, 139, 87, .55); }
+.calc-zona.amarelo { background: rgba(184, 132, 16, .55); }
+.calc-zona.vermelho { background: rgba(194, 84, 76, .55); border-radius: 0 7px 7px 0; }
+.calc-marca-pedido.dentro, .calc-marca-pedido.dentro span, .calc-marca-pedido.abaixo, .calc-marca-pedido.abaixo span { background: var(--status-good); }
+.calc-marca-pedido.alto, .calc-marca-pedido.alto span { background: var(--status-warning); }
+.calc-marca-pedido.fora, .calc-marca-pedido.fora span { background: var(--status-critical); }
+.calc-legenda { display: grid; gap: 8px; margin: 12px 0 8px; font-size: 13.5px; }
+.calc-legenda-linha { display: flex; gap: 10px; align-items: flex-start; }
+.calc-ponto { flex: 0 0 12px; width: 12px; height: 12px; border-radius: 50%; margin-top: 4px; }
+.calc-ponto.verde { background: var(--status-good); }
+.calc-ponto.amarelo { background: var(--status-warning); }
+.calc-ponto.vermelho { background: var(--status-critical); }
+.calc-escada { margin: 14px 0 4px; }
+.calc-escada-grade { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.calc-escada-item { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+.calc-escada-valor { font-weight: 700; font-variant-numeric: tabular-nums; }
+.calc-veredito { padding: 16px 18px; font-size: 14.5px; display: grid; gap: 6px; }
+.calc-veredito-titulo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 16px; }
+.calc-veredito-selo { color: #fff; font-size: 12.5px; font-weight: 700; letter-spacing: .03em; padding: 5px 12px; border-radius: 999px; background: var(--status-neutral); }
+.calc-veredito.good .calc-veredito-selo { background: var(--status-good); }
+.calc-veredito.warning .calc-veredito-selo { background: var(--status-warning); }
+.calc-veredito.critical .calc-veredito-selo { background: var(--status-critical); }
+.calc-veredito-frase { font-size: 17px; font-weight: 700; }
+.calc-veredito.critical { border-left-color: var(--status-critical); background: var(--status-critical-bg); }
+@media (max-width: 760px) { .calc-escada-grade { grid-template-columns: repeat(2, 1fr); } }

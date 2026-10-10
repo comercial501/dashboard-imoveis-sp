@@ -72,7 +72,8 @@ JS_CASOS = """(casos)=>{
 
 def comparar(py, js):
     difs = []
-    for k in ("ok", "nivel", "n", "confianca", "area_ampliada", "faixa_nome", "estimativa", "minimo", "maximo", "m2", "similares", "ultima_venda", "veredito", "tolerancia_area", "motivo", "vendas_minimo", "vendas_maximo", "margem_pct", "precisao_testes", "precisao_mediana_pct"):
+    for k in ("ok", "nivel", "n", "confianca", "area_ampliada", "faixa_nome", "estimativa", "minimo", "maximo", "m2", "similares", "ultima_venda", "veredito", "tolerancia_area", "motivo", "vendas_minimo", "vendas_maximo", "margem_pct", "precisao_testes", "precisao_mediana_pct",
+              "escada", "teto_verde", "teto_amarelo", "piso_mercado", "maior_venda", "pedido_chegaram_pct", "pedido_alem_dos_testes", "pedido_n_chegaram", "pedido_acima_do_verde"):
         if py.get(k) != js.get(k):
             difs.append((k, py.get(k), js.get(k)))
     for k in ("razao_p75_p25", "fator_andar", "pedido_vs_estimativa_pct"):  # arredondamento agora é idêntico: sem tolerância
@@ -256,6 +257,17 @@ def main():
         py_af = [list(cp.andar_e_final(n, c)) for n, c in casos_af]
         tela["paridade_andar_final"] = {"casos": len(casos_af), "divergencias": sum(1 for a, b in zip(js_af, py_af) if a != b)}
 
+        # pedido absurdo (R$ 2 mi sobre um apartamento de ~R$ 500 mil) tem que ser VERMELHO, com a frase de quantas vendas chegaram
+        pg.fill("#calc-pedido", "2000000")
+        pg.click(".calc-botao")
+        pg.wait_for_selector(".calc-veredito", timeout=5000)
+        tela["pedido_absurdo"] = {"classe": pg.get_attribute(".calc-veredito", "class"), "selo": pg.inner_text(".calc-veredito-selo"),
+                                  "frase": pg.inner_text(".calc-veredito-frase"), "legenda_linhas": pg.locator(".calc-legenda-linha").count(),
+                                  "para_anunciar": pg.inner_text(".calc-anunciar")}
+        # campos alinhados: em cada linha da grade, todas as caixas terminam na mesma altura
+        tela["campos_alinhados"] = pg.evaluate("""()=>{ let ok=true, linhas=0;
+          document.querySelectorAll('.calc-grade').forEach(g=>{ const por={}; g.querySelectorAll('.calc-campo').forEach(c=>{ const r=c.getBoundingClientRect(), i=c.querySelector('input').getBoundingClientRect(); const k=Math.round(r.top); (por[k]=por[k]||[]).push(i.bottom); });
+            Object.values(por).forEach(l=>{ linhas++; if(Math.max(...l)-Math.min(...l)>1) ok=false; }); }); return {ok, linhas}; }""")
         # celular
         ctx2 = br.new_context(viewport={"width": 375, "height": 812}, is_mobile=True, has_touch=True)
         m = ctx2.new_page()
@@ -288,6 +300,8 @@ def main():
           and t["fluxos"]["conde_de_itu"] and "Conde" in t["fluxos"]["conde_de_itu"][0]
           and t["fluxos"]["apto"]["andar_tela"] == str(t["fluxos"]["apto"]["andar_esperado"]) and t["fluxos"]["apto"]["area_tela"] == str(t["fluxos"]["apto"]["area_esperada"])
           and t["fluxos"]["apto"]["nivel_predio_sem_aviso"] and t["fluxos"]["aviso_sumiu_depois_de_tocar"] and "área construída do cadastro" in t["fluxos"]["erro_so_util"]
+          and "critical" in t["pedido_absurdo"]["classe"] and t["pedido_absurdo"]["selo"] == "FORA DO MERCADO" and t["pedido_absurdo"]["legenda_linhas"] == 3
+          and t["campos_alinhados"]["ok"]
           and t["plano_b_escondido_com_endereco"] and t["fluxos"]["plano_b_antes_de_abrir"] == {"link_visivel": True, "caixa_aberta": False}
           and t["fluxos"]["plano_b_depois_de_abrir"] and "Confiança baixa" in t["fluxos"]["so_bairro"]["selo"].replace("CONFIANÇA BAIXA", "Confiança baixa") and t["paridade_andar_final"]["divergencias"] == 0)
     print("RESULTADO:", "OK" if ok else "FALHOU")

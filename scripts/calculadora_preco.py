@@ -46,6 +46,12 @@ CALC_PRECISAO_TESTES = 3000           # vendas retiradas e re-estimadas, por ní
 CALC_PRECISAO_MIN_TESTES = 100        # combinação nível+confiança com menos testes que isso usa o nível inteiro
 CALC_MARGEM_FALLBACK = 0.35           # sem teste suficiente nem no nível inteiro (não deve acontecer)
 CALC_MARGEM_MIN, CALC_MARGEM_MAX = 0.03, 0.60
+# Veredito do preço pedido = quantas vendas parecidas (nos testes com vendas reais) chegaram àquele preço:
+CALC_VEREDITO_ABAIXO = 0.75   # 75%+ das vendas parecidas chegaram ao pedido: abaixo do mercado (dá pra pedir mais)
+CALC_VEREDITO_VERDE = 0.30    # 30%+ (3 em cada 10): preço de mercado (verde)
+CALC_VEREDITO_AMARELO = 0.15  # 15% a 30%: acima do mercado (amarelo, exige negociação); abaixo de 15%: fora do mercado (vermelho)
+CALC_QTS = (1, 2, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 75, 80, 85, 90, 95, 98, 99)  # percentis guardados da razão preço pago ÷ estimativa
+CALC_ESCADA = (10, 25, 50, 75, 90)  # percentis da escada de preços (90% / 75% / 50% / 25% / 10% das vendas chegaram)
 CALC_MAX_SIMILARES = 8
 CALC_MAX_ANUNCIOS = 8
 CALC_TOL_ANUNCIO_AREA = 0.25          # anúncio parecido: área útil informada ±25%
@@ -92,6 +98,20 @@ def _percentil(p, v):
     frac = idx - lo
     hi = min(lo + 1, n - 1)
     return v[lo] + (v[hi] - v[lo]) * frac
+
+
+def _interp(xs, ys, x):
+    """Interpolação linear (xs crescente), com as pontas fixas. Igual ao JS."""
+    if x <= xs[0]:
+        return ys[0]
+    if x >= xs[-1]:
+        return ys[-1]
+    for i in range(len(xs) - 1):
+        if xs[i] <= x <= xs[i + 1]:
+            if xs[i + 1] == xs[i]:
+                return ys[i]
+            return ys[i] + (ys[i + 1] - ys[i]) * (x - xs[i]) / (xs[i + 1] - xs[i])
+    return ys[-1]
 
 
 def numero_do_apto(complemento):
@@ -289,6 +309,7 @@ def preparar_dados(itbi_records, usn_records, indice, fator_fn, gerado_em_iso, c
             "tol_area_bairro": list(CALC_TOL_AREA_BAIRRO), "min_bairro": CALC_MIN_BAIRRO,
             "min_quartis": CALC_MIN_PARA_QUARTIS, "alta_min_vendas": CALC_ALTA_MIN_VENDAS, "razao_max_alta": CALC_RAZAO_MAX_ALTA,
             "media_rua_min": CALC_MEDIA_RUA_MIN, "razao_max_media_rua": CALC_RAZAO_MAX_MEDIA_RUA,
+            "veredito_abaixo": CALC_VEREDITO_ABAIXO, "veredito_verde": CALC_VEREDITO_VERDE, "veredito_amarelo": CALC_VEREDITO_AMARELO,
             "precisao_min_testes": CALC_PRECISAO_MIN_TESTES, "margem_fallback": CALC_MARGEM_FALLBACK,
             "margem_min": CALC_MARGEM_MIN, "margem_max": CALC_MARGEM_MAX, "max_similares": CALC_MAX_SIMILARES, "max_anuncios": CALC_MAX_ANUNCIOS,
             "tol_anuncio_area": CALC_TOL_ANUNCIO_AREA, "tol_anuncio_valor": CALC_TOL_ANUNCIO_VALOR,
@@ -395,6 +416,7 @@ def _estimar_base(dados, idx, entrada):
         "m2": _arred(mid_m2), "fator_andar": _dec(f_user, 4),
         "similares": similares,
         "ultima_venda": max(vs[i][1] for i in sel),
+        "_ids": sel,
     }
 
 
@@ -417,16 +439,35 @@ def estimar(dados, idx, entrada):
     res["precisao_testes"] = t["n"] if t else 0
     res["precisao_mediana_pct"] = _dec(t["mediano"] * 100, 1) if t else None
     res["minimo"], res["maximo"] = _arred(est / (1 + m)), _arred(est / (1 - m))
-    pedido = entrada.get("preco_pedido")
-    if pedido:
-        if pedido < res["minimo"]:
-            veredito = "abaixo"
-        elif pedido <= res["maximo"]:
-            veredito = "dentro"
-        else:
-            veredito = "acima"
-        res["veredito"] = veredito
-        res["pedido_vs_estimativa_pct"] = _dec((pedido / est - 1) * 100, 1)
+    q = t.get("q") if t else None
+    ids = res.pop("_ids")
+    vs = dados["vendas"]
+    if q and len(q) == len(CALC_QTS):
+        # Escada de preços: quantas vendas parecidas chegaram a cada preço (do erro medido nos testes com vendas reais).
+        res["escada"] = [[100 - pp, _arred(est * _interp(CALC_QTS, q, pp))] for pp in CALC_ESCADA]
+        res["teto_verde"] = _arred(est * _interp(CALC_QTS, q, 100 - p["veredito_verde"] * 100))
+        res["teto_amarelo"] = _arred(est * _interp(CALC_QTS, q, 100 - p["veredito_amarelo"] * 100))
+        res["piso_mercado"] = res["escada"][0][1]
+        valores = [vs[i][2] * vs[i][6] for i in ids]
+        res["maior_venda"] = _arred(max(valores))
+        pedido = entrada.get("preco_pedido")
+        if pedido:
+            x = pedido / est
+            chegaram = 1 - _interp(q, [float(pp) for pp in CALC_QTS], x) / 100
+            if chegaram >= p["veredito_abaixo"]:
+                veredito = "abaixo"
+            elif chegaram >= p["veredito_verde"]:
+                veredito = "dentro"
+            elif chegaram >= p["veredito_amarelo"]:
+                veredito = "alto"
+            else:
+                veredito = "fora"
+            res["veredito"] = veredito
+            res["pedido_chegaram_pct"] = _arred(chegaram * 100)
+            res["pedido_alem_dos_testes"] = x >= q[-1]
+            res["pedido_vs_estimativa_pct"] = _dec((x - 1) * 100, 1)
+            res["pedido_n_chegaram"] = sum(1 for v in valores if v >= pedido)
+            res["pedido_acima_do_verde"] = max(0, pedido - res["teto_verde"])
     return res
 
 
@@ -459,9 +500,15 @@ def calibrar_precisao(dados):
                 continue
             real = v[2] * v[6]
             e = abs(r["estimativa"] - real) / real
-            erros.setdefault(f"{modo}|{r['confianca']}", []).append(e)
-            erros.setdefault(f"{modo}|*", []).append(e)
-    return {k: {"n": len(e), "mediano": round(_mediana(e), 4), "p75": round(_percentil(75, e), 4)} for k, e in sorted(erros.items())}
+            erros.setdefault(f"{modo}|{r['confianca']}", []).append((e, real / r["estimativa"]))
+            erros.setdefault(f"{modo}|*", []).append((e, real / r["estimativa"]))
+    out = {}
+    for k, pares in sorted(erros.items()):
+        e = [x[0] for x in pares]
+        razoes = [x[1] for x in pares]
+        out[k] = {"n": len(e), "mediano": round(_mediana(e), 4), "p75": round(_percentil(75, e), 4),
+                  "q": [round(_percentil(pp, razoes), 4) for pp in CALC_QTS]}
+    return out
 
 
 def anuncios_parecidos(dados, entrada, estimativa):

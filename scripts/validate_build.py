@@ -1171,6 +1171,11 @@ def check_calculadora(calc, data, itbi_records, usn_records):
             div.append(f"tabela de precisão sem testes suficientes para o nível {nivel}: {t}")
         elif not (cp.CALC_MARGEM_MIN <= t["p75"] <= cp.CALC_MARGEM_MAX and 0 < t["mediano"] <= t["p75"]):
             div.append(f"erro medido fora do padrão no nível {nivel}: {t}")
+    for k, t in prec.items():  # quantis da razão preço pago ÷ estimativa: base do veredito (verde/amarelo/vermelho)
+        q = t.get("q")
+        if not q or len(q) != len(cp.CALC_QTS) or any(b < a for a, b in zip(q, q[1:])) or not (0.85 <= q[cp.CALC_QTS.index(50)] <= 1.15) or q[0] <= 0:
+            div.append(f"quantis do veredito fora do padrão em {k}: {q}")
+            break
     if all(prec.get(f"{n}|*") for n in ("predio", "rua", "bairro")) and not (prec["predio|*"]["p75"] < prec["bairro|*"]["p75"]):
         div.append("o erro no prédio deveria ser menor que o do bairro (a comparação com o próprio prédio perdeu a vantagem)")
     corr = (data.get("valor_oportunidade") or {}).get("correcao_tempo") or {}
@@ -1196,6 +1201,8 @@ def check_calculadora(calc, data, itbi_records, usn_records):
             continue
         r = cp.estimar(calc, idx, {"predio": pi, "rua": calc["predios"][pi][3], "bairro": calc["predios"][pi][2], "area": area, "andar": None})
         testados += 1
+        if r["ok"] and not (r["estimativa"] <= r["teto_verde"] <= r["teto_amarelo"]):
+            div.append(f"tetos fora de ordem em {calc['predios'][pi][1]}: {r['estimativa']} / {r['teto_verde']} / {r['teto_amarelo']}")
         if not r["ok"] or r["nivel"] != "predio" or not (r["minimo"] <= r["estimativa"] <= r["maximo"]):
             div.append(f"teste de prédio conhecido falhou: {calc['predios'][pi][1]} -> {r}")
             continue

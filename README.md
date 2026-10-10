@@ -2524,8 +2524,19 @@ de zero. Conferência com amostras sorteadas diferentes (`backtest_calculadora.p
 dentro da faixa provável em 72%–77% das vezes, em todos os níveis. A tela mostra isso ("em N testes com vendas reais…"). Ressalva:
 a calibração e a conferência usam a mesma base de vendas (não é um teste "no futuro").
 
-**Veredito do preço pedido** (opcional): abaixo / dentro / acima da faixa provável. A comparação é com o que foi PAGO (guias de ITBI),
-não com preço de anúncio (o gap pedido × pago de apartamento segue suspenso). **À venda agora (nonStop)**: anúncios ativos do mesmo
+**Veredito do preço pedido** (opcional; revisto em 10/10 a pedido do Paulo — o R$ 2 mi sobre ~R$ 700 mil aparecia amarelo): o critério
+agora é **quantas vendas parecidas chegaram àquele preço**, medido nos mesmos testes com vendas reais (`calibrar_precisao` guarda
+19 percentis da razão preço pago ÷ estimativa, por nível e confiança). Verde = o preço foi alcançado por 3+ em cada 10 vendas parecidas
+(`veredito_verde` 0,30; "abaixo do mercado" se 75%+, `veredito_abaixo`); amarelo = 15% a 30% (`veredito_amarelo` 0,15; "exige negociação");
+**vermelho = menos de 15 em cada 100 ("fora do mercado")**. Os dois tetos viram a régua em 3 cores e a linha "Para anunciar: até R$ X
+— acima de R$ Y fora do mercado" (percentis 70 e 85). A tela mostra também a escada de preços (por quanto 90/75/50/25/10 em cada 100
+vendas fecharam), quanto o pedido teria de baixar para entrar no verde e quantas das vendas usadas (no prédio, quando é o caso)
+chegaram ao pedido. Exemplos medidos (prédio, confiança média): pedido 10% acima da estimativa = 31% chegaram; 20% acima = 19%; 25% acima
+= 14% (vermelho); 40% = 7%; 2× = 0,5%. Com confiança alta o corte é mais duro (25% acima = 5%). Os limites 30% e 15% são parâmetros em
+`calculadora_preco.py` (e vão no `calculadora.json`): se o Paulo quiser ser mais ou menos duro, é só mudar. A confiança deixou de ter
+cor de semáforo (cinza com bolinhas) para não se misturar com o veredito. A comparação é com o que foi PAGO (guias de ITBI).
+Também: os campos do formulário alinham pela base da linha (antes ficavam em alturas diferentes quando a ajuda tinha tamanhos diferentes).
+**À venda agora (nonStop)**: anúncios ativos do mesmo
 prédio primeiro; depois do mesmo bairro, com os mesmos quartos e área útil até 25% diferente (sem área útil informada: preço até 30%
 diferente da estimativa). **Endereço**: busca por texto sem acento, com sugestões (prédios com vendas); número sem vendas oferece "usar
 a rua" (compara com a rua e, se faltar, o bairro). Bairros fora dos 77 não aparecem.
