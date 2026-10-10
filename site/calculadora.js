@@ -191,7 +191,17 @@
     return out.slice(0, p.max_anuncios).map((t) => t[3]);
   }
 
-  window.CALC = { indexar, estimar, anunciosParecidos, fatorAndar, faixaAndar };
+  // Espelho de calculadora_preco.andar_e_final: (andar, final) do apartamento de número n na numeração do prédio
+  // ("c" = centenas: 801 = 8º, final 01; "d" = dezenas: 152 = 15º, final 2). O "final" identifica a planta.
+  function andarEFinal(n, conv) {
+    if (n < 10) return [null, null];
+    let andar, final;
+    if (n >= 1000 || (n >= 100 && n <= 999 && conv === "c")) { andar = Math.floor(n / 100); final = n % 100; }
+    else { andar = Math.floor(n / 10); final = n % 10; }
+    return andar >= 1 && andar <= 60 ? [andar, final] : [null, null];
+  }
+
+  window.CALC = { indexar, estimar, anunciosParecidos, fatorAndar, faixaAndar, andarEFinal };
 
   // ------------------------------------------------------------------------
   // 2. Tela
@@ -219,11 +229,31 @@
     return e;
   }
 
+  // A Prefeitura grava os nomes de rua abreviados ("RUA CD DE ITU" = Rua Conde de Itu). A busca entende as duas
+  // formas e a tela mostra por extenso. ALIAS: palavra por extenso -> abreviações usadas no ITBI.
+  const ALIAS = { CONDE: ["CD"], BARAO: ["BR"], PADRE: ["PDE", "PE"], SAO: ["S"], SANTA: ["STA"], SANTO: ["STO"], GENERAL: ["GAL"], CORONEL: ["CEL"],
+    PROFESSOR: ["PROF"], PROFESSORA: ["PROFA"], DOUTOR: ["DR"], DOUTORA: ["DRA"], VISCONDE: ["VISC"], MINISTRO: ["MIN"], CONSELHEIRO: ["CONS"],
+    ENGENHEIRO: ["ENG"], MARQUES: ["MARQ"], MARECHAL: ["MAL"], CAPITAO: ["CAP"], NOSSA: ["NSRA", "NSA"], COMENDADOR: ["COMEN"], BRIGADEIRO: ["BRIG"],
+    SENADOR: ["SEN"], VEREADOR: ["VER"], MAJOR: ["MAJ"], TENENTE: ["TTE"], DEPUTADO: ["DEP"], ALMIRANTE: ["ALM"], AVENIDA: ["AV", "AVD"], RUA: ["R"], ALAMEDA: ["AL"], PRACA: ["PC"], TRAVESSA: ["TV"] };
+  const EXTENSO = { CD: "Conde", BR: "Barão", PDE: "Padre", STA: "Santa", STO: "Santo", GAL: "General", CEL: "Coronel", VISC: "Visconde", MIN: "Ministro",
+    CONS: "Conselheiro", ENG: "Engenheiro", MARQ: "Marquês", MAL: "Marechal", CAP: "Capitão", NSRA: "Nossa Senhora", COMEN: "Comendador", BRIG: "Brigadeiro",
+    SEN: "Senador", VER: "Vereador", MAJ: "Major", TTE: "Tenente", DEP: "Deputado", ALM: "Almirante", DR: "Dr.", DRA: "Dra.", PROF: "Prof.", PROFA: "Profa." };
+  const SEM_VALOR = new Set(["DE", "DA", "DO", "DAS", "DOS", "E", "SENHORA"]);
+  // "Rua Cd De Itu, 352" -> "Rua Conde De Itu, 352" ("S" só vira São logo depois do tipo: "Rua S Joaquim")
+  function bonito(txt) {
+    const ws = String(txt || "").split(" ");
+    return ws.map((w, i) => {
+      const u = w.replace(/[.,]/g, "").toUpperCase();
+      if (u === "S" && i === 1) return "São";
+      return EXTENSO[u] && i > 0 ? EXTENSO[u] : w;
+    }).join(" ");
+  }
+
   const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
   const numeroDoEndereco = (addrKey) => String((addrKey.split("|")[1] || "")).replace(/^0+(?=\d)/, "");
 
   let DADOS = null, IDX = null, BUSCA = null;
-  const ESTADO = { local: null, andar: "", area: "", areaUtil: "", quartos: "", banheiros: "", suites: "", vagas: "", condominio: "", iptu: "", pedido: "" };
+  const ESTADO = { local: null, apto: "", andar: "", andarAuto: false, area: "", areaAuto: false, areaNota: "", areaUtil: "", quartos: "", banheiros: "", suites: "", vagas: "", condominio: "", iptu: "", pedido: "" };
 
   function montarBusca() {
     BUSCA = {
@@ -238,26 +268,74 @@
     if (!toks.length) return [];
     const ehNumero = (t) => /^\d+$/.test(t);
     const numeros = toks.filter(ehNumero);
-    const nomes = toks.filter((t) => !ehNumero(t));
+    const nomes = toks.filter((t) => !ehNumero(t) && !SEM_VALOR.has(t));
     if (!nomes.length) return [];
     const numero = numeros.length ? numeros[numeros.length - 1].replace(/^0+(?=\d)/, "") : null;
-    const casa = (txt) => nomes.every((t) => txt.includes(t));
-    let achados = BUSCA.predios.filter((p) => casa(p.texto) && (numero === null || p.numero === numero));
+    // cada palavra digitada casa se aparece no texto (inclusive pedaço de palavra) ou se a abreviação da Prefeitura aparece como palavra inteira
+    const casa = (txt) => {
+      const palavras = new Set(txt.split(" "));
+      return nomes.every((t) => txt.includes(t) || (ALIAS[t] || []).some((a) => palavras.has(a)));
+    };
+    const achados = BUSCA.predios.filter((p) => casa(p.texto) && (numero === null || p.numero === numero));
     const out = achados.slice(0, 8).map((p) => ({
       tipo: "predio", predio: p.i, rua: p.rua, bairro: DADOS.predios[p.i][2],
-      rotulo: DADOS.predios[p.i][1], bairroNome: DADOS.bairros[DADOS.predios[p.i][2]],
+      rotulo: bonito(DADOS.predios[p.i][1]), bairroNome: DADOS.bairros[DADOS.predios[p.i][2]],
     }));
     if (numero !== null && out.length < 8) {
       const ruas = BUSCA.ruas.filter((r) => casa(r.texto)).slice(0, 4);
       for (const r of ruas) {
         if (out.some((o) => o.tipo === "predio" && o.rua === r.i)) continue;
-        out.push({ tipo: "rua", predio: null, rua: r.i, bairro: r.bairro, rotulo: `${r.nome}, ${numero}`, bairroNome: DADOS.bairros[r.bairro], semVendas: true });
+        out.push({ tipo: "rua", predio: null, rua: r.i, bairro: r.bairro, rotulo: `${bonito(r.nome)}, ${numero}`, bairroNome: DADOS.bairros[r.bairro], semVendas: true });
       }
     }
     if (numero === null && out.length) {
       out.sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR", { numeric: true }));
     }
     return out;
+  }
+
+  // botões com as metragens do cadastro vendidas no prédio; `recalcular` refaz o cálculo ao tocar
+  function chipsMetragem(ms, recalcular) {
+    const box = h("span", { class: "calc-chips" });
+    ms.forEach((m) => box.append(h("button", { type: "button", class: "calc-chip", onclick: () => {
+      ESTADO.area = String(m.area); ESTADO.areaAuto = false; ESTADO.areaNota = "";
+      const inp = document.getElementById("calc-area"); if (inp) inp.value = ESTADO.area;
+      const nota = document.getElementById("calc-area-nota"); if (nota) nota.textContent = "";
+      if (recalcular) calcular();
+    } }, `${m.area} m² · ${m.n} ${m.n === 1 ? "venda" : "vendas"}`)));
+    return box;
+  }
+
+  // número do apartamento (ex.: 152) -> andar (15) e, pelo "final" (2), a metragem do cadastro da mesma planta neste prédio
+  function resolverPeloApto() {
+    const s = ESTADO.local;
+    const nota = document.getElementById("calc-area-nota");
+    const n = paraNumero(ESTADO.apto);
+    ESTADO.areaNota = "";
+    if (s && s.predio != null && n != null && n >= 10 && Math.round(n) === n) {
+      const conv = DADOS.predios[s.predio][4] || "d";
+      const [andar, final] = andarEFinal(n, conv);
+      if (andar === null) ESTADO.areaNota = "Não consegui ler o andar deste número de apartamento.";
+      else {
+        if (ESTADO.andar === "" || ESTADO.andarAuto) { ESTADO.andar = String(andar); ESTADO.andarAuto = true; }
+        const cont = {};
+        for (const i of (IDX.predio[s.predio] || [])) {
+          const v = DADOS.vendas[i];
+          if (v[8] === final) { const a = Math.round(v[3]); cont[a] = (cont[a] || 0) + 1; }
+        }
+        const achadas = Object.entries(cont).map(([a, c]) => ({ area: Number(a), n: c })).sort((x, y) => y.n - x.n || x.area - y.area);
+        if (achadas.length && (ESTADO.area === "" || ESTADO.areaAuto)) {
+          ESTADO.area = String(achadas[0].area); ESTADO.areaAuto = true;
+          ESTADO.areaNota = `Pelo número do apartamento (final ${final}), a metragem do cadastro neste prédio é ${achadas[0].area} m² (${achadas[0].n} ${achadas[0].n === 1 ? "venda" : "vendas"} do mesmo final).`;
+        } else if (!achadas.length) {
+          ESTADO.areaNota = `Este prédio não tem venda registrada com o final ${final}: escolha a metragem do cadastro abaixo, ou digite a área do carnê do IPTU.`;
+        }
+      }
+    }
+    const ia = document.getElementById("calc-andar"), im = document.getElementById("calc-area");
+    if (ia) ia.value = ESTADO.andar;
+    if (im) im.value = ESTADO.area;
+    if (nota) nota.textContent = ESTADO.areaNota;
   }
 
   function metragensDoPredio(predio) {
@@ -272,7 +350,12 @@
   // ---- peças da tela ------------------------------------------------------
   function campoNumero(id, rotulo, ajuda, opts = {}) {
     const inp = h("input", { id, type: "number", inputmode: opts.decimal ? "decimal" : "numeric", min: opts.min ?? 0, max: opts.max, step: opts.step ?? 1, placeholder: opts.placeholder || "", value: ESTADO[opts.chave] || "", class: "calc-input" });
-    inp.addEventListener("input", () => { ESTADO[opts.chave] = inp.value; });
+    inp.addEventListener("input", () => {
+      ESTADO[opts.chave] = inp.value;
+      if (opts.chave === "area") ESTADO.areaAuto = false;      // digitou na mão: não sobrescreve mais pelo número do apartamento
+      if (opts.chave === "andar") ESTADO.andarAuto = false;
+      if (opts.chave === "apto") resolverPeloApto();
+    });
     return h("label", { class: "calc-campo", for: id }, h("span", { class: "calc-rotulo" }, rotulo), ajuda ? h("span", { class: "calc-ajuda" }, ajuda) : null, inp);
   }
 
@@ -286,11 +369,15 @@
     lista.id = "calc-sugestoes-lista";
     let ativo = -1, atuais = [];
     const fechar = () => { lista.hidden = true; entrada.setAttribute("aria-expanded", "false"); ativo = -1; };
+    const zerarImovel = () => Object.assign(ESTADO, { apto: "", andar: "", andarAuto: false, area: "", areaAuto: false, areaNota: "", areaUtil: "" });
     const escolher = (s) => {
+      const antes = ESTADO.local;
+      if (antes && (antes.predio !== s.predio || antes.rua !== s.rua || antes.bairro !== s.bairro)) zerarImovel(); // outro endereço: andar, metragem etc. do anterior não valem
       ESTADO.local = s;
       fechar();
       renderLocalEscolhido();
       renderMetragens();
+      resolverPeloApto();
     };
     const marcar = () => [...lista.children].forEach((li, k) => li.classList.toggle("ativo", k === ativo));
     const abrir = () => {
@@ -298,7 +385,9 @@
       lista.replaceChildren();
       if (!entrada.value.trim()) { fechar(); return; }
       if (!atuais.length) {
-        lista.appendChild(h("li", { class: "calc-sem-sugestao", role: "option" }, "Nenhum endereço da carteira com esse nome. Confira a grafia — ou o endereço é de um bairro fora dos 77 da carteira."));
+        const planoB = h("button", { type: "button", class: "calc-link" }, "Calcular só pelo bairro");
+        planoB.addEventListener("mousedown", (ev) => { ev.preventDefault(); fechar(); boxBairro.hidden = false; selBairro.focus(); });
+        lista.appendChild(h("li", { class: "calc-sem-sugestao", role: "option" }, "Nenhum endereço com esse nome. Confira a grafia (a Prefeitura abrevia: “Cd” = Conde, “Pde” = Padre…). Se está certo, é porque não há venda de apartamento registrada nessa rua desde 2024. ", planoB));
       }
       atuais.forEach((s, k) => {
         const li = h("li", { role: "option", class: "calc-sugestao" },
@@ -321,15 +410,25 @@
       else if (ev.key === "Escape") fechar();
     });
     const caixaBusca = h("div", { class: "calc-busca" }, h("label", { class: "calc-rotulo", for: "calc-endereco" }, "Endereço do imóvel"), entrada, lista);
-    form.append(h("div", { class: "calc-passo" }, h("div", { class: "calc-passo-titulo" }, "1. Onde fica?"), caixaBusca, boxLocal));
+    // plano B: o endereço não tem venda de apartamento na base -> calcula só pelo bairro (confiança baixa)
+    const selBairro = h("select", { id: "calc-so-bairro", class: "calc-input", "aria-label": "Bairro" }, h("option", { value: "" }, "Escolha o bairro…"),
+      DADOS.bairros.map((b, i) => [i, b]).sort((x, y) => x[1].localeCompare(y[1], "pt-BR")).map(([i, b]) => h("option", { value: String(i) }, b)));
+    selBairro.addEventListener("change", () => {
+      if (selBairro.value === "") return;
+      const i = Number(selBairro.value);
+      escolher({ tipo: "bairro", predio: null, rua: null, bairro: i, rotulo: entrada.value.trim() || "Endereço não encontrado", bairroNome: DADOS.bairros[i], soBairro: true });
+    });
+    const boxBairro = h("div", { class: "calc-so-bairro", hidden: true }, h("span", { class: "calc-ajuda" }, "O cálculo usa só as vendas de apartamento do bairro (confiança baixa, margem larga):"), selBairro);
+    const linkBairro = h("button", { type: "button", class: "calc-link", onclick: () => { boxBairro.hidden = !boxBairro.hidden; } }, "Não achei o endereço — calcular só pelo bairro");
+    form.append(h("div", { class: "calc-passo" }, h("div", { class: "calc-passo-titulo" }, "1. Onde fica?"), caixaBusca, h("div", {}, linkBairro), boxBairro, boxLocal));
 
     function renderLocalEscolhido() {
       boxLocal.replaceChildren();
       const s = ESTADO.local;
       if (!s) return;
       boxLocal.append(h("div", { class: "calc-local-card" },
-        h("div", {}, h("b", {}, s.rotulo), h("div", { class: "calc-ajuda" }, `${s.bairroNome} · São Paulo${s.semVendas ? " · sem vendas registradas neste número: o cálculo usa as vendas da mesma rua" : ""}`)),
-        h("button", { type: "button", class: "calc-link", onclick: () => { ESTADO.local = null; entrada.value = ""; renderLocalEscolhido(); renderMetragens(); entrada.focus(); } }, "Mudar")));
+        h("div", {}, h("b", {}, s.rotulo), h("div", { class: "calc-ajuda" }, `${s.bairroNome} · São Paulo${s.soBairro ? " · só pelo bairro: o cálculo usa as vendas de apartamento do bairro" : s.semVendas ? " · sem vendas registradas neste número: o cálculo usa as vendas da mesma rua" : ""}`)),
+        h("button", { type: "button", class: "calc-link", onclick: () => { ESTADO.local = null; entrada.value = ""; zerarImovel(); montar(); document.getElementById("calc-endereco").focus(); } }, "Mudar")));
     }
     form.renderLocalEscolhido = renderLocalEscolhido;
 
@@ -341,17 +440,17 @@
       if (!s || s.predio == null) return;
       const ms = metragensDoPredio(s.predio);
       if (!ms.length) return;
-      metragens.append(h("span", { class: "calc-ajuda" }, "Metragens que já foram vendidas neste prédio (toque para usar): "));
-      ms.forEach((m) => metragens.append(h("button", { type: "button", class: "calc-chip", onclick: () => { ESTADO.area = String(m.area); document.getElementById("calc-area").value = ESTADO.area; } }, `${m.area} m² · ${m.n} ${m.n === 1 ? "venda" : "vendas"}`)));
+      metragens.append(h("span", { class: "calc-ajuda" }, "Metragens do cadastro que já foram vendidas neste prédio (toque para usar): "), chipsMetragem(ms, false));
     }
     form.append(h("div", { class: "calc-passo" },
       h("div", { class: "calc-passo-titulo" }, "2. Qual é o apartamento?"),
       h("div", { class: "calc-tipo" }, h("span", { class: "calc-chip ativo", "aria-current": "true" }, "Apartamento"), h("span", { class: "calc-ajuda" }, "Casas, studios e coberturas: ainda não nesta calculadora.")),
       h("div", { class: "calc-grade" },
-        campoNumero("calc-andar", "Andar", "Só o número (térreo = 0 não entra no cálculo de andar)", { chave: "andar", min: 0, max: 60, placeholder: "Ex.: 15" }),
-        campoNumero("calc-area", "Área construída (m²)", "A do carnê do IPTU / escritura — a mesma que o ITBI usa", { chave: "area", min: 10, max: 2000, step: "any", decimal: true, placeholder: "Ex.: 140" }),
+        campoNumero("calc-apto", "Número do apartamento — opcional", "Ex.: 152. Eu descubro o andar e a metragem do cadastro pelo número", { chave: "apto", min: 0, max: 9999, placeholder: "Ex.: 152" }),
+        campoNumero("calc-andar", "Andar", "Só o número (preenchido sozinho se você informar o apartamento)", { chave: "andar", min: 0, max: 60, placeholder: "Ex.: 15" }),
+        campoNumero("calc-area", "Área construída (m²) — a do carnê do IPTU", "NÃO é a área útil da planta (a do cadastro costuma ser bem maior). Sem o carnê, informe o número do apartamento", { chave: "area", min: 10, max: 2000, step: "any", decimal: true, placeholder: "Ex.: 140" }),
         campoNumero("calc-area-util", "Área útil (m²) — opcional", "A da planta. Só para mostrar o R$/m² útil e achar anúncios parecidos", { chave: "areaUtil", min: 10, max: 2000, step: "any", decimal: true, placeholder: "Ex.: 110" })),
-      metragens));
+      h("div", { class: "calc-ajuda calc-nota-area", id: "calc-area-nota" }, ESTADO.areaNota), metragens));
 
     // 3. detalhes
     form.append(h("div", { class: "calc-passo" },
@@ -382,7 +481,7 @@
   }
 
   function limpar() {
-    Object.assign(ESTADO, { local: null, andar: "", area: "", areaUtil: "", quartos: "", banheiros: "", suites: "", vagas: "", condominio: "", iptu: "", pedido: "" });
+    Object.assign(ESTADO, { local: null, apto: "", andar: "", andarAuto: false, area: "", areaAuto: false, areaNota: "", areaUtil: "", quartos: "", banheiros: "", suites: "", vagas: "", condominio: "", iptu: "", pedido: "" });
     montar();
   }
 
@@ -390,7 +489,13 @@
     const s = ESTADO.local;
     if (!s) { erro("Escolha o endereço na lista que aparece quando você digita."); return null; }
     const area = paraNumero(ESTADO.area);
-    if (!area || area < 10 || area > 2000) { erro("Informe a área construída em m² (entre 10 e 2.000). Dica: toque numa das metragens já vendidas no prédio."); return null; }
+    if (!area || area < 10 || area > 2000) {
+      const util = paraNumero(ESTADO.areaUtil);
+      erro(util
+        ? "Você preencheu só a área útil. O cálculo precisa da área construída do cadastro (carnê do IPTU), que costuma ser bem maior — nos apartamentos que conseguimos conferir, entre 1,4 e 1,9 vez a útil, e varia de prédio para prédio. Informe o número do apartamento ou toque numa das metragens do prédio."
+        : "Informe a área construída em m² (entre 10 e 2.000) — a do carnê do IPTU — ou o número do apartamento, que eu descubro a metragem do cadastro. Dica: toque numa das metragens já vendidas no prédio.");
+      return null;
+    }
     const andar = paraNumero(ESTADO.andar);
     if (andar != null && (andar < 0 || andar > 60 || Math.round(andar) !== andar)) { erro("O andar tem que ser um número inteiro de 0 a 60."); return null; }
     const pedido = paraNumero(ESTADO.pedido);
@@ -444,9 +549,25 @@
       h("tbody", {}, linhas.map((l) => h("tr", {}, l.map((c) => h("td", {}, c)))))));
   }
 
+  // Quando o prédio tem vendas mas nenhuma com a metragem digitada, o cálculo cai pra rua/bairro. Isso não pode passar
+  // batido (é o sinal de que digitaram a área útil): avisa e oferece as metragens do cadastro pra tocar e recalcular.
+  function avisoMetragem(ent, r) {
+    const s = ESTADO.local;
+    if (!s || s.predio == null || (r.ok && r.nivel === "predio")) return null;
+    const ms = metragensDoPredio(s.predio);
+    if (!ms.length) return null;
+    return h("section", { class: "card calc-aviso-area" }, h("h3", {}, "Confira a metragem"),
+      h("p", {}, `Neste prédio ninguém vendeu um apartamento com área do cadastro perto de ${num(ent.area, ent.area % 1 ? 1 : 0)} m² — as vendas daqui foram de ${ms.map((m) => `${m.area} m²`).join(", ")}. `,
+        r.ok ? `Por isso a calculadora usou as vendas d${r.nivel === "rua" ? "a rua" : "o bairro"}, que são menos precisas.` : "Por isso não deu para calcular."),
+      h("p", { class: "calc-ajuda" }, "Se você digitou a área útil, toque na metragem do cadastro correspondente (a do cadastro é bem maior que a útil) — ou informe o número do apartamento:"),
+      chipsMetragem(ms, true));
+  }
+
   function renderResultado(ent, r) {
     const out = document.getElementById("calc-resultado");
     out.replaceChildren();
+    const aviso = avisoMetragem(ent, r);
+    if (aviso) out.append(aviso);
     if (!r.ok) {
       out.append(h("section", { class: "card" }, h("h2", {}, "Sem estimativa"),
         h("p", {}, "Não há vendas parecidas suficientes (nem no prédio, nem na rua, nem no bairro) para essa metragem. Em vez de chutar um número, a calculadora não responde. Tente conferir a área construída informada."),
@@ -547,6 +668,7 @@
   }
 
   function calcular() {
+    resolverPeloApto();
     const ent = entradaDoFormulario();
     if (!ent) return;
     renderResultado(ent, estimar(DADOS, IDX, ent));

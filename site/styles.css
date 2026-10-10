@@ -578,3 +578,9 @@ span.calc-chip { cursor: default; }
 
 /* a calculadora é uma ferramenta de bolso: não entra no PDF completo (o PDF por painel continua valendo) */
 body.printing-all .panel[data-panel="calculadora"] { display: none !important; }
+.calc-so-bairro { margin: 8px 0 4px; display: grid; gap: 6px; max-width: 420px; }
+.calc-nota-area { margin-top: 6px; color: var(--gold); }
+.calc-nota-area:empty { display: none; }
+.calc-chips { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+.calc-aviso-area { border-color: var(--status-warning); background: var(--status-warning-bg); }
+.calc-aviso-area h3 { margin: 0 0 6px; font-size: 15px; }

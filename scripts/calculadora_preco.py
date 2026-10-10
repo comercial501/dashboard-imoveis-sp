@@ -109,23 +109,34 @@ def vagas_do_complemento(complemento):
     return 1 if _RE_VAGA_UMA.search(c) else None
 
 
-def andares_do_predio(numeros):
-    """{numero: andar} para as unidades de UM prédio. Regra: número de 2 ou 3 dígitos = andar é tudo menos o
-    último dígito (152 = 15º; 62 = 6º), como no exemplo do Paulo. Mas se o prédio tem número de 4 dígitos
-    (1704), os de 3 dígitos seguem a mesma lógica das centenas (801 = 8º), e se todos os de 3 dígitos terminam
-    em 01–20 (101, 102, 201...) também são centenas. Número de 1 dígito ou andar fora de 1–60 = sem andar."""
+def convencao_do_predio(numeros):
+    """Como o prédio numera os apartamentos: "c" = centenas (801 = 8º andar, final 01; 1704 = 17º, final 04) ou
+    "d" = dezenas (152 = 15º andar, final 2; 62 = 6º, final 2), como no exemplo do Paulo. É "c" se o prédio tem
+    unidade de 4 dígitos, ou se todas as de 3 dígitos terminam em 01–20 (101, 102, 201...). Senão, "d"."""
     tem4 = any(n >= 1000 for n in numeros)
     tres = [n for n in numeros if 100 <= n <= 999]
-    centenas3 = tem4 or (bool(tres) and all(n % 100 <= 20 for n in tres))
+    return "c" if (tem4 or (bool(tres) and all(n % 100 <= 20 for n in tres))) else "d"
+
+
+def andar_e_final(n, conv):
+    """(andar, final) do apartamento de número n numa convenção ("c" ou "d"); (None, None) se não der (1 dígito ou
+    andar fora de 1–60). O "final" identifica a posição no andar — mesmo final no mesmo prédio = mesma planta."""
+    if n < 10:
+        return None, None
+    if n >= 1000 or (100 <= n <= 999 and conv == "c"):
+        andar, final = n // 100, n % 100
+    else:
+        andar, final = n // 10, n % 10
+    return (andar, final) if 1 <= andar <= 60 else (None, None)
+
+
+def andares_do_predio(numeros):
+    """{numero: andar} para as unidades de UM prédio (ver convencao_do_predio / andar_e_final)."""
+    conv = convencao_do_predio(numeros)
     out = {}
     for n in set(numeros):
-        if n < 10:
-            continue
-        if n >= 1000 or (100 <= n <= 999 and centenas3):
-            a = n // 100
-        else:
-            a = n // 10
-        if 1 <= a <= 60:
+        a, _f = andar_e_final(n, conv)
+        if a is not None:
             out[n] = a
     return out
 
@@ -218,7 +229,7 @@ def preparar_dados(itbi_records, usn_records, indice, fator_fn, gerado_em_iso, c
         n = numero_do_apto(r.get("complemento"))
         if n is not None:
             numeros.setdefault(chave(r), []).append(n)
-    andar_map = {k: andares_do_predio(v) for k, v in numeros.items()}
+    conv_map = {k: convencao_do_predio(v) for k, v in numeros.items()}
 
     predios_idx, predios, ruas_idx, ruas = {}, [], {}, []
     displays = {}
@@ -236,15 +247,15 @@ def preparar_dados(itbi_records, usn_records, indice, fator_fn, gerado_em_iso, c
                 ruas_idx[rk] = len(ruas)
                 ruas.append([rua_nome, b_idx[k[1]]])
             predios_idx[k] = len(predios)
-            predios.append([r["addr_key"], display, b_idx[k[1]], ruas_idx[rk]])
+            predios.append([r["addr_key"], display, b_idx[k[1]], ruas_idx[rk], conv_map.get(k, "d")])
         n = numero_do_apto(r.get("complemento"))
-        andar = (andar_map.get(k) or {}).get(n) if n is not None else None
+        andar, final = andar_e_final(n, conv_map.get(k, "d")) if n is not None else (None, None)
         fator = fator_fn(indice, r["bairro"], "apartamento", r["day"])
         ano, mes = excel_serial_to_ym(r["day"])
         v = {"andar": andar, "area": r["area"], "valor_hoje": r["valor"] * fator}
         vendas_por_predio.setdefault(k, []).append(v)
         vendas.append([predios_idx[k], ano * 100 + mes, _arred(r["valor"]), r["area"], andar,
-                       vagas_do_complemento(r.get("complemento")), round(fator, 4)])
+                       vagas_do_complemento(r.get("complemento")), round(fator, 4), n if andar is not None else None, final])
 
     efeito = _compute_efeito_andar(vendas_por_predio)
 

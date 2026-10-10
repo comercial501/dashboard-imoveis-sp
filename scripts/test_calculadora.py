@@ -32,6 +32,16 @@ confere("prédio com 4 dígitos: 801 = 8º (centenas)", cp.andares_do_predio([17
 confere("prédio só com 101/102/201/202: centenas", cp.andares_do_predio([101, 102, 201, 202])[201], 2)
 confere("1 dígito sem andar", 7 in cp.andares_do_predio([7, 8, 152]), False)
 confere("andar absurdo descartado", 9999 in cp.andares_do_predio([9999, 152]), False)  # 99º
+confere("convenção dezenas", cp.convencao_do_predio([152, 151, 153]), "d")
+confere("convenção centenas (4 dígitos no prédio)", cp.convencao_do_predio([1704, 801]), "c")
+confere("convenção centenas (101/102/201)", cp.convencao_do_predio([101, 102, 201, 202]), "c")
+confere("andar e final: 152 (dezenas)", cp.andar_e_final(152, "d"), (15, 2))
+confere("andar e final: 62 (dezenas)", cp.andar_e_final(62, "d"), (6, 2))
+confere("andar e final: 1704", cp.andar_e_final(1704, "c"), (17, 4))
+confere("andar e final: 801 (centenas)", cp.andar_e_final(801, "c"), (8, 1))
+confere("andar e final: 7 não dá", cp.andar_e_final(7, "d"), (None, None))
+confere("andar e final: andar 99 não dá", cp.andar_e_final(9999, "c"), (None, None))
+confere("mesmo final = mesma posição: 152 e 252", cp.andar_e_final(152, "d")[1] == cp.andar_e_final(252, "d")[1], True)
 # --- vagas ---------------------------------------------------------------------------------------------------
 confere("E 2 VG", cp.vagas_do_complemento("AP 62 E 2 VG"), 2)
 confere("2VGS", cp.vagas_do_complemento("AP2201 E 2VGS"), 2)

@@ -2489,9 +2489,23 @@ unidade de 4 dígitos, as de 3 dígitos seguem a lógica das centenas (801 = 8º
 1–3, 4–7, 8–11, 12–15, 16+; faixa com menos de 200 vendas não ajusta; teto de ±10%): é pequeno — andares baixos valem um pouco
 menos, andar alto não mostrou valorização nítida. O andar entra na escolha das vendas mais parecidas e como ajuste pela medição.
 
-**Área**: o ITBI e o IPTU usam a MESMA área (área construída do cadastro), diferente da área útil da planta (10% a 80% menor,
-conforme o prédio). Por isso o cálculo compara a **área construída** (a tela pede a do carnê do IPTU e mostra as metragens já
-vendidas no prédio para tocar e usar). A área útil é opcional: só para mostrar o R$/m² útil e achar anúncios parecidos.
+**Área** (achado do teste do Paulo, 10/10): o ITBI e o IPTU usam a MESMA área (área construída do cadastro), diferente da área
+útil da planta — e quase ninguém sabe a construída. Medido em 125 apartamentos que aparecem nos dois lados (mesmo prédio e mesmo
+número de apartamento: ITBI × anúncio da nonStop), a construída é em geral 1,4 a 1,9 vez a útil (mediana 1,67; de 1,14 a 2,19)
+e varia de prédio para prédio — **não existe fator de conversão confiável**, então a calculadora NÃO converte útil em construída.
+Em vez disso: (1) o campo **Número do apartamento** (ex.: 152) preenche o andar (15) e a metragem do cadastro: apartamentos com o
+mesmo "final" no mesmo prédio são da mesma planta (a área do ITBI fica a 3% da mais comum do mesmo final em 88% das vendas, a 10%
+em 90%), então pega a metragem mais comum entre as vendas do prédio com o mesmo final (a tela mostra de onde veio e dá pra
+trocar); (2) os botões com as metragens do cadastro já vendidas no prédio; (3) se a metragem digitada não bate com nenhuma venda do
+prédio (sinal de que digitaram a útil), aparece o aviso "Confira a metragem" com os botões e o cálculo só cai para rua/bairro
+com isso explícito; (4) só a área útil preenchida = erro explicando. A área útil segue opcional (R$/m² útil e anúncios parecidos).
+O número do apartamento e o "final" seguem a numeração do prédio (`convencao_do_predio`: "c" centenas ou "d" dezenas; vendas
+guardam número, andar e final).
+
+**Busca de endereço**: a Prefeitura grava nomes abreviados ("RUA CD DE ITU" = Rua Conde de Itu; Pde, S, Sta, Sto, Gal, Cel, Prof,
+Dr, Visc, Min, Marq, Nsra etc.). A busca entende por extenso e abreviado (`ALIAS` em `calculadora.js`), ignora "de/da/do" e a
+tela mostra o nome por extenso (`bonito`). Endereço que não aparece (rua sem venda de apartamento desde 2024) tem o plano B
+"Calcular só pelo bairro" (confiança baixa, margem larga).
 
 **Cálculo (`estimar`)**: três níveis, o primeiro com vendas parecidas suficientes vence — (1) mesmo prédio: 3+ vendas com área até
 10% diferente (se faltar, até 20%); (2) mesma rua e bairro: 5+ (15%, depois 25%); (3) bairro: 10+ (15%, depois 30%); se nenhum

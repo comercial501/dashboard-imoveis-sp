@@ -191,6 +191,67 @@ def main():
         pg.fill("#calc-endereco", "r sena madureira")
         pg.wait_for_timeout(100)
         tela["busca_sena"] = pg.evaluate("()=>[...document.querySelectorAll('.calc-sugestao')].slice(0,3).map(l=>l.innerText.replace(/\\n/g,' | '))")
+        # ---- 3. fluxos novos: abreviação da Prefeitura, número do apartamento, só pelo bairro, aviso de metragem ----
+        fluxos = {}
+        # (a) "Conde de Itu" está gravado como "Cd De Itu" no ITBI
+        pg.fill("#calc-endereco", "Rua Conde de Itu")
+        pg.wait_for_selector(".calc-sugestao, .calc-sem-sugestao", timeout=5000)
+        fluxos["conde_de_itu"] = pg.evaluate("()=>[...document.querySelectorAll('.calc-sugestao')].slice(0,3).map(l=>l.innerText.replace(/\\n/g,' | '))")
+        # (b) número do apartamento -> andar e metragem do cadastro
+        cands = []
+        for pi_, ids in idx["predio"].items():
+            com_num = [i for i in ids if dados["vendas"][i][8] is not None and dados["vendas"][i][7] is not None]
+            if len(com_num) >= 8:
+                cands.append((pi_, com_num))
+        pi_b, com_num = cands[len(cands) // 2]
+        venda = dados["vendas"][com_num[0]]
+        final = venda[8]
+        areas_final = [round(dados["vendas"][i][3]) for i in idx["predio"][pi_b] if dados["vendas"][i][8] == final]
+        area_esperada = max(set(areas_final), key=lambda a: (areas_final.count(a), -a))
+        nome_b = dados["predios"][pi_b][1]
+        pg.fill("#calc-endereco", nome_b.replace(",", ""))
+        pg.wait_for_selector(".calc-sugestao")
+        pg.click(".calc-sugestao >> nth=0")
+        pg.fill("#calc-apto", str(venda[7]))
+        fluxos["apto"] = {"predio": nome_b, "numero": venda[7], "andar_esperado": venda[4], "andar_tela": pg.input_value("#calc-andar"),
+                          "area_esperada": area_esperada, "area_tela": pg.input_value("#calc-area"), "nota": pg.inner_text("#calc-area-nota")}
+        pg.click(".calc-botao")
+        pg.wait_for_selector(".calc-valor", timeout=5000)
+        fluxos["apto"]["nivel_predio_sem_aviso"] = not pg.is_visible(".calc-aviso-area")
+        fluxos["apto"]["valor"] = pg.inner_text(".calc-valor")
+        # (c) área útil digitada no lugar da construída: o prédio tem vendas, mas nenhuma nessa metragem -> aviso + metragens pra tocar
+        pg.fill("#calc-apto", "")
+        pg.evaluate("()=>{document.getElementById('calc-area').value='';}")
+        pg.fill("#calc-area", str(round(area_esperada * 0.55)))
+        pg.click(".calc-botao")
+        pg.wait_for_selector(".calc-aviso-area", timeout=5000)
+        fluxos["aviso_metragem"] = pg.inner_text(".calc-aviso-area").replace("\n", " | ")[:260]
+        pg.click(".calc-aviso-area .calc-chip >> nth=0")
+        pg.wait_for_timeout(400)
+        fluxos["aviso_sumiu_depois_de_tocar"] = not pg.is_visible(".calc-aviso-area")
+        fluxos["valor_depois_de_tocar"] = pg.inner_text(".calc-valor")
+        # (d) só a área útil preenchida, sem construída nem apartamento: erro explicando
+        pg.fill("#calc-area", "")
+        pg.fill("#calc-area-util", "90")
+        pg.click(".calc-botao")
+        fluxos["erro_so_util"] = pg.inner_text("#calc-erro")[:160]
+        # (e) endereço fora da base -> só pelo bairro
+        pg.click(".calc-local-card .calc-link")
+        pg.fill("#calc-endereco", "Rua Que Nao Existe Nenhuma 12")
+        pg.wait_for_selector(".calc-sem-sugestao button", timeout=5000)
+        pg.click(".calc-sem-sugestao button")
+        pg.select_option("#calc-so-bairro", label="Vila Mariana")
+        pg.fill("#calc-area", "120")
+        pg.click(".calc-botao")
+        pg.wait_for_selector(".calc-valor", timeout=5000)
+        fluxos["so_bairro"] = {"valor": pg.inner_text(".calc-valor"), "selo": pg.inner_text(".calc-selos"), "local": pg.inner_text(".calc-local-card").replace("\n", " | ")[:160]}
+        tela["fluxos"] = fluxos
+        # paridade andar/final Python x navegador
+        casos_af = [(n, c) for n in (7, 9, 10, 11, 25, 62, 99, 101, 152, 153, 201, 202, 520, 801, 999, 1001, 1704, 2203, 4101, 9999) for c in ("c", "d")]
+        js_af = pg.evaluate("(cs)=>cs.map(([n,c])=>window.CALC.andarEFinal(n,c))", casos_af)
+        py_af = [list(cp.andar_e_final(n, c)) for n, c in casos_af]
+        tela["paridade_andar_final"] = {"casos": len(casos_af), "divergencias": sum(1 for a, b in zip(js_af, py_af) if a != b)}
+
         # celular
         ctx2 = br.new_context(viewport={"width": 375, "height": 812}, is_mobile=True, has_touch=True)
         m = ctx2.new_page()
@@ -219,7 +280,11 @@ def main():
     t = resultado["tela"]
     ok = (not erros and resultado["paridade"]["divergencias"] == 0 and t["valor_confere"] and t["erro_sem_area"]
           and t["mobile_largura"]["scroll"] <= t["mobile_largura"]["janela"] and t["rua_valor"] and "Nenhum endereço" in t["inexistente"]
-          and "sem vendas" in t["sugestao_sem_vendas"])
+          and "sem vendas" in t["sugestao_sem_vendas"]
+          and t["fluxos"]["conde_de_itu"] and "Conde" in t["fluxos"]["conde_de_itu"][0]
+          and t["fluxos"]["apto"]["andar_tela"] == str(t["fluxos"]["apto"]["andar_esperado"]) and t["fluxos"]["apto"]["area_tela"] == str(t["fluxos"]["apto"]["area_esperada"])
+          and t["fluxos"]["apto"]["nivel_predio_sem_aviso"] and t["fluxos"]["aviso_sumiu_depois_de_tocar"] and "área construída do cadastro" in t["fluxos"]["erro_so_util"]
+          and "Confiança baixa" in t["fluxos"]["so_bairro"]["selo"].replace("CONFIANÇA BAIXA", "Confiança baixa") and t["paridade_andar_final"]["divergencias"] == 0)
     print("RESULTADO:", "OK" if ok else "FALHOU")
     return 0 if ok else 1
 

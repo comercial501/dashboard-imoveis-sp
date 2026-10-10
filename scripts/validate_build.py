@@ -1135,7 +1135,7 @@ def check_calculadora(calc, data, itbi_records, usn_records):
     ym_max = lim_ym[0] * 100 + lim_ym[1]
     n_andar = sum(1 for v in calc["vendas"] if v[4] is not None)
     for v in calc["vendas"]:
-        pi, ym, valor, area, andar, vagas, fator = v
+        pi, ym, valor, area, andar, vagas, fator = v[:7]
         if not (0 <= pi < n_pred):
             div.append(f"venda com prédio inexistente ({pi})")
         elif not (VALOR_MIN_REAL <= valor <= VALOR_MAX_REAL):
@@ -1151,8 +1151,12 @@ def check_calculadora(calc, data, itbi_records, usn_records):
         if len(div) > 15:
             break
     for p in calc["predios"]:
-        if not (0 <= p[2] < n_bairros and 0 <= p[3] < n_ruas):
-            div.append(f"prédio com bairro/rua inexistente: {p[1]}")
+        if not (0 <= p[2] < n_bairros and 0 <= p[3] < n_ruas) or p[4] not in ("c", "d"):
+            div.append(f"prédio com bairro/rua inexistente ou sem convenção de numeração: {p[1]}")
+            break
+    for v in calc["vendas"]:  # número do apartamento: o andar e o final têm que sair dele pela convenção do prédio
+        if v[4] is not None and cp.andar_e_final(v[7], calc["predios"][v[0]][4]) != (v[4], v[8]):
+            div.append(f"andar/final não batem com o número do apartamento {v[7]} em {calc['predios'][v[0]][1]}: {(v[4], v[8])}")
             break
     pct_andar = n_andar / len(calc["vendas"]) if calc["vendas"] else 0
     if pct_andar < 0.60:
