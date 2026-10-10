@@ -535,18 +535,25 @@ def check_captacao_limpa(data):
         conferir(c, f"captacao_ativa[{c.get('endereco')}]", True)
         if len(divergencias) >= 20:
             break
+    minimo = engine.CAPTACAO_MEDIANA_MINIMA
     for g in data.get("captacao_estrategica", []):
         for e in g["enderecos"]:
             conferir(e, f"captacao_estrategica[{g['bairro']}][{e.get('endereco')}]", False)
+            if e["preco_mediana"] < minimo:  # 09/10/2026: o painel só trabalha com mediana >= R$ 800 mil
+                divergencias.append(f"captacao_estrategica[{g['bairro']}][{e.get('endereco')}]: mediana {e['preco_mediana']} abaixo do mínimo do painel ({minimo})")
             if len(divergencias) >= 20:
                 break
+    for e in data.get("captacao_top30", []):
+        if e["preco_mediana"] < minimo:
+            divergencias.append(f"captacao_top30[{e.get('endereco')}]: mediana {e['preco_mediana']} abaixo do mínimo do painel ({minimo})")
 
     if divergencias:
         linhas = "\n".join(f"  - {d}" for d in divergencias[:20])
         raise ValidationError(f"Captação Ativa fora da regra de revenda limpa/mediana:\n{linhas}")
     n_end = len(data.get("captacao_ativa", []))
     n_faixa = sum(1 for c in data["captacao_ativa"] if not c["poucas_vendas"])
-    print(f"[validate_build] OK 11/18 — Captação Ativa: {n_end} endereços com 2+ revendas limpas, preço por mediana ({n_faixa} com faixa P25-P75, o resto 'poucas vendas'), sem mínimo-máximo.")
+    n_painel = sum(len(g["enderecos"]) for g in data.get("captacao_estrategica", []))
+    print(f"[validate_build] OK 11/18 — Captação Ativa: {n_end} endereços com 2+ revendas limpas na base, preço por mediana ({n_faixa} com faixa P25-P75, o resto 'poucas vendas'), sem mínimo-máximo; o painel mostra só mediana >= R$ {minimo:,.0f} ({n_painel} endereços, Top 30 incluso).".replace(",", "."))
 
 
 def check_camada_limpa_unica(data, itbi_records):

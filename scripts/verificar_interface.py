@@ -55,6 +55,9 @@ JS_PARIDADE = """()=>{
   out.captacao_tipo={enderecos:S.captacao_ativa.length,divergencias:dt};
   let dpg=0, npg=0; for(const b in S.bairros){ npg++; if(JSON.stringify(S.bairros[b].pagamento)!==JSON.stringify(J.bairros[b].pagamento)) dpg++; }
   out.pagamento={bairros:npg,divergencias:dpg,credito_igual:JSON.stringify(S.contexto_credito)===JSON.stringify(J.contexto_credito)};
+  const cnt=(D)=>D.captacao_estrategica.reduce((a,g)=>a+g.enderecos.length,0), minimo=S.meta.captacao_mediana_minima;
+  const tudoNaFaixa=(D)=>D.captacao_estrategica.every(g=>g.enderecos.every(e=>e.preco_mediana>=minimo))&&D.captacao_top30.every(e=>e.preco_mediana>=minimo);
+  out.captacao_painel={minimo:minimo,enderecos_servidor:cnt(S),enderecos_navegador:cnt(J),tudo_na_faixa:tudoNaFaixa(S)&&tudoNaFaixa(J)};
   out.prontidao_top10_igual=S.prontidao_ranking.slice(0,10).join()===J.prontidao_ranking.slice(0,10).join();
   return out;}"""
 
@@ -137,7 +140,8 @@ def main():
     print("raw.json pedido antes de usar filtro:", raw_antes_do_filtro, "| Ver lista completa abriu:", lista_ok)
     div = (par["bairros"]["divergencias"] + par["painel8"]["divergencias"] + par["preco_m2"]["divergencias"]
            + par["valor_oportunidade"]["divergencias"] + par["captacao_tipo"]["divergencias"] + par["correcao_tempo"]["divergencias"])
-    ok = (not erros and par["pagamento"]["divergencias"] == 0 and par["pagamento"]["credito_igual"] and telas["credito_cartoes"] == 4
+    ok = (not erros and par["captacao_painel"]["enderecos_servidor"] == par["captacao_painel"]["enderecos_navegador"] and par["captacao_painel"]["tudo_na_faixa"]
+          and par["pagamento"]["divergencias"] == 0 and par["pagamento"]["credito_igual"] and telas["credito_cartoes"] == 4
           and telas["perfil_como_se_paga"] and telas["perfil_rotulo_ok"] and not raw_antes_do_filtro and lista_ok and div == 0 and par["prontidao_top10_igual"] and par["top30"]["igual"]
           and par["valor_oportunidade"]["meta_apto"] and par["correcao_tempo"]["resumo_igual"])
     print("RESULTADO:", "OK" if ok else "FALHOU")

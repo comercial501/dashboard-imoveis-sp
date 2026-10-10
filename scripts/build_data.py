@@ -223,6 +223,7 @@ def build_raw_payload(itbi_records, usn_records, years, periodo_12m_externo, car
             "valor_oport_apto_max_p75_p25": engine.VALOR_OPORT_APTO_MAX_P75_P25,
             "captacao_estrategica_max_stock_match": engine.CAPTACAO_ESTRATEGICA_MAX_STOCK_MATCH,
             "captacao_estrategica_min_enderecos": engine.CAPTACAO_ESTRATEGICA_MIN_ENDERECOS,
+            "captacao_mediana_minima": engine.CAPTACAO_MEDIANA_MINIMA,
             "captacao_top_n": engine.CAPTACAO_TOP_N,
             "captacao_min_vendas_faixa": engine.CAPTACAO_MIN_VENDAS_FAIXA,
             # Proteção de amostra das faixas de preço (2026-10-06)

@@ -2454,3 +2454,13 @@ sem quebra de linha) — corrigido em `styles.css`.
 **Cópia local do Mac**: o LaunchAgent `com.topio.dashboard-imoveis.sync` roda `git pull --ff-only` em
 `/Users/plaghi/dashboard-imoveis-sp` às 08:20 e 12:00 (e ao ligar) e o `...server` serve `site/` dessa mesma pasta na porta
 8731 (Tailscale); `versao.json` é um arquivo versionado de `site/`, então chega junto com o resto no primeiro pull depois do merge.
+
+## Captação Ativa só com mediana a partir de R$ 800 mil (2026-10-09, pedido do Paulo)
+O painel Captação Ativa (Top 30, listas por bairro, filtro de faixa de valor) trabalha só com endereços cuja MEDIANA das
+revendas limpas é de R$ 800.000 ou mais (`engine.CAPTACAO_MEDIANA_MINIMA`, espelho em `engine.js` via `captacao_mediana_minima`).
+É um recorte da exibição, aplicado em `captacao_estrategica` e no Top 30 (que sai dela); a base `captacao_ativa` (8.955
+endereços com 2+ revendas limpas) não muda e continua alimentando o bônus de captação dos Imóveis Prioritários e o f4 da
+Prontidão — por isso a Prontidão não mudou. A regra do "bairro com menos de 5 endereços entra com os endereços de 1 venda" passa
+a valer sobre a lista já recortada. O quadro da Visão Geral conta os endereços de 2+ revendas na faixa (`meta.enderecos_captacao_painel`).
+O filtro "faixa de valor" da Captação perdeu as faixas abaixo de R$ 800 mil. `validate_build` check 11 confere que nada abaixo do
+mínimo aparece no painel nem no Top 30; `verificar_interface.py` confere servidor × navegador (4.504 endereços nos dois).

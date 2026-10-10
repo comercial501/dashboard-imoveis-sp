@@ -980,7 +980,7 @@ function renderVisaoGeral() {
   const tiles = document.getElementById("visao-tiles");
   tiles.innerHTML = "";
   tiles.appendChild(statTile("Imóveis pontuados", fmtInt(DATA.imoveis_prioritarios.length)));
-  tiles.appendChild(statTile("Endereços em Captação Ativa", fmtInt(DATA.meta.enderecos_captacao_ativa)));
+  tiles.appendChild(statTile("Endereços em Captação Ativa (mediana a partir de R$ 800 mil)", fmtInt(DATA.meta.enderecos_captacao_painel != null ? DATA.meta.enderecos_captacao_painel : DATA.meta.enderecos_captacao_ativa)));
   tiles.appendChild(statTile("Achados de Valor de Oportunidade", fmtInt(DATA.valor_oportunidade.imoveis.length)));
   // Passo 3c (2026-10-05): "Prioridade Máxima" virou dois selos separados.
   const nEscassez = DATA.captacao_estrategica.filter((g) => g.selo_escassez_real).length;
@@ -1381,9 +1381,8 @@ function renderMapa() {
 // Captação Ativa Estratégica (Painel 7)
 // ---------------------------------------------------------------------------
 const CAPTACAO_FAIXAS_VALOR = [
-  { id: "", label: "Todas as faixas de valor" },
-  { id: "ate500", label: "Até R$ 500 mil", min: 0, max: 500000 },
-  { id: "500-1m", label: "R$ 500 mil a R$ 1 mi", min: 500000, max: 1000000 },
+  { id: "", label: "Todas as faixas (a partir de R$ 800 mil)" },
+  { id: "800-1m", label: "R$ 800 mil a R$ 1 mi", min: 800000, max: 1000000 },
   { id: "1-2m", label: "R$ 1 mi a R$ 2 mi", min: 1000000, max: 2000000 },
   { id: "2-4m", label: "R$ 2 mi a R$ 4 mi", min: 2000000, max: 4000000 },
   { id: "4m+", label: "Acima de R$ 4 mi", min: 4000000, max: Infinity },
@@ -1523,7 +1522,7 @@ function renderCaptacaoTop30() {
   const lista = DATA.captacao_top30 || [];
   box.appendChild(el("h3", { class: "captacao-top30-titulo" }, `Top ${lista.length || 30} da semana`));
   box.appendChild(el("div", { class: "note methodology" },
-    `Critério: os endereços com mais revendas limpas no período dos dados (${DATA.meta.years[0]}–hoje) que NÃO têm nenhuma unidade anunciada hoje na rede nonStop (endereço único, com 1 só revenda, fica de fora). Na ordem: primeiro os endereços de bairros com o selo "Pouco estoque na rede", depois pelo nº de revendas limpas. Esta lista não muda com os filtros abaixo — ela é sempre a pauta da semana.`));
+    `Critério: só endereços com mediana de R$ 800 mil ou mais; entre eles, os endereços com mais revendas limpas no período dos dados (${DATA.meta.years[0]}–hoje) que NÃO têm nenhuma unidade anunciada hoje na rede nonStop (endereço único, com 1 só revenda, fica de fora). Na ordem: primeiro os endereços de bairros com o selo "Pouco estoque na rede", depois pelo nº de revendas limpas. Esta lista não muda com os filtros abaixo — ela é sempre a pauta da semana.`));
   if (!lista.length) {
     box.appendChild(el("div", { class: "placeholder-block" }, "Nenhum endereço atende ao critério com os filtros de bairro/preço da barra lateral."));
     return;

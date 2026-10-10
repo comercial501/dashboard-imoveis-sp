@@ -1387,8 +1387,10 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   // OUTRAS unidades. "tem_unidade_a_venda_hoje" vira dado exibido, não
   // filtro de exclusão.
   const byBairroAtiva = {}, byBairroUnico = {};
-  for (const c of captacaoAtiva) if (scopeSet.has(c.bairro)) (byBairroAtiva[c.bairro] ||= []).push(c);
-  for (const c of captacaoUnico) if (scopeSet.has(c.bairro)) (byBairroUnico[c.bairro] ||= []).push(c);
+  // 09/10/2026: o painel só trabalha com endereços de mediana >= C.captacao_mediana_minima (R$ 800 mil).
+  const naFaixaDoPainel = (c) => c.preco_mediana >= C.captacao_mediana_minima;
+  for (const c of captacaoAtiva) if (scopeSet.has(c.bairro) && naFaixaDoPainel(c)) (byBairroAtiva[c.bairro] ||= []).push(c);
+  for (const c of captacaoUnico) if (scopeSet.has(c.bairro) && naFaixaDoPainel(c)) (byBairroUnico[c.bairro] ||= []).push(c);
 
   const captacaoEstrategica = [];
   scope.forEach((b) => {
@@ -1456,7 +1458,7 @@ function computeEngine(raw, { priceMin = null, priceMax = null, bairroScope = nu
   const captacaoAtivaFinal = captacaoAtiva.filter((c) => scopeSet.has(c.bairro));
 
   return {
-    meta: { years: raw.years, primary_year: yearFull, inprogress_year: yearCurr, enderecos_captacao_ativa: captacaoAtivaFinal.length, limiar_escassez_real: C.limiar_escassez_real },
+    meta: { years: raw.years, primary_year: yearFull, inprogress_year: yearCurr, enderecos_captacao_ativa: captacaoAtivaFinal.length, enderecos_captacao_painel: captacaoAtivaFinal.filter(naFaixaDoPainel).length, captacao_mediana_minima: C.captacao_mediana_minima, limiar_escassez_real: C.limiar_escassez_real },
     periodo_12m: periodo12mMeta,
     ranking,
     prontidao_ranking: prontidaoRanking,

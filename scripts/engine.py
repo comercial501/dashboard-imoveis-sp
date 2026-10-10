@@ -68,6 +68,10 @@ ADDR_MAX_RATIO = 20
 # endereço).
 ADDR_MAX_RATIO_AREA = 4
 CAPTACAO_TOP_N = 30
+# 09/10/2026 (pedido do Paulo): a Captação Ativa (painel, Top 30 e listas por bairro) trabalha SÓ com endereços
+# cuja MEDIANA das revendas limpas é de R$ 800 mil ou mais. É só um recorte da exibição: `captacao_ativa`
+# (a base que alimenta o bônus de captação dos Imóveis Prioritários e o f4 da Prontidão) não muda.
+CAPTACAO_MEDIANA_MINIMA = 800_000
 # Rodada C (2026-10-07): forma de pagamento (ITBI, colunas "Tipo de Financiamento" e
 # "Valor Financiado"). Categorias pelo TIPO (sem tipo = à vista): 1.SFH, 2.Minha Casa Minha
 # Vida, 3.Consórcio, 99.SFI/carteira hipotecária; qualquer outro texto = outros.
@@ -1762,6 +1766,9 @@ def _compute_captacao_estrategica(captacao_ativa, captacao_unico, bairros_out):
     # "já tem anúncio ativo" vira um dado exibido (não um filtro de
     # exclusão), pra quem for a campo decidir com contexto, não pra
     # dashboard decidir por ele.
+    # Recorte do painel: só endereços com mediana >= CAPTACAO_MEDIANA_MINIMA (ver constante).
+    captacao_ativa = [c for c in captacao_ativa if c["preco_mediana"] >= CAPTACAO_MEDIANA_MINIMA]
+    captacao_unico = [c for c in captacao_unico if c["preco_mediana"] >= CAPTACAO_MEDIANA_MINIMA]
     by_bairro_ativa = {}
     for c in captacao_ativa:
         by_bairro_ativa.setdefault(c["bairro"], []).append(c)
@@ -2230,6 +2237,8 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
             "primary_year": year_full,
             "inprogress_year": year_curr,
             "limiar_escassez_real": limiar_escassez_real,
+            "captacao_mediana_minima": CAPTACAO_MEDIANA_MINIMA,
+            "enderecos_captacao_painel": sum(1 for c in captacao_ativa if c["preco_mediana"] >= CAPTACAO_MEDIANA_MINIMA),
             **liquidez_meta,
         },
         "periodo_12m": periodo_12m_meta,
