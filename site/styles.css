@@ -1,35 +1,40 @@
 :root {
-  /* Tema "Papel claro" (2026-10-10, escolhido pelo Paulo): fundo creme, cartões brancos, texto grafite, menu lateral bege.
-     Todas as telas leem estas variáveis; o que tinha cor fixa no código foi ajustado mais abaixo. */
+  /* Visual Topio (2026-10-11, pedido do Paulo): as cores, as fontes e o jeito do site topio.com.br — fundo quase branco, grafite,
+     azul da marca, cantos retos e linhas finas no lugar de sombras. Valores tirados do próprio CSS do site. */
   color-scheme: light;
-  --page: #f4f2ed;
-  --sidebar-bg: #ebe7de;
+  --brand: #009dd2;          /* azul da marca */
+  --brand-deep: #00739a;     /* azul escuro (texto/links: passa no contraste sobre branco) */
+  --ink: #1d2226;            /* grafite escuro: faixas escuras, botões */
+  --font-display: "Outfit", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Inter", "Inter Variable", "Helvetica Neue", Arial, sans-serif;
+  --page: #fafbfb;
+  --sidebar-bg: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f1eee7;
-  --text-primary: #27261f;
-  --text-secondary: #55524a;
-  --text-muted: #8a867b;
-  --gridline: #e6e2d8;
-  --baseline: #d5d0c3;
-  --border: rgba(45, 40, 28, 0.10);
-  --gold: #9a7a30;
-  --gold-soft: #8a6c28;
-  --gold-bg: rgba(154, 122, 48, 0.10);
-  --series-blue: #3f78c8;
+  --surface-2: #f1f4f5;
+  --text-primary: #1d2226;
+  --text-secondary: #4d555a;
+  --text-muted: #646c71;
+  --gridline: #e1e5e7;
+  --baseline: #cdd3d6;
+  --border: #e1e5e7;
+  --gold: #00739a;            /* (nome antigo) cor de destaque: agora o azul escuro da marca */
+  --gold-soft: #00739a;
+  --gold-bg: rgba(0, 157, 210, 0.10);
+  --series-blue: #009dd2;
   --series-orange: #c76d37;
-  --series-aqua: #1f987a;
-  --series-violet: #7a6cc8;
-  --status-good: #2e8b57;
-  --status-warning: #b88410;
-  --status-critical: #c2544c;
-  --status-neutral: #8a867b;
-  --status-good-bg: rgba(46, 139, 87, 0.10);
-  --status-warning-bg: rgba(184, 132, 16, 0.11);
-  --status-critical-bg: rgba(194, 84, 76, 0.10);
-  --status-neutral-bg: rgba(45, 40, 28, 0.06);
-  --on-gold: #ffffff;            /* texto sobre botão/selo dourado */
-  --shadow-card: 0 1px 3px rgba(45, 40, 28, 0.07);
-  --shadow-pop: 0 10px 30px rgba(45, 40, 28, 0.18);
+  --series-aqua: #1f9d55;
+  --series-violet: #6b63b5;
+  --status-good: #1f9d55;
+  --status-warning: #b45309;
+  --status-critical: #b91c1c;
+  --status-neutral: #646c71;
+  --status-good-bg: rgba(31, 157, 85, 0.10);
+  --status-warning-bg: rgba(245, 158, 11, 0.13);
+  --status-critical-bg: rgba(185, 28, 28, 0.08);
+  --status-neutral-bg: rgba(29, 34, 38, 0.06);
+  --on-gold: #ffffff;
+  --shadow-card: none;
+  --shadow-pop: 0 8px 24px rgba(29, 34, 38, 0.16);
 }
 
 * { box-sizing: border-box; }
@@ -37,16 +42,16 @@ html, body { margin: 0; padding: 0; }
 body {
   background: var(--page);
   color: var(--text-primary);
-  font-family: "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   line-height: 1.55;
 }
 
-h1, h2, h3 { font-family: "Playfair Display", Georgia, serif; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 500; }
 
 .brand-bar {
   position: fixed; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, #b59a55, var(--gold) 35%, var(--gold-soft) 65%, #b59a55); opacity: .9;
+  background: var(--brand); opacity: 1;
   z-index: 100;
 }
 
@@ -65,7 +70,7 @@ h1, h2, h3 { font-family: "Playfair Display", Georgia, serif; }
 .brand { display: flex; align-items: center; gap: 11px; margin-bottom: 30px; }
 .brand-mark { flex-shrink: 0; }
 .brand-text { min-width: 0; }
-.brand-name { font-family: "Playfair Display", serif; font-weight: 700; font-size: 15.5px; color: var(--text-primary); line-height: 1.25; }
+.brand-name { font-family: var(--font-display); font-weight: 700; font-size: 15.5px; color: var(--text-primary); line-height: 1.25; }
 .brand-role { font-size: 9px; letter-spacing: 0.07em; color: var(--gold); font-weight: 700; text-transform: uppercase; margin-top: 3px; }
 
 nav.tabs {
@@ -73,7 +78,7 @@ nav.tabs {
 }
 nav.tabs button {
   appearance: none; border: none; border-left: 3px solid transparent; background: transparent; cursor: pointer;
-  padding: 10px 12px; font-family: "Montserrat", sans-serif; font-size: 13.5px; font-weight: 550;
+  padding: 10px 12px; font-family: var(--font-body); font-size: 13.5px; font-weight: 550;
   color: var(--text-secondary); border-radius: 0 8px 8px 0; text-align: left;
 }
 nav.tabs button { border-radius: 10px; }
@@ -124,7 +129,7 @@ header.app-header .updated { color: var(--text-muted); font-size: 12px; }
 .fontes-status .fonte-item b { color: var(--text-secondary); font-weight: 650; }
 .fontes-status .fonte-stale { color: var(--status-warning); font-weight: 600; }
 .pdf-btn {
-  appearance: none; cursor: pointer; font-family: "Montserrat", sans-serif;
+  appearance: none; cursor: pointer; font-family: var(--font-body);
   font-size: 12.5px; font-weight: 600; color: var(--gold);
   background: var(--gold-bg); border: 1px solid var(--gold); border-radius: 7px;
   padding: 7px 14px; white-space: nowrap;
@@ -140,7 +145,7 @@ header.app-header .updated { color: var(--text-muted); font-size: 12px; }
    cabeçalho fixo). Some na impressão (ver @media print) — só o botão
    global "Baixar PDF" permanece como estava. */
 .page-pdf-btn {
-  appearance: none; cursor: pointer; font-family: "Montserrat", sans-serif;
+  appearance: none; cursor: pointer; font-family: var(--font-body);
   font-size: 11.5px; font-weight: 600; color: var(--gold-soft);
   background: transparent; border: 1px solid var(--border); border-radius: 7px;
   padding: 5px 12px; white-space: nowrap; margin-bottom: 14px; display: inline-block;
@@ -225,7 +230,7 @@ th.sortable.active .arrow { opacity: 1; }
   border: 1px dashed var(--baseline); border-radius: 12px; padding: 32px 20px;
   text-align: center; color: var(--text-secondary);
 }
-.placeholder-block .big { font-size: 15px; font-weight: 650; color: var(--text-primary); margin-bottom: 6px; font-family: "Montserrat", sans-serif; }
+.placeholder-block .big { font-size: 15px; font-weight: 650; color: var(--text-primary); margin-bottom: 6px; font-family: var(--font-body); }
 
 .legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-secondary); margin-top: 8px; flex-wrap: wrap; }
 .legend .item { display: flex; align-items: center; gap: 6px; }
@@ -335,7 +340,7 @@ a { color: var(--gold-soft); }
 .imovel-row { display: flex; gap: 14px; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); margin-bottom: 10px; }
 .imovel-row .medal {
   width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  font-family: "Playfair Display", serif; font-weight: 900; font-size: 14px; flex-shrink: 0;
+  font-family: var(--font-display); font-weight: 900; font-size: 14px; flex-shrink: 0;
   background: var(--surface); color: var(--text-secondary);
 }
 .imovel-row.r1 .medal { background: var(--gold); color: var(--on-gold); }
@@ -360,7 +365,7 @@ svg.map-svg { width: 100%; height: auto; display: block; }
 .map-bubble { cursor: pointer; stroke: rgba(45,40,28,0.35); stroke-width: 1px; }
 .map-bubble:hover { stroke: var(--gold); stroke-width: 2px; }
 .map-bubble.amostra-pequena { stroke: var(--status-warning); stroke-width: 1.5px; stroke-dasharray: 3 2; }
-.map-label { fill: var(--text-secondary); font-size: 9.5px; font-family: "Montserrat", sans-serif; pointer-events: none; }
+.map-label { fill: var(--text-secondary); font-size: 9.5px; font-family: var(--font-body); pointer-events: none; }
 .map-tooltip {
   position: absolute; pointer-events: none; background: var(--surface-2);
   border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
@@ -435,7 +440,7 @@ svg.map-svg { width: 100%; height: auto; display: block; }
     --page: #ffffff; --sidebar-bg: #ffffff; --surface: #ffffff; --surface-2: #f4f4f2;
     --text-primary: #16160f; --text-secondary: #3a3a34; --text-muted: #6b6a63;
     --gridline: #ddd; --baseline: #ccc; --border: #ccc;
-    --gold-bg: #f6efd9;
+    --gold-bg: #e6f4fa;
     --status-good-bg: #e6f6ea; --status-warning-bg: #fdf3d9; --status-critical-bg: #fbe6e4; --status-neutral-bg: #eee;
   }
   .sidebar, .pdf-btn, .rodape-pdf, .captacao-pdf-link, .captacao-toggle, #filtros-card, .page-pdf-btn { display: none !important; }
@@ -502,13 +507,13 @@ svg.map-svg { width: 100%; height: auto; display: block; }
 .credito-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
 .credito-item { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--surface-2); }
 .credito-item .label { font-size: 12px; color: var(--text-secondary); font-weight: 600; line-height: 1.3; min-height: 32px; }
-.credito-item .value { font-family: "Playfair Display", Georgia, serif; font-size: 26px; font-weight: 700; margin: 4px 0 6px; }
+.credito-item .value { font-family: var(--font-display); font-size: 26px; font-weight: 700; margin: 4px 0 6px; }
 
 /* -------------------------------------------------------------------- */
 /* Calculadora de preço (protótipo 2026-10-10) — montada por calculadora.js */
 /* -------------------------------------------------------------------- */
 .calc-passo { margin: 0 0 22px; }
-.calc-passo-titulo { font-family: "Playfair Display", Georgia, serif; font-size: 17px; font-weight: 700; margin: 0 0 10px; }
+.calc-passo-titulo { font-family: var(--font-display); font-size: 17px; font-weight: 700; margin: 0 0 10px; }
 .calc-rotulo { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
 .calc-ajuda { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
 .calc-campo { display: block; }
@@ -555,10 +560,10 @@ span.calc-chip { cursor: default; }
 .calc-botao-sec { background: transparent; color: var(--gold); border: 1px solid var(--gold); font-size: 13.5px; padding: 9px 18px; margin-top: 10px; }
 .calc-erro { margin: 8px 0 12px; padding: 10px 12px; border-radius: 8px; background: var(--status-critical-bg); color: var(--status-critical); font-size: 13.5px; }
 .calc-topo { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
-.calc-valor { font-family: "Playfair Display", Georgia, serif; font-size: clamp(32px, 6vw, 46px); font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.calc-valor { font-family: var(--font-display); font-size: clamp(32px, 6vw, 46px); font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .calc-barra { position: relative; height: 14px; border-radius: 7px; background: var(--surface-2); margin: 46px 0 8px; }
 .calc-barra.com-pedido { margin-bottom: 40px; }
-.calc-barra-faixa { position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, rgba(154,122,48,.30), rgba(154,122,48,.55) 50%, rgba(154,122,48,.30)); border-radius: 7px; }
+.calc-barra-faixa { position: absolute; top: 0; bottom: 0; background: rgba(0,157,210,.35); border-radius: 7px; }
 .calc-marca { position: absolute; top: -4px; width: 4px; height: 22px; transform: translateX(-50%); border-radius: 2px; background: var(--text-primary); }
 .calc-marca span { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: var(--text-primary); color: #fff; }
 .calc-marca-pedido { background: var(--gold); }
@@ -609,10 +614,10 @@ table.data-table tbody tr:hover { background: #f7f5f0; }
 /* ---- Calculadora: régua em 3 cores, legenda, escada de preços e veredito (pedido × mercado) ---- */
 .calc-anunciar { margin: 14px 0 6px; padding: 12px 14px; border-radius: 10px; background: var(--status-good-bg); font-size: 15px; }
 .calc-zona { position: absolute; top: 0; bottom: 0; }
-.calc-zona.abaixo { background: rgba(46, 139, 87, .22); border-radius: 7px 0 0 7px; }
-.calc-zona.verde { background: rgba(46, 139, 87, .55); }
-.calc-zona.amarelo { background: rgba(184, 132, 16, .55); }
-.calc-zona.vermelho { background: rgba(194, 84, 76, .55); border-radius: 0 7px 7px 0; }
+.calc-zona.abaixo { background: rgba(31, 157, 85, .22); border-radius: 7px 0 0 7px; }
+.calc-zona.verde { background: rgba(31, 157, 85, .60); }
+.calc-zona.amarelo { background: rgba(245, 158, 11, .60); }
+.calc-zona.vermelho { background: rgba(185, 28, 28, .55); border-radius: 0 7px 7px 0; }
 .calc-marca-pedido.dentro, .calc-marca-pedido.dentro span, .calc-marca-pedido.abaixo, .calc-marca-pedido.abaixo span { background: var(--status-good); }
 .calc-marca-pedido.alto, .calc-marca-pedido.alto span { background: var(--status-warning); }
 .calc-marca-pedido.fora, .calc-marca-pedido.fora span { background: var(--status-critical); }
@@ -656,7 +661,7 @@ table.data-table tbody tr:hover { background: #f7f5f0; }
 .calc-sim.good { border-left-color: var(--status-good); }
 .calc-sim.warning { border-left-color: var(--status-warning); }
 .calc-sim.critical { border-left-color: var(--status-critical); }
-.calc-sim-titulo { font-family: "Playfair Display", Georgia, serif; font-size: 19px; font-weight: 700; margin-bottom: 2px; }
+.calc-sim-titulo { font-family: var(--font-display); font-size: 19px; font-weight: 700; margin-bottom: 2px; }
 .calc-sim-linha { display: flex; align-items: center; gap: 10px; margin: 10px 0 6px; }
 .calc-sim-rs { font-size: 22px; font-weight: 700; color: var(--text-secondary); }
 .calc-sim-input { font-size: 24px; font-weight: 700; padding: 12px 14px; max-width: 360px; background: var(--surface); }
@@ -695,3 +700,87 @@ table.data-table tbody tr:hover { background: #f7f5f0; }
 .calc-chip.sugerida { border-color: var(--gold); color: var(--gold); background: var(--gold-bg); }
 .calc-chip-tag { margin-left: 8px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
 .calc-chip-util { border-style: dashed; }
+
+
+/* ==================================================================================================================== */
+/* Visual Topio — o jeito do topio.com.br: cantos retos, linhas finas, faixa escura no topo, botões grafite, azul da marca */
+/* ==================================================================================================================== */
+*, *::before, *::after { border-radius: 0 !important; }
+.medal, .calc-ponto, .legend .key, nav.tabs button .dot { border-radius: 50% !important; }
+body { font-size: 15px; }
+h1, h2, h3, .brand-name, .calc-valor, .calc-passo-titulo, .calc-sim-titulo, .credito-item .value, .imovel-row .medal { font-family: var(--font-display); font-weight: 500; }
+.calc-valor { font-weight: 500; }
+
+/* faixa fina no topo e menu lateral claro com a marca */
+.sidebar { border-right: 1px solid var(--border); }
+.brand { display: block; margin-bottom: 26px; }
+.brand-logo { display: block; width: 138px; height: auto; margin: 0 0 10px; }
+.brand-role { font-size: 11px; letter-spacing: .14em; color: var(--brand-deep); font-weight: 600; margin: 0; }
+nav.tabs button { font-size: 14px; font-weight: 500; color: var(--text-secondary); border-left: 3px solid transparent; padding: 10px 12px; }
+nav.tabs button:hover { background: var(--surface-2); color: var(--text-primary); }
+nav.tabs button.active { background: var(--surface-2); color: var(--text-primary); font-weight: 600; border-left-color: var(--brand); box-shadow: none; }
+.sidebar-foot, .sidebar-foot .handle-mini { color: var(--text-muted); }
+.sidebar-foot .handle-mini { color: var(--brand-deep); }
+
+/* cabeçalho como a faixa escura do site: título branco, linha pequena em azul, fontes em cinza claro (a faixa vai de ponta a ponta) */
+.main { overflow-x: clip; }   /* a faixa escura do cabeçalho vai de ponta a ponta da coluna do conteúdo, sem passar por cima do menu */
+.app { padding-top: 0; }
+.faixa-dados-novos:not([hidden]), .aviso-parado:not([hidden]) { margin-top: 16px; }   /* avisos (quando aparecem) ficam acima da faixa escura, com respiro */
+header.app-header { background: var(--ink); color: #fff; padding: 30px 28px; margin: 0 -28px 24px; box-shadow: 0 0 0 100vmax var(--ink); clip-path: inset(0 -100vmax); }
+header.app-header h1 { color: #fff; font-size: 34px; font-weight: 500; line-height: 1.15; letter-spacing: -0.01em; }
+header.app-header .handle { color: var(--brand); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; font-weight: 500; margin-top: 8px; }
+header.app-header .updated { color: rgba(255,255,255,.72); font-size: 12px; }
+header.app-header .fontes-status, header.app-header .fontes-status .fonte-item { color: rgba(255,255,255,.66); }
+header.app-header .fontes-status .fonte-item b { color: #fff; font-weight: 600; }
+header.app-header .fontes-status .fonte-stale { color: #fbbf24; }
+
+/* cartões e tabelas: linha fina, sem sombra */
+section.card { border: 1px solid var(--border); box-shadow: none; padding: 24px 28px; }
+section.card h2 { font-size: 21px; font-weight: 500; letter-spacing: 0; }
+table.data-table th { background: var(--surface-2); color: var(--text-secondary); text-transform: uppercase; letter-spacing: .06em; font-size: 11.5px; font-weight: 600; }
+table.data-table tbody tr:hover { background: var(--surface-2); }
+
+/* botões: grafite com letra branca (como "Aceitar todos" do site); os secundários só com linha */
+.calc-botao { background: var(--ink); color: #fff; font-weight: 500; }
+.calc-botao:hover { background: var(--brand-deep); filter: none; }
+.calc-botao-sec { background: transparent; color: var(--ink); border: 1px solid var(--ink); }
+.calc-botao-sec:hover { background: var(--ink); color: #fff; }
+.page-pdf-btn, .pdf-btn { color: var(--ink); border: 1px solid var(--baseline); font-weight: 500; }
+.page-pdf-btn:hover, .pdf-btn:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
+.faixa-dados-novos button { color: var(--ink); border-color: var(--ink); }
+.faixa-dados-novos button:hover { background: var(--ink); color: #fff; }
+a { color: var(--brand-deep); }
+.calc-link { color: var(--brand-deep); }
+
+/* detalhes da calculadora: tons do site */
+.calc-chip.ativo, .calc-chip.sugerida { border-color: var(--brand); color: var(--brand-deep); background: rgba(0,157,210,.08); }
+button.calc-chip:hover { border-color: var(--brand); color: var(--brand-deep); }
+.calc-input:focus, input:focus, select:focus { outline: 2px solid var(--brand); outline-offset: 1px; border-color: var(--brand); }
+.calc-mais-resumo::before { color: var(--brand); }
+.calc-sim { border-left-color: var(--baseline); }
+.calc-slider { -webkit-appearance: none; appearance: none; height: 24px; background: transparent; cursor: pointer; }
+.calc-slider::-webkit-slider-runnable-track { height: 4px; background: var(--baseline); }
+.calc-slider::-moz-range-track { height: 4px; background: var(--baseline); }
+.calc-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; background: var(--brand); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--brand-deep); }
+.calc-slider::-moz-range-thumb { width: 12px; height: 12px; background: var(--brand); border: 2px solid #fff; border-radius: 0; box-shadow: 0 0 0 1px var(--brand-deep); }
+.calc-marca-est, .calc-marca-est span { background: var(--ink); }
+.calc-nota-area { color: var(--brand-deep); }
+.calc-nota-area.pendente { color: var(--status-warning); }
+.calc-anunciar { background: rgba(0,157,210,.08); border-left: 3px solid var(--brand); }
+.rank-row .rank-bar-fill { background: var(--brand); }
+
+@media (max-width: 760px) {
+  .app { padding-top: 0; }
+  header.app-header { padding: 22px 12px; margin: 0 -12px 16px; }
+  header.app-header h1 { font-size: 26px; }
+  .brand { display: flex; align-items: center; margin: 0 4px 0 0; }
+  .brand-logo { width: 46px; margin: 0; }
+  .brand-text { display: none; }
+}
+@media print {
+  .main { overflow: visible !important; }   /* o corte lateral da faixa escura só vale na tela: na impressão deixava o PDF completo bem menos compacto (434 páginas em vez de 330) */
+  header.app-header { background: none; color: #000; padding: 0; margin: 0 0 12px; box-shadow: none; clip-path: none; }
+  header.app-header h1 { color: #000; font-size: 24px; }
+  header.app-header .handle, header.app-header .updated, header.app-header .fontes-status, header.app-header .fontes-status .fonte-item { color: #333; }
+  header.app-header .fontes-status .fonte-item b { color: #000; }
+}

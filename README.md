@@ -2631,3 +2631,22 @@ parecia que o clique não fazia nada — agora abre logo abaixo do link, com o c
 digitou (a metragem automática aparece na linha acima); (3) apareciam as palavras "null" no formulário (um `append` nativo recebia null) —
 agora tudo passa por `anexar()`, que ignora vazios, e `verificar_calculadora.py` vigia null/undefined/NaN também no FORMULÁRIO (não só no
 resultado) em vários pontos; teste de que o campo do carnê abre visível, na tela e com foco; teste de que o endereço aparece uma só vez.
+
+## Visual Topio (2026-10-11, pedido do Paulo: "mais parecido com o site topio.com.br")
+O visual da dashboard passa a seguir o do site topio.com.br. Valores lidos do CSS publicado pelo site: azul da marca `#009dd2`
+(`--brand`), azul escuro `#00739a` (`--brand-deep`, usado em texto e links porque passa no contraste sobre branco), grafite `#1d2226`
+(`--ink`: faixas escuras e botões), `#4d555a` (texto secundário), `#646c71` (apagado), linha `#e1e5e7`, névoa `#f1f4f5` e papel `#fafbfb`
+(fundo); verde `#1f9d55` (o do botão de WhatsApp do site), âmbar e vermelho sóbrios para os avisos. Fontes: **Outfit** (títulos, peso 500) e
+**Inter** (texto), as mesmas do site (Google Fonts, no lugar de Playfair Display e Montserrat). Jeito do site: **cantos retos** (regra
+global `border-radius: 0`; só ficam redondos as medalhas e os pontinhos), **linhas finas no lugar de sombras**, botões grafite com letra
+branca (secundários só com linha), menu claro com o item ativo marcado por uma barra azul, **cabeçalho em faixa grafite** como a do site
+(título branco, linha de apresentação em azul com letras espaçadas, fontes de dados em cinza claro) e o **logo oficial da Topio** no menu
+(`site/logo-topio-imoveis.png`, copiado de `crm-topio/public/marca/`; também é o ícone da aba e entra na pasta da Cloudflare e nos testes
+de proteção). Escala do Mapa em azul (claro = pouco, escuro = muito); régua da calculadora com verde/âmbar/vermelho do site.
+Só tela: dados, números, textos e cálculo não mudam. Cuidados: a faixa escura do cabeçalho vai de ponta a ponta da coluna do conteúdo
+(`.main { overflow-x: clip }`), mas **na impressão** isso é desligado (`.main { overflow: visible }`) porque o corte lateral deixava o PDF
+completo bem menos compacto (434 páginas em vez de 330 — achado ao comparar com o visual anterior); na impressão o cabeçalho volta a ser
+claro (sem gastar tinta) e o `--gold-bg` do PDF é azul claro. As faixas de aviso ("Há dados novos", "Dados sem atualização") continuam acima
+da faixa escura. Conferido: todos os painéis no computador e no celular, impressão, PDF completo (330 páginas, mesmo texto do anterior),
+`verificar_interface.py`, `verificar_calculadora.py`, `testar_aviso_dado_novo.py` (que passou a copiar o logo), `test_rotina.py` e os testes
+da Cloudflare. Para voltar ao visual anterior: reverter o commit deste ramo.

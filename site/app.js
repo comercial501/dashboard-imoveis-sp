@@ -1320,7 +1320,7 @@ function renderPerfilContent(name) {
 // ---------------------------------------------------------------------------
 // Mapa de Oportunidade (Painel 6)
 // ---------------------------------------------------------------------------
-const MAP_COLOR_RAMP = ["#efe7d0", "#e2d3a4", "#d0b76c", "#b99a44", "#9a7a30", "#6b5116"]; // claro (pouco) -> escuro (muito), tema papel claro
+const MAP_COLOR_RAMP = ["#e3f4fa", "#b6e2f2", "#6fc7e6", "#2db0db", "#009dd2", "#00577a"]; // claro (pouco) -> escuro (muito): azul da marca Topio
 
 function renderMapa() {
   const box = document.getElementById("mapa-content");
