@@ -315,10 +315,13 @@
     }).join(" ");
   }
 
+  // Anexa filhos num elemento IGNORANDO null/false (o append nativo do navegador escreveria a palavra "null" na tela).
+  const anexar = (pai, ...filhos) => { for (const f of filhos.flat()) if (f != null && f !== false) pai.append(f); return pai; };
+
   const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
   const numeroDoEndereco = (addrKey) => String((addrKey.split("|")[1] || "")).replace(/^0+(?=\d)/, "");
 
-  let DADOS = null, IDX = null, BUSCA = null, FORM = null, LINHA = null, AJUSTE = null; // FORM: controle do formulário (recolher/expandir)
+  let DADOS = null, IDX = null, BUSCA = null, FORM = null, LINHA = null, AJUSTE = null, CHIPS = null; // FORM: controle do formulário (recolher/expandir)
   const ESTADO = { local: null, apto: "", andar: "", andarAuto: false, area: "", areaAuto: false, areaNota: "", areaManual: false, areaOrigem: "", plantaEscolhida: "", mostrarPlantas: false, ajustarAberto: false, areaUtil: "", quartos: "", banheiros: "", suites: "", vagas: "", condominio: "", iptu: "", pedido: "" };
 
   function montarBusca() {
@@ -351,6 +354,8 @@
       const ruas = BUSCA.ruas.filter((r) => casa(r.texto)).slice(0, 4);
       for (const r of ruas) {
         if (out.some((o) => o.tipo === "predio" && o.rua === r.i)) continue;
+        // mesmo nome e número de um prédio que já está na lista (ex.: o mesmo endereço aparecendo em outro bairro): é o mesmo endereço, não repete
+        if (out.some((o) => o.rotulo === `${bonito(r.nome)}, ${numero}`)) continue;
         out.push({ tipo: "rua", predio: null, rua: r.i, bairro: r.bairro, rotulo: `${bonito(r.nome)}, ${numero}`, bairroNome: DADOS.bairros[r.bairro], semVendas: true });
       }
     }
@@ -435,20 +440,31 @@
     ESTADO.areaOrigem = m && m.origem || "";
     if (!ESTADO.areaManual) {
       ESTADO.area = m && m.area != null ? String(m.area) : "";
-      const aj = document.getElementById("calc-area"); if (aj && document.activeElement !== aj) aj.value = ESTADO.area && m.origem !== "util_estimada" ? ESTADO.area : "";
+      const aj = document.getElementById("calc-area"); if (aj && document.activeElement !== aj) aj.value = "";   // o campo do carnê só tem o que a PESSOA digitou; a metragem automática aparece na linha acima
     }
     LINHA.replaceChildren();
+    CHIPS.replaceChildren();
     if (!m) return;
     const s = ESTADO.local;
     const ms = s && s.predio != null ? metragensDoPredio(s.predio, 6) : [];
     const mostrar = ESTADO.mostrarPlantas || m.precisaEscolher;
-    LINHA.append(h("div", { class: "calc-nota-area" + (m.area == null ? " pendente" : "") }, m.texto),
+    anexar(LINHA, h("div", { class: "calc-nota-area" + (m.area == null ? " pendente" : "") }, m.texto),
       h("div", { class: "calc-area-links" },
-        h("button", { type: "button", class: "calc-link", onclick: () => { ESTADO.ajustarAberto = !ESTADO.ajustarAberto; AJUSTE.hidden = !ESTADO.ajustarAberto; } }, "Tenho o carnê do IPTU: ajustar a área"),
-        ms.length > 1 && !m.precisaEscolher ? h("button", { type: "button", class: "calc-link", onclick: () => { ESTADO.mostrarPlantas = !ESTADO.mostrarPlantas; atualizarMetragem(); } }, "Trocar a planta") : null),
-      mostrar && ms.length ? h("div", { class: "calc-metragens" }, h("span", { class: "calc-ajuda" }, "Plantas já vendidas neste prédio (metragem do cadastro) — toque na do seu apartamento: "),
+        h("button", { type: "button", class: "calc-link", id: "calc-abrir-carne", onclick: () => {
+          ESTADO.ajustarAberto = !ESTADO.ajustarAberto;
+          AJUSTE.hidden = !ESTADO.ajustarAberto;
+          if (ESTADO.ajustarAberto) {   // abre logo abaixo do link, com o cursor no campo e visível na tela
+            const campo = document.getElementById("calc-area");
+            campo.focus({ preventScroll: true });
+            AJUSTE.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        } }, ESTADO.ajustarAberto ? "Fechar o campo do carnê" : "Tenho o carnê do IPTU: ajustar a área"),
+        ms.length > 1 && !m.precisaEscolher ? h("button", { type: "button", class: "calc-link", onclick: () => { ESTADO.mostrarPlantas = !ESTADO.mostrarPlantas; atualizarMetragem(); } }, "Trocar a planta") : null));
+    if (mostrar && ms.length) {
+      anexar(CHIPS, h("div", { class: "calc-metragens" }, h("span", { class: "calc-ajuda" }, "Plantas já vendidas neste prédio (metragem do cadastro) — toque na do seu apartamento: "),
         chipsMetragem(ms, false, m.sugerida),
-        h("button", { type: "button", class: "calc-chip calc-chip-util", onclick: () => { ESTADO.plantaEscolhida = "util"; ESTADO.areaManual = false; ESTADO.mostrarPlantas = false; atualizarMetragem(); } }, "Não sei — estimar pela área útil")) : null);
+        h("button", { type: "button", class: "calc-chip calc-chip-util", onclick: () => { ESTADO.plantaEscolhida = "util"; ESTADO.areaManual = false; ESTADO.mostrarPlantas = false; atualizarMetragem(); } }, "Não sei — estimar pela área útil")));
+    }
     AJUSTE.hidden = !ESTADO.ajustarAberto;
   }
 
@@ -551,6 +567,7 @@
 
     // 2. o imóvel: o que o corretor sabe (número do apartamento, andar, ÁREA ÚTIL). A área do cadastro (a do ITBI/IPTU) vem sozinha.
     LINHA = h("div", { class: "calc-area-linha", id: "calc-area-linha" });
+    CHIPS = h("div", { class: "calc-chips-area", id: "calc-chips-area" });
     const campoAjuste = campoNumero("calc-area", "Área construída do carnê do IPTU (m²) — opcional", "Se você tem o carnê, digite a área construída dele: ela vale mais que qualquer cálculo automático", { chave: "area", min: 10, max: 2000, step: "any", decimal: true, placeholder: "Ex.: 140" });
     AJUSTE = h("div", { class: "calc-ajuste", id: "calc-area-ajuste", hidden: true }, campoAjuste);
     form.append(h("div", { class: "calc-passo" },
@@ -560,7 +577,7 @@
         campoNumero("calc-apto", "Número do apartamento — recomendado", "Ex.: 152. Com ele eu descubro o andar e a metragem do cadastro sozinha", { chave: "apto", min: 0, max: 9999, placeholder: "Ex.: 152" }),
         campoNumero("calc-andar", "Andar", "Só o número (preenchido sozinho se você informar o apartamento)", { chave: "andar", min: 0, max: 60, placeholder: "Ex.: 15" }),
         campoNumero("calc-area-util", "Área útil (m²)", "A que o comprador usa: a do anúncio ou da planta", { chave: "areaUtil", min: 10, max: 1500, step: "any", decimal: true, placeholder: "Ex.: 85" })),
-      LINHA, AJUSTE));
+      LINHA, AJUSTE, CHIPS));
 
     // 3. preço pedido (sempre visível) + detalhes opcionais (recolhidos: não mudam o preço, só os anúncios parecidos e o resumo)
     const detalhes = h("details", { class: "calc-mais", id: "calc-mais" },
@@ -764,7 +781,7 @@
     inputSim.addEventListener("input", () => { cancelAnimationFrame(quadro); quadro = requestAnimationFrame(() => definir(inputSim.value === "" ? null : Number(inputSim.value), "input")); });
     slider.addEventListener("input", () => { inputSim.value = slider.value; definir(Number(slider.value), "slider"); });
     const botoes = [[`Preço de mercado (até ${brl(r.teto_verde)})`, r.teto_verde], [`Estimativa (${brl(r.estimativa)})`, r.estimativa], [`Limite amarelo (${brl(r.teto_amarelo)})`, r.teto_amarelo]];
-    simulador.append(
+    anexar(simulador,
       h("div", { class: "calc-sim-titulo" }, "E se o proprietário pedir…?"),
       h("div", { class: "calc-ajuda" }, "Digite um preço (ou arraste) e veja na hora a cor, a frase e a régua. A estimativa não muda."),
       h("div", { class: "calc-sim-linha" }, h("span", { class: "calc-sim-rs" }, "R$"), inputSim),
@@ -773,7 +790,7 @@
         h("button", { type: "button", class: "calc-link", onclick: () => definir(null, "botao") }, "Limpar")));
 
     const card = h("section", { class: "card calc-resultado-card" });
-    card.append(
+    anexar(card,
       h("div", { class: "calc-topo" },
         h("div", {}, h("div", { class: "calc-rotulo" }, "O apartamento vale cerca de"), h("div", { class: "calc-valor" }, brl(r.estimativa)),
           h("div", { class: "calc-ajuda" }, `R$ ${num(r.m2)}/m² da área construída` + (ent.area_util ? ` · R$ ${num(r.estimativa / ent.area_util)}/m² da área útil` : ""))),

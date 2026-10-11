@@ -169,11 +169,18 @@ def main():
         bairro = dados["bairros"][dados["predios"][pi][2]]
         metragem = max({round(dados["vendas"][i][3]) for i in idx["predio"][pi]}, key=lambda a: sum(1 for i in idx["predio"][pi] if round(dados["vendas"][i][3]) == a))
         tela = {"predio_testado": f"{nome} ({bairro})", "metragem": metragem}
+        lixo = []   # palavras que nunca podem aparecer na tela ("null", "undefined", "NaN"...): já aconteceu um "null" solto, no resultado e no formulário
+
+        def vigiar(nome_):
+            for sel in ("#calc-corpo-form", "#calc-resultado"):
+                if pg.is_visible(sel):
+                    lixo.append((f"{nome_}:{sel}", LIXO.findall(pg.inner_text(sel))))
         pg.fill("#calc-endereco", nome.replace(",", ""))
         pg.wait_for_selector(".calc-sugestao", timeout=5000)
         tela["sugestoes"] = pg.evaluate("()=>[...document.querySelectorAll('.calc-sugestao')].map(l=>l.innerText.replace(/\\n/g,' | '))")
         pg.click(".calc-sugestao >> nth=0")
         tela["local_escolhido"] = pg.inner_text(".calc-local-card").replace("\n", " | ")
+        vigiar("endereco_escolhido")
         # com o endereço escolhido, o plano B ("só pelo bairro") não pode aparecer (parecia "não achei" com o endereço achado)
         tela["plano_b_escondido_com_endereco"] = (not pg.is_visible("#calc-so-bairro")) and (not pg.is_visible(".calc-plano-b"))
         tela["chips_metragem"] = pg.evaluate("()=>[...document.querySelectorAll('.calc-metragens .calc-chip')].map(b=>b.textContent)")
@@ -191,7 +198,7 @@ def main():
         pg.click("#calc-calcular")
         tela["erro_sem_area"] = pg.inner_text("#calc-erro") if pg.is_visible("#calc-erro") else None
         pg.click(".calc-metragens .calc-chip >> nth=0")
-        area_chip = float(pg.input_value("#calc-area"))
+        area_chip = float(pg.evaluate("()=>window.CALC.estado.area"))
         pg.fill("#calc-andar", "15")
         pg.fill("#calc-area-util", str(round(area_chip * 0.8)))
         abrir_detalhes(pg)
@@ -213,16 +220,15 @@ def main():
             "simulador_visivel_sem_rolar": pg.evaluate("()=>document.getElementById('calc-sim').getBoundingClientRect().top < innerHeight"),
             "scroll_y": pg.evaluate("()=>Math.round(scrollY)")}
         # Editar: reabre o formulário com TUDO preenchido e o resultado continua lá
-        area_antes = pg.input_value("#calc-area")
+        area_antes = pg.evaluate("()=>window.CALC.estado.area")
         pg.click("#calc-editar")
         pg.wait_for_selector("#calc-corpo-form", state="visible")
         tela["resultado_primeiro"]["editar"] = {"form_visivel": pg.is_visible("#calc-corpo-form"), "barra_some": not pg.is_visible("#calc-barra-resumo"),
-                                                "area_preservada": pg.input_value("#calc-area") == area_antes, "andar_preservado": pg.input_value("#calc-andar") == "15",
+                                                "area_preservada": pg.evaluate("()=>window.CALC.estado.area") == area_antes, "andar_preservado": pg.input_value("#calc-andar") == "15",
                                                 "detalhes_preservados": pg.input_value("#calc-quartos") == "3", "resultado_continua": pg.is_visible(".calc-valor")}
         pg.click("#calc-calcular")      # recalcula e recolhe de novo
         pg.wait_for_selector("#calc-barra-resumo", state="visible")
         tela["resultado_primeiro"]["recolhe_de_novo"] = not pg.is_visible("#calc-corpo-form")
-        lixo = []   # palavras que nunca podem aparecer na tela ("null", "undefined", "NaN"...): já aconteceu um "null" solto
         lixo.append(("resultado_1", LIXO.findall(pg.inner_text("#calc-resultado"))))
         tela["valor_na_tela"] = pg.inner_text(".calc-valor")
         tela["valor_python"] = esp["estimativa"]
@@ -282,8 +288,9 @@ def main():
         pg.wait_for_selector(".calc-sugestao")
         pg.click(".calc-sugestao >> nth=0")
         pg.fill("#calc-apto", str(venda[7]))
+        vigiar("apto_resolvido")
         fluxos["apto"] = {"predio": nome_b, "numero": venda[7], "andar_esperado": venda[4], "andar_tela": pg.input_value("#calc-andar"),
-                          "area_esperada": area_esperada, "area_tela": pg.input_value("#calc-area"), "nota": pg.inner_text("#calc-area-linha").replace("\n", " | ")[:200]}
+                          "area_esperada": area_esperada, "area_tela": pg.evaluate("()=>window.CALC.estado.area"), "nota": pg.inner_text("#calc-area-linha").replace("\n", " | ")[:200]}
         pg.click("#calc-calcular")
         pg.wait_for_selector(".calc-valor", timeout=5000)
         fluxos["apto"]["nivel_predio_sem_aviso"] = not pg.is_visible(".calc-aviso-area")
@@ -308,6 +315,7 @@ def main():
         pg.fill("#calc-area-util", "90")
         pg.click("#calc-calcular")
         fluxos["erro_so_util"] = pg.inner_text("#calc-erro")[:200]
+        vigiar("pede_planta")
         # (d2) "Não sei — estimar pela área útil": calcula, com o aviso da área estimada
         pg.click(".calc-chip-util")
         pg.click("#calc-calcular")
@@ -343,6 +351,7 @@ def main():
         pg.fill("#calc-endereco", dados["predios"][pi_unico][1].replace(",", ""))
         pg.wait_for_selector(".calc-sugestao", timeout=5000)
         pg.click(".calc-sugestao >> nth=0")
+        vigiar("planta_unica_antes")
         fluxos["planta_unica"] = {"predio": dados["predios"][pi_unico][1], "linha": pg.inner_text("#calc-area-linha").replace("\n", " | ")[:200]}
         pg.click("#calc-calcular")
         pg.wait_for_selector(".calc-valor", timeout=5000)
@@ -350,9 +359,21 @@ def main():
         fluxos["planta_unica"]["sem_aviso_de_estimativa"] = not pg.is_visible(".calc-poucas")
         # (g) carnê do IPTU digitado vale sobre tudo
         editar(pg)
-        area_carne(pg, 140)
+        pg.click("#calc-abrir-carne")                  # o campo do carnê tem que abrir À VISTA (antes abria fora da tela e parecia que o clique não fazia nada)
+        pg.wait_for_timeout(900)                       # rolagem suave
+        fluxos["carne_abre"] = pg.evaluate("""()=>{const a=document.getElementById('calc-area'); const r=a.getBoundingClientRect();
+          return {visivel: r.height>0, no_viewport: r.top>=0 && r.bottom<=innerHeight, foco: document.activeElement===a}}""")
+        pg.fill("#calc-area", "140")
         fluxos["carne"] = pg.inner_text("#calc-area-linha").replace("\n", " | ")[:200]
+        vigiar("carne")
         area_carne(pg, "")
+        # o mesmo endereço não aparece duas vezes na lista (prédio com vendas + "rua sem vendas" do mesmo nome e número em outro bairro)
+        pg.click(".calc-local-card .calc-link")
+        pg.fill("#calc-endereco", "Rua Conde de Itu, 352")
+        pg.wait_for_selector(".calc-sugestao", timeout=5000)
+        fluxos["sugestoes_conde_352"] = pg.evaluate("()=>[...document.querySelectorAll('.calc-sugestao')].map(l=>l.innerText.replace(/\\n/g,' | '))")
+        pg.click(".calc-sugestao >> nth=0")            # segue o teste com esse endereço escolhido (apto 52 resolve a planta)
+        pg.fill("#calc-apto", "52")
         tela["fluxos"] = fluxos
         # paridade andar/final Python x navegador
         casos_af = [(n, c) for n in (7, 9, 10, 11, 25, 62, 99, 101, 152, 153, 201, 202, 520, 801, 999, 1001, 1704, 2203, 4101, 9999) for c in ("c", "d")]
@@ -447,7 +468,8 @@ def main():
           and "ESTIMADA" in t["fluxos"]["so_bairro_linha"] and "área útil" in t["fluxos"]["so_bairro_sem_util"]
           and "estimada pela área útil" in t["fluxos"]["so_bairro"]["aviso"]
           and "planta só" in t["fluxos"]["planta_unica"]["linha"] and t["fluxos"]["planta_unica"]["sem_aviso_de_estimativa"]
-          and "carnê" in t["fluxos"]["carne"]
+          and "carnê" in t["fluxos"]["carne"] and all(t["fluxos"]["carne_abre"].values())
+          and len(t["fluxos"]["sugestoes_conde_352"]) == 1 and "sem vendas" not in t["fluxos"]["sugestoes_conde_352"][0]
           and t["detalhes"] == {"fechado_no_inicio": True, "pedido_visivel": True, "abre_ao_clicar": True, "fecha_ao_clicar": True}
           and t["resultado_primeiro"]["formulario_recolhido"] and t["resultado_primeiro"]["barra_visivel"]
           and 0 <= t["resultado_primeiro"]["valor_no_topo_y"] < 700 and t["resultado_primeiro"]["simulador_visivel_sem_rolar"]

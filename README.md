@@ -2625,3 +2625,9 @@ mediana 1,2–2,2) e `precisao_util` com 100+ testes em rua e bairro e erro MAIO
 aparece quando a área do cadastro foi digitada ou veio da útil e não bate com nenhuma venda do prédio. Testes novos em
 `test_calculadora.py` (origem, tabela própria, calibração com ruído, medição da relação) e `verificar_calculadora.py` (paridade com casos de
 área estimada, prédio que pede a planta, número do apartamento, planta única, "Não sei", rua/bairro só pela útil, carnê, celular).
+**Correções logo após o primeiro teste do Paulo (11/10)**: (1) a lista de endereços não repete o mesmo endereço (prédio com vendas + "rua sem
+vendas" de mesmo nome e número em outro bairro; fica só o prédio); (2) o campo do carnê do IPTU abria FORA da tela (a 837 px numa tela de 800 px) e
+parecia que o clique não fazia nada — agora abre logo abaixo do link, com o cursor nele e rolando até ficar à vista, e só tem o que a pessoa
+digitou (a metragem automática aparece na linha acima); (3) apareciam as palavras "null" no formulário (um `append` nativo recebia null) —
+agora tudo passa por `anexar()`, que ignora vazios, e `verificar_calculadora.py` vigia null/undefined/NaN também no FORMULÁRIO (não só no
+resultado) em vários pontos; teste de que o campo do carnê abre visível, na tela e com foco; teste de que o endereço aparece uma só vez.
