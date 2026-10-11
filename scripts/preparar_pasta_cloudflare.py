@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PUBLICOS = ["index.html", "app.js", "engine.js", "styles.css", "data.json", "raw.json", "versao.json", "calculadora.js", "calculadora.json", "logo-topio-imoveis.png"]
+PUBLICOS = ["index.html", "app.js", "engine.js", "styles.css", "data.json", "raw.json", "versao.json", "calculadora.js", "calculadora.json", "logo-topio-t.png", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "manifest.webmanifest"]
 LIMITE_PAGES = 25 * 1024 * 1024
 AVISO_PAGES = 20 * 1024 * 1024  # avisa antes de chegar no limite
 

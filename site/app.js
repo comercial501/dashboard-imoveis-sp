@@ -552,6 +552,7 @@ async function main() {
   });
 
   setupTabs();
+  montarResumos();
   const filtrosUI = setupFiltros();
   const salvo = lerEstadoSalvo();
   if (salvo) { // voltou do "Atualizar agora": devolve filtros e alternadores antes de desenhar
@@ -575,20 +576,62 @@ async function main() {
 
 const PANELS = [
   { id: "visao-geral", label: "Visão Geral", grupo: "Panorama do mercado" },
-  { id: "ranking", label: "Ranking de Oportunidade", grupo: "Onde captar" },
-  { id: "prontidao", label: "Prontidão para Campanha", grupo: "Onde captar" },
-  { id: "estoque-demanda", label: "Estoque × Demanda", grupo: "Panorama do mercado" },
   { id: "perfil", label: "Perfil por Bairro", grupo: "Panorama do mercado" },
+  { id: "preco-m2", label: "Valor pago por bairro", grupo: "Panorama do mercado" },
   { id: "mapa", label: "Mapa", grupo: "Panorama do mercado" },
-  { id: "captacao", label: "Captação Ativa", grupo: "Onde captar" },
-  { id: "prioritarios", label: "Imóveis Prioritários", grupo: "Onde captar" },
-  { id: "valor-oportunidade", label: "Valor de Oportunidade", grupo: "Onde captar" },
-  { id: "preco-m2", label: "Valor pago por bairro", grupo: "Preços" },
-  { id: "calculadora", label: "Calculadora de preço", grupo: "Preços" },
   { id: "carteira-77", label: "Carteira 77", grupo: "Panorama do mercado" },
+  { id: "estoque-demanda", label: "Estoque × Demanda", grupo: "Onde captar" },
+  { id: "captacao", label: "Captação Ativa", grupo: "Onde captar" },
+  { id: "ranking", label: "Ranking de Oportunidade", grupo: "Onde captar" },
+  { id: "prontidao", label: "Prontidão para Campanha", grupo: "Campanhas Topio" },
+  { id: "prioritarios", label: "Imóveis Prioritários", grupo: "Campanhas Topio" },
+  { id: "valor-oportunidade", label: "Valor de Oportunidade", grupo: "Campanhas Topio" },
+  { id: "calculadora", label: "Calculadora de preço", grupo: "Calculadora Topio" },
 ];
 // Ordem das caixinhas do menu lateral (assuntos parecidos ficam juntos, cada um com um nome de tema).
-const GRUPOS_MENU = ["Panorama do mercado", "Onde captar", "Preços"];
+const GRUPOS_MENU = ["Panorama do mercado", "Onde captar", "Campanhas Topio", "Calculadora Topio"];
+
+// Resumo de uma linha no começo de cada seção; a explicação completa (com todas as premissas) abre em "Mais".
+const RESUMOS_SECOES = {
+  "Filtros": "Escolha bairros e/ou uma faixa de preço: todas as telas se ajustam ao que você escolher.",
+  "Onde anunciar agora": "Os 10 bairros com a melhor nota no Ranking de Oportunidade — por onde vale começar a anunciar.",
+  "Contexto de crédito": "Juros e inflação do Banco Central, só como pano de fundo para quem financia um imóvel.",
+  "Resumo da carteira": "Os números principais dos bairros que estão no filtro.",
+  "Alertas": "Casos de casa em que o preço pedido por m² está bem diferente do pago (mais de 20 pontos).",
+  "Ranking de Oportunidade": "Nota de 0 a 100 para os 77 bairros: metade pelo volume de revendas, metade pela tendência de revendas.",
+  "Prontidão para Campanha por Bairro": "Nota de cada bairro para fazer campanha agora, juntando 5 sinais (revendas, estoque, captação, imóveis prioritários e achados de valor).",
+  "Estoque da rede × Demanda": "Quantos anúncios a rede nonStop tem na faixa de preço que mais vende, frente às revendas dos últimos 12 meses.",
+  "Perfil por Bairro": "Escolha um bairro e veja a faixa de preço que mais vendeu, o estoque da rede e o preço por m² pago × pedido.",
+  "Mapa de Oportunidade": "Cada bolha é um bairro: o tamanho mostra o volume de vendas e o tom mais escuro, a nota maior no Ranking.",
+  "Captação Ativa Estratégica": "Lista semanal de endereços com revendas repetidas e preço mediano de R$ 800 mil ou mais, para prospectar.",
+  "Imóveis Prioritários para Campanha": "Imóveis anunciados com uma nota de 0 a 100 para entrar em campanha.",
+  "Valor de Oportunidade": "Imóveis anunciados 20% ou mais abaixo do que se pagou em imóveis parecidos.",
+  "Concentração por bairro": "Em quais bairros aparecem mais imóveis anunciados bem abaixo do preço pago (os 15 primeiros).",
+  "Valor pago por bairro": "Quanto realmente se pagou (mediana e faixa) em revendas de apartamento, por bairro e metragem, nos últimos 12 meses.",
+  "Carteira 77": "Os 77 bairros que o painel acompanha, com revendas, lançamentos, giro e forma de pagamento.",
+};
+function montarResumos() {
+  document.querySelectorAll("section.card").forEach((card) => {
+    const h2 = card.querySelector("h2");
+    const resumo = h2 && RESUMOS_SECOES[h2.textContent.trim()];
+    if (!resumo) return;
+    const explicacao = card.querySelector(":scope > .card-sub, :scope .filtros-head .card-sub");
+    const linha = el("div", { class: "card-resumo" }, el("span", { class: "card-resumo-texto" }, resumo));
+    if (explicacao) {
+      explicacao.classList.add("recolhido");
+      const botao = el("button", { type: "button", class: "mais-btn", "aria-expanded": "false" }, "Mais");
+      botao.addEventListener("click", () => {
+        const aberto = explicacao.classList.toggle("recolhido") === false;
+        botao.setAttribute("aria-expanded", String(aberto));
+        botao.textContent = aberto ? "Menos" : "Mais";
+      });
+      linha.appendChild(botao);
+      explicacao.before(linha);
+    } else {
+      h2.after(linha);
+    }
+  });
+}
 
 function setupTabs() {
   const nav = document.getElementById("tabs");

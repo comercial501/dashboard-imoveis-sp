@@ -93,7 +93,7 @@ def atualizado_em(pg):
 
 def main():
     tmp = Path(tempfile.mkdtemp())
-    for f in ("index.html", "app.js", "engine.js", "styles.css", "logo-topio-imoveis.png"):
+    for f in ("index.html", "app.js", "engine.js", "styles.css", "logo-topio-t.png", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "manifest.webmanifest"):
         shutil.copy2(ROOT / "site" / f, tmp / f)
     base = json.loads((ROOT / "site" / "data.json").read_text(encoding="utf-8"))
     shutil.copy2(ROOT / "site" / "raw.json", tmp / "raw.json")  # só é pedido quando alguém usa um filtro

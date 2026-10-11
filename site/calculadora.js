@@ -903,11 +903,22 @@
     renderResultado(ent, estimar(DADOS, IDX, ent));
   }
 
+  // Resumo de uma linha + "Mais" com a explicação completa (mesmo jeito das outras seções do painel).
+  function calcResumo(explicacao) {
+    const botao = h("button", { type: "button", class: "mais-btn", "aria-expanded": "false" }, "Mais");
+    botao.addEventListener("click", () => {
+      const aberto = explicacao.classList.toggle("recolhido") === false;
+      botao.setAttribute("aria-expanded", String(aberto));
+      botao.textContent = aberto ? "Menos" : "Mais";
+    });
+    return h("div", {}, h("div", { class: "card-resumo" }, h("span", { class: "card-resumo-texto" }, "Estima por quanto vende um apartamento, com base no que já foi pago de verdade no mesmo prédio, na rua ou no bairro."), botao), explicacao);
+  }
+
   function montar() {
     root.replaceChildren();
     const form = renderFormulario();
     const corpo = h("div", { id: "calc-corpo-form" },
-      h("div", { class: "card-sub" }, `Estimativa de venda com base no que foi realmente pago: guias de ITBI de revenda (compra e venda, 100% do imóvel, valor dentro do padrão — a mesma camada limpa do resto do painel), atualizadas para o preço de ${DADOS.mes_base.split("-").reverse().join("/")} pela variação de R$/m² de cada bairro. ${num(DADOS.resumo.vendas)} vendas em ${num(DADOS.resumo.predios)} prédios dos 77 bairros da carteira. Compara primeiro com o próprio prédio, depois com a rua, depois com o bairro — e diz qual dos três usou e quão confiável é.`),
+      calcResumo(h("div", { class: "card-sub recolhido" }, `Estimativa de venda com base no que foi realmente pago: guias de ITBI de revenda (compra e venda, 100% do imóvel, valor dentro do padrão — a mesma camada limpa do resto do painel), atualizadas para o preço de ${DADOS.mes_base.split("-").reverse().join("/")} pela variação de R$/m² de cada bairro. ${num(DADOS.resumo.vendas)} vendas em ${num(DADOS.resumo.predios)} prédios dos 77 bairros da carteira. Compara primeiro com o próprio prédio, depois com a rua, depois com o bairro — e diz qual dos três usou e quão confiável é.`)),
       form);
     const barra = h("div", { class: "calc-barra-resumo", id: "calc-barra-resumo", hidden: true });
     root.append(h("section", { class: "card", id: "calc-card" }, h("h2", {}, "Calculadora de preço de apartamento"), barra, corpo), h("div", { id: "calc-resultado" }));
