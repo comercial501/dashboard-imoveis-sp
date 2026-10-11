@@ -58,6 +58,9 @@ def gerar_casos(dados, idx, n_cada=80, seed=7):
     for _ in range(20):  # metragens absurdas -> sem resposta
         bi = rnd.choice(ids_bairros)
         casos.append({"predio": None, "rua": None, "bairro": bi, "area": rnd.choice([12, 1800, 950]), "andar": None, "quartos": None, "area_util": None})
+    for c in casos:   # ~1 em cada 4: a área do cadastro veio da útil (tabela de precisão própria, faixa mais larga)
+        if rnd.random() < 0.25:
+            c["area_origem"] = "util_estimada"
     for c in casos:
         r = cp.estimar(dados, idx, c)
         c["preco_pedido"] = pedido(r["estimativa"]) if r["ok"] else None
@@ -72,7 +75,7 @@ JS_CASOS = """(casos)=>{
 
 def comparar(py, js):
     difs = []
-    for k in ("ok", "nivel", "n", "confianca", "area_ampliada", "faixa_nome", "estimativa", "minimo", "maximo", "m2", "similares", "ultima_venda", "veredito", "tolerancia_area", "motivo", "vendas_minimo", "vendas_maximo", "margem_pct", "precisao_testes", "precisao_mediana_pct",
+    for k in ("ok", "nivel", "n", "confianca", "area_ampliada", "faixa_nome", "estimativa", "minimo", "maximo", "m2", "similares", "ultima_venda", "veredito", "tolerancia_area", "motivo", "area_estimada_pela_util", "vendas_minimo", "vendas_maximo", "margem_pct", "precisao_testes", "precisao_mediana_pct",
               "segunda_opiniao", "segunda_diverge", "similares_eq", "similares_flag", "escada", "teto_verde", "teto_amarelo", "piso_mercado", "maior_venda", "pedido_chegaram_pct", "pedido_alem_dos_testes", "pedido_n_chegaram", "pedido_acima_do_verde"):
         if py.get(k) != js.get(k):
             difs.append((k, py.get(k), js.get(k)))
@@ -92,6 +95,13 @@ def editar(pg):
     if pg.is_visible("#calc-barra-resumo"):
         pg.click("#calc-editar")
         pg.wait_for_selector("#calc-corpo-form", state="visible")
+
+
+def area_carne(pg, valor):
+    """A área do cadastro agora vem sozinha; quem tem o carnê do IPTU abre "ajustar a área" e digita a construída dele."""
+    if not pg.is_visible("#calc-area"):
+        pg.click("text=Tenho o carnê do IPTU")
+    pg.fill("#calc-area", str(valor))
 
 
 def abrir_detalhes(pg):
@@ -148,8 +158,13 @@ def main():
         # ---- 2. tela --------------------------------------------------------------------------
         # prédio com vendas e anúncio no mesmo prédio, pra ver as duas tabelas cheias
         pred_anun = {a[0] for a in dados["anuncios"] if a[0] >= 0}
-        cand = [pi for pi in sorted(idx["predio"]) if pi in pred_anun and len(idx["predio"][pi]) >= 6]
+        def razao_plantas(pi_):
+            areas = [dados["vendas"][i][3] for i in idx["predio"][pi_]]
+            return max(areas) / min(areas)
+        cand = [pi for pi in sorted(idx["predio"]) if pi in pred_anun and len(idx["predio"][pi]) >= 6 and razao_plantas(pi) > 1.1]
         pi = cand[len(cand) // 3]
+        unicos = [pi_ for pi_ in sorted(idx["predio"]) if len(idx["predio"][pi_]) >= 5 and razao_plantas(pi_) <= 1.03]
+        pi_unico = unicos[len(unicos) // 2]
         nome = dados["predios"][pi][1]
         bairro = dados["bairros"][dados["predios"][pi][2]]
         metragem = max({round(dados["vendas"][i][3]) for i in idx["predio"][pi]}, key=lambda a: sum(1 for i in idx["predio"][pi] if round(dados["vendas"][i][3]) == a))
@@ -162,6 +177,9 @@ def main():
         # com o endereço escolhido, o plano B ("só pelo bairro") não pode aparecer (parecia "não achei" com o endereço achado)
         tela["plano_b_escondido_com_endereco"] = (not pg.is_visible("#calc-so-bairro")) and (not pg.is_visible(".calc-plano-b"))
         tela["chips_metragem"] = pg.evaluate("()=>[...document.querySelectorAll('.calc-metragens .calc-chip')].map(b=>b.textContent)")
+        tela["metragem_ui"] = {"texto": pg.inner_text("#calc-area-linha").replace("\n", " | ")[:260],
+                               "plantas": pg.locator(".calc-metragens .calc-chip:not(.calc-chip-util)").count(), "botao_nao_sei": pg.is_visible(".calc-chip-util"),
+                               "util_visivel": pg.is_visible("#calc-area-util"), "carne_escondido": not pg.is_visible("#calc-area")}
         # "Mais detalhes" começa FECHADO (só o preço pedido fica à vista); abre ao clicar
         tela["detalhes"] = {"fechado_no_inicio": not pg.is_visible("#calc-quartos") and not pg.is_visible("#calc-iptu"),
                             "pedido_visivel": pg.is_visible("#calc-pedido")}
@@ -226,7 +244,7 @@ def main():
         pg.wait_for_selector(".calc-sugestao", timeout=5000)
         tela["sugestao_sem_vendas"] = pg.inner_text(".calc-sugestao >> nth=0").replace("\n", " | ")
         pg.click(".calc-sugestao >> nth=0")
-        pg.fill("#calc-area", str(area_chip))
+        area_carne(pg, area_chip)
         pg.click("#calc-calcular")
         pg.wait_for_selector(".calc-valor", timeout=5000)
         lixo.append(("resultado_rua", LIXO.findall(pg.inner_text("#calc-resultado"))))
@@ -252,7 +270,7 @@ def main():
         cands = []
         for pi_, ids in idx["predio"].items():
             com_num = [i for i in ids if dados["vendas"][i][8] is not None and dados["vendas"][i][7] is not None]
-            if len(com_num) >= 8:
+            if len(com_num) >= 8 and razao_plantas(pi_) > 1.1:
                 cands.append((pi_, com_num))
         pi_b, com_num = cands[len(cands) // 2]
         venda = dados["vendas"][com_num[0]]
@@ -265,7 +283,7 @@ def main():
         pg.click(".calc-sugestao >> nth=0")
         pg.fill("#calc-apto", str(venda[7]))
         fluxos["apto"] = {"predio": nome_b, "numero": venda[7], "andar_esperado": venda[4], "andar_tela": pg.input_value("#calc-andar"),
-                          "area_esperada": area_esperada, "area_tela": pg.input_value("#calc-area"), "nota": pg.inner_text("#calc-area-nota")}
+                          "area_esperada": area_esperada, "area_tela": pg.input_value("#calc-area"), "nota": pg.inner_text("#calc-area-linha").replace("\n", " | ")[:200]}
         pg.click("#calc-calcular")
         pg.wait_for_selector(".calc-valor", timeout=5000)
         fluxos["apto"]["nivel_predio_sem_aviso"] = not pg.is_visible(".calc-aviso-area")
@@ -273,8 +291,7 @@ def main():
         # (c) área útil digitada no lugar da construída: o prédio tem vendas, mas nenhuma nessa metragem -> aviso + metragens pra tocar
         editar(pg)
         pg.fill("#calc-apto", "")
-        pg.evaluate("()=>{document.getElementById('calc-area').value='';}")
-        pg.fill("#calc-area", str(round(area_esperada * 0.55)))
+        area_carne(pg, round(area_esperada * 0.55))
         pg.click("#calc-calcular")
         pg.wait_for_selector(".calc-aviso-area", timeout=5000)
         fluxos["aviso_metragem"] = pg.inner_text(".calc-aviso-area").replace("\n", " | ")[:260]
@@ -284,12 +301,23 @@ def main():
         fluxos["valor_depois_de_tocar"] = pg.inner_text(".calc-valor")
         # (d) só a área útil preenchida, sem construída nem apartamento: erro explicando
         editar(pg)
-        pg.fill("#calc-area", "")
+        pg.click(".calc-local-card .calc-link")        # "Mudar" zera tudo (a planta tocada antes continuaria valendo)
+        pg.fill("#calc-endereco", nome_b.replace(",", ""))
+        pg.wait_for_selector(".calc-sugestao", timeout=5000)
+        pg.click(".calc-sugestao >> nth=0")
         pg.fill("#calc-area-util", "90")
         pg.click("#calc-calcular")
-        fluxos["erro_so_util"] = pg.inner_text("#calc-erro")[:160]
+        fluxos["erro_so_util"] = pg.inner_text("#calc-erro")[:200]
+        # (d2) "Não sei — estimar pela área útil": calcula, com o aviso da área estimada
+        pg.click(".calc-chip-util")
+        pg.click("#calc-calcular")
+        pg.wait_for_selector(".calc-valor", timeout=5000)
+        fluxos["nao_sei"] = {"aviso": pg.inner_text(".calc-poucas").replace("\n", " | ")[:260], "valor": pg.inner_text(".calc-valor"),
+                             "barra_resumo": pg.inner_text("#calc-barra-resumo").replace("\n", " | ")[:200]}
+        lixo.append(("resultado_nao_sei", LIXO.findall(pg.inner_text("#calc-resultado"))))
+        editar(pg)
         # sem estimativa (metragem impossível): o formulário NÃO recolhe — a pessoa precisa corrigir
-        pg.fill("#calc-area", "1500")
+        area_carne(pg, 1500)
         pg.click("#calc-calcular")
         pg.wait_for_selector("text=Sem estimativa", timeout=5000)
         fluxos["sem_estimativa_mantem_form_aberto"] = pg.is_visible("#calc-corpo-form") and not pg.is_visible("#calc-barra-resumo")
@@ -301,10 +329,30 @@ def main():
         pg.click(".calc-sem-sugestao button")
         fluxos["plano_b_depois_de_abrir"] = pg.is_visible("#calc-so-bairro")
         pg.select_option("#calc-so-bairro", label="Vila Mariana")
-        pg.fill("#calc-area", "120")
+        pg.click("#calc-calcular")   # sem área útil: pede
+        fluxos["so_bairro_sem_util"] = pg.inner_text("#calc-erro")[:160]
+        pg.fill("#calc-area-util", "90")
+        fluxos["so_bairro_linha"] = pg.inner_text("#calc-area-linha").replace("\n", " | ")[:260]
         pg.click("#calc-calcular")
         pg.wait_for_selector(".calc-valor", timeout=5000)
-        fluxos["so_bairro"] = {"valor": pg.inner_text(".calc-valor"), "selo": pg.inner_text(".calc-selos"), "local": pg.inner_text(".calc-local-card").replace("\n", " | ")[:160]}
+        fluxos["so_bairro"] = {"valor": pg.inner_text(".calc-valor"), "selo": pg.inner_text(".calc-selos"), "local": pg.inner_text(".calc-local-card").replace("\n", " | ")[:160],
+                               "aviso": pg.inner_text(".calc-poucas").replace("\n", " | ")[:200]}
+        # (f) prédio de planta única: sem número e sem área, calcula direto (a planta é uma só)
+        editar(pg)
+        pg.click(".calc-local-card .calc-link")
+        pg.fill("#calc-endereco", dados["predios"][pi_unico][1].replace(",", ""))
+        pg.wait_for_selector(".calc-sugestao", timeout=5000)
+        pg.click(".calc-sugestao >> nth=0")
+        fluxos["planta_unica"] = {"predio": dados["predios"][pi_unico][1], "linha": pg.inner_text("#calc-area-linha").replace("\n", " | ")[:200]}
+        pg.click("#calc-calcular")
+        pg.wait_for_selector(".calc-valor", timeout=5000)
+        fluxos["planta_unica"]["valor"] = pg.inner_text(".calc-valor")
+        fluxos["planta_unica"]["sem_aviso_de_estimativa"] = not pg.is_visible(".calc-poucas")
+        # (g) carnê do IPTU digitado vale sobre tudo
+        editar(pg)
+        area_carne(pg, 140)
+        fluxos["carne"] = pg.inner_text("#calc-area-linha").replace("\n", " | ")[:200]
+        area_carne(pg, "")
         tela["fluxos"] = fluxos
         # paridade andar/final Python x navegador
         casos_af = [(n, c) for n in (7, 9, 10, 11, 25, 62, 99, 101, 152, 153, 201, 202, 520, 801, 999, 1001, 1704, 2203, 4101, 9999) for c in ("c", "d")]
@@ -391,8 +439,15 @@ def main():
           and "sem vendas" in t["sugestao_sem_vendas"]
           and t["fluxos"]["conde_de_itu"] and "Conde" in t["fluxos"]["conde_de_itu"][0]
           and t["fluxos"]["apto"]["andar_tela"] == str(t["fluxos"]["apto"]["andar_esperado"]) and t["fluxos"]["apto"]["area_tela"] == str(t["fluxos"]["apto"]["area_esperada"])
-          and t["fluxos"]["apto"]["nivel_predio_sem_aviso"] and t["fluxos"]["aviso_sumiu_depois_de_tocar"] and "área construída do cadastro" in t["fluxos"]["erro_so_util"]
+          and t["fluxos"]["apto"]["nivel_predio_sem_aviso"] and t["fluxos"]["aviso_sumiu_depois_de_tocar"] and True
           and not t["lixo_na_tela"]
+          and "planta" in t["metragem_ui"]["texto"] and t["metragem_ui"]["plantas"] >= 2 and t["metragem_ui"]["botao_nao_sei"]
+          and t["metragem_ui"]["util_visivel"] and t["metragem_ui"]["carne_escondido"]
+          and "planta" in t["fluxos"]["erro_so_util"] and "estimada pela área útil" in t["fluxos"]["nao_sei"]["aviso"]
+          and "ESTIMADA" in t["fluxos"]["so_bairro_linha"] and "área útil" in t["fluxos"]["so_bairro_sem_util"]
+          and "estimada pela área útil" in t["fluxos"]["so_bairro"]["aviso"]
+          and "planta só" in t["fluxos"]["planta_unica"]["linha"] and t["fluxos"]["planta_unica"]["sem_aviso_de_estimativa"]
+          and "carnê" in t["fluxos"]["carne"]
           and t["detalhes"] == {"fechado_no_inicio": True, "pedido_visivel": True, "abre_ao_clicar": True, "fecha_ao_clicar": True}
           and t["resultado_primeiro"]["formulario_recolhido"] and t["resultado_primeiro"]["barra_visivel"]
           and 0 <= t["resultado_primeiro"]["valor_no_topo_y"] < 700 and t["resultado_primeiro"]["simulador_visivel_sem_rolar"]

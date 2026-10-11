@@ -72,6 +72,10 @@ def dados_sinteticos():
                      "predio_poucas|media": {"n": 500, "mediano": 0.13, "p75": 0.24, "q": Q_SINT}, "predio_poucas|baixa": {"n": 500, "mediano": 0.15, "p75": 0.29, "q": Q_SINT},
                      "predio_poucas|*": {"n": 1000, "mediano": 0.14, "p75": 0.26, "q": Q_SINT}, "rua|*": {"n": 400, "mediano": 0.19, "p75": 0.32, "q": Q_SINT},
                      "rua|baixa": {"n": 30, "mediano": 0.9, "p75": 0.9}, "bairro|*": {"n": 900, "mediano": 0.2, "p75": 0.35, "q": Q_SINT}, "bairro|baixa": {"n": 900, "mediano": 0.2, "p75": 0.35, "q": Q_SINT}},
+        "razao_util": {"mediana": 1.66, "n": 500, "predios": 300, "q": {"10": 1.2, "25": 1.4, "75": 1.9, "90": 2.1}, "amostra": [1.2, 1.4, 1.66, 1.9, 2.1]},
+        "precisao_util": {"predio|alta": {"n": 500, "mediano": 0.2, "p75": 0.40, "q": Q_SINT}, "predio|media": {"n": 500, "mediano": 0.2, "p75": 0.40, "q": Q_SINT},
+                          "predio|*": {"n": 1000, "mediano": 0.2, "p75": 0.40, "q": Q_SINT}, "rua|*": {"n": 400, "mediano": 0.3, "p75": 0.5, "q": Q_SINT},
+                          "bairro|*": {"n": 900, "mediano": 0.3, "p75": 0.55, "q": Q_SINT}, "bairro|baixa": {"n": 900, "mediano": 0.3, "p75": 0.55, "q": Q_SINT}},
         "vendas": vendas, "anuncios": [], "efeito_andar": [{"de": a, "ate": b, "n": 0, "fator": 1.0} for a, b in cp.CALC_ANDAR_FAIXAS],
         "parametros": {
             "tol_area_predio": [0.10, 0.20], "min_predio": 3, "tol_area_rua": [0.15, 0.25], "min_rua": 5,
@@ -216,6 +220,33 @@ confere("margem teto", r["margem_pct"], 60.0)
 tab = cp.calibrar_precisao(dados_sinteticos())
 confere("calibrar_precisao devolve o nível inteiro", "predio|*" in tab and tab["predio|*"]["n"] > 0, True)
 confere("erro de teste nunca negativo", all(v["mediano"] >= 0 and v["p75"] >= 0 for v in tab.values()), True)
+
+# área do cadastro ESTIMADA pela útil: usa a tabela de precisão própria (faixa mais larga) e avisa
+r_ok = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None, "area_origem": "apto"})
+r_ut = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None, "area_origem": "util_estimada"})
+confere("origem exata: margem da tabela normal (15%, confiança alta) e sem aviso", (r_ok["margem_pct"], r_ok["area_estimada_pela_util"]), (15.0, False))
+confere("origem 'util_estimada': margem da tabela própria (40%) e com aviso", (r_ut["margem_pct"], r_ut["area_estimada_pela_util"]), (40.0, True))
+confere("a estimativa em si não muda com a origem (só a faixa)", r_ok["estimativa"], r_ut["estimativa"])
+confere("faixa mais larga com a área estimada", (r_ut["maximo"] - r_ut["minimo"]) > (r_ok["maximo"] - r_ok["minimo"]), True)
+d_sem = dados_sinteticos(); d_sem.pop("precisao_util")
+r_sem = cp.estimar(d_sem, cp.indexar(d_sem), {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None, "area_origem": "util_estimada"})
+confere("sem tabela própria: margem de reserva, nunca a tabela da área exata", r_sem["margem_pct"], 35.0)
+# calibração com ruído de área: o erro medido TEM que ser maior que sem ruído
+dc = dados_sinteticos()
+cal0 = cp.calibrar_precisao(dc)
+cal1 = cp.calibrar_precisao(dc, ruido=True)
+confere("calibrar com ruído: erro maior que sem ruído (prédio)", cal1["predio|*"]["p75"] > cal0["predio|*"]["p75"], True)
+# relação cadastro÷útil medida: pares anúncio x venda do mesmo prédio e final
+pred = [[f"RUA {i}|1", f"Rua {i}, 1", 0, 0, "d"] for i in range(250)]
+vend = [[i, 202501, 900_000, 150.0, 15, None, 1.0, 152, 2] for i in range(250)]            # final 2 -> planta de 150 m² no cadastro
+anun = [[i, 0, 0, f"Rua {i}, 1 - 152", 1_500_000, 90.0, 3, 2, f"C{i}", None, 10] for i in range(250)]   # mesmo final, 90 m² úteis -> 1,667
+rz = cp.medir_razao_util(anun, vend, pred)
+confere("relação medida = 150 ÷ 90", (rz["n"], rz["mediana"]), (250, 1.6667))
+confere("poucos pares: não vale (None)", cp.medir_razao_util(anun[:50], vend, pred), None)
+anun_ruim = [a[:5] + [10.0] + a[6:] for a in anun]   # 150 ÷ 10 = 15: fora dos limites, não entra
+confere("relação absurda não entra", cp.medir_razao_util(anun_ruim, vend, pred), None)
+anun_outro_final = [[i, 0, 0, f"Rua {i}, 1 - 153", 1_500_000, 90.0, 3, 2, f"C{i}", None, 10] for i in range(250)]  # final 3: sem venda no prédio
+confere("anúncio de final sem venda no prédio não entra", cp.medir_razao_util(anun_outro_final, vend, pred), None)
 
 # efeito do andar: faixa 16+ vale 5% mais -> andar 20 informado sobe a estimativa ~5% (as vendas sem andar não são ajustadas)
 d2 = dados_sinteticos()

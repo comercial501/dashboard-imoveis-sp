@@ -2602,3 +2602,26 @@ dentro de um `<details>` fechado; só o "Preço que o proprietário quer pedir" 
 houver algo preenchido (ex.: estado restaurado pelo "Atualizar agora"). Só tela: nenhum cálculo ou dado mudou (build não reexecutado).
 `verificar_calculadora.py` ganhou: detalhes fechados no início/abre/fecha, formulário recolhido com resumo, valor e simulador à vista sem
 rolar (valor a ~218 px do topo), Editar preserva tudo, recolhe de novo, "sem estimativa" mantém o formulário aberto e celular.
+
+### Área útil como entrada; a área do cadastro vem sozinha (2026-10-11, pedido do Paulo)
+Ninguém busca imóvel por área construída; o comprador usa a ÚTIL. Mas o ITBI só tem a área do cadastro (construída), então o cálculo
+continua comparando a do cadastro — o formulário é que não pede mais. Campos principais: **número do apartamento** (recomendado),
+**andar** e **área útil**. A área do cadastro é descoberta nesta ordem (`resolverMetragem` em `calculadora.js`; a linha "Metragem do
+cadastro usada: …" mostra qual caminho valeu): (1) o carnê do IPTU digitado em "ajustar a área" (vale sobre tudo); (2) o **número do
+apartamento**: mesmo final no mesmo prédio = mesma planta (medido: em 78% dos casos o prédio tem outra venda do mesmo final e a metragem
+descoberta bate com a real a 3% em 82% deles); (3) prédio de **planta única** (31% dos prédios; calcula direto); (4) a **planta tocada**
+nos botões do prédio (a mais provável, pela útil × relação, vem marcada) — ela continua valendo até trocar; (5) "**Não sei — estimar pela
+área útil**" ou prédio/rua/bairro sem nenhuma venda: área do cadastro **estimada** = útil × relação cadastro÷útil (`razao_util`).
+**Relação cadastro÷útil** (`medir_razao_util`, recalculada a cada build): anúncios ativos (área útil, número do apartamento no endereço) ×
+vendas do ITBI do MESMO prédio e MESMO final; hoje mediana 1,66 (P25–P75 1,39–1,86; ~490 pares em ~410 prédios); com menos de 200 pares o
+build trava; relação fora de 0,8–3,5 não entra. **Faixa mais larga quando a área é estimada**: `calibrar_precisao(ruido=True)` repete os
+testes com vendas reais trocando a área verdadeira pela que a calculadora estimaria (útil = cadastro ÷ relação sorteada da amostra real;
+estimada = útil × mediana), gerando a tabela `precisao_util`; com `area_origem == "util_estimada"` o `estimar` usa essa tabela (margem e
+cores mais largas) e devolve `area_estimada_pela_util`; sem a tabela cai na margem de reserva, nunca na da área exata. Erro mediano /
+3 em 4 casos, área exata × estimada: prédio 10%/20% × 15%/26%; prédio com 1–2 vendas 15%/27% × 20%/37%; rua 20%/33% × 23%/41%; bairro
+20%/35% × 25%/44%. A tela avisa ("A área do cadastro foi estimada pela área útil… a relação real varia de 1,39 a 1,86…"), a linha-resumo
+mostra "cadastro estimado em X m²" e o "Como chegamos" explica a origem. `validate_build` check 19 exige `razao_util` (200+ pares,
+mediana 1,2–2,2) e `precisao_util` com 100+ testes em rua e bairro e erro MAIOR que o da área exata. O aviso "Confira a metragem" só
+aparece quando a área do cadastro foi digitada ou veio da útil e não bate com nenhuma venda do prédio. Testes novos em
+`test_calculadora.py` (origem, tabela própria, calibração com ruído, medição da relação) e `verificar_calculadora.py` (paridade com casos de
+área estimada, prédio que pede a planta, número do apartamento, planta única, "Não sei", rua/bairro só pela útil, carnê, celular).

@@ -1171,7 +1171,18 @@ def check_calculadora(calc, data, itbi_records, usn_records):
             div.append(f"tabela de precisão sem testes suficientes para o nível {nivel}: {t}")
         elif not (cp.CALC_MARGEM_MIN <= t["p75"] <= cp.CALC_MARGEM_MAX and 0 < t["mediano"] <= t["p75"]):
             div.append(f"erro medido fora do padrão no nível {nivel}: {t}")
-    for k, t in prec.items():  # quantis da razão preço pago ÷ estimativa: base do veredito (verde/amarelo/vermelho)
+    rz = calc.get("razao_util")   # relação área do cadastro ÷ área útil (medida em anúncios x vendas do mesmo prédio e final)
+    prec_util = calc.get("precisao_util") or {}
+    if not rz or rz["n"] < cp.CALC_RAZAO_UTIL_MIN_PARES or not (1.2 <= rz["mediana"] <= 2.2) or len(rz["amostra"]) != rz["n"]:
+        div.append(f"relação cadastro÷útil fora do padrão ou com poucos pares (mín. {cp.CALC_RAZAO_UTIL_MIN_PARES}): {None if not rz else {k: rz[k] for k in ('mediana', 'n', 'predios')}}")
+    else:
+        for nivel in ("rua", "bairro"):   # com a área estimada pela útil a faixa TEM que ficar mais larga que com a área exata
+            a, b = prec.get(f"{nivel}|*"), prec_util.get(f"{nivel}|*")
+            if not b or b["n"] < cp.CALC_PRECISAO_MIN_TESTES:
+                div.append(f"tabela de precisão (área estimada pela útil) sem testes suficientes no nível {nivel}: {b}")
+            elif a and not (b["p75"] > a["p75"]):
+                div.append(f"com a área estimada pela útil o erro deveria ser MAIOR no nível {nivel}: {b['p75']} contra {a['p75']}")
+    for k, t in list(prec.items()) + list(prec_util.items()):  # quantis da razão preço pago ÷ estimativa: base do veredito (verde/amarelo/vermelho)
         q = t.get("q")
         if not q or len(q) != len(cp.CALC_QTS) or any(b < a for a, b in zip(q, q[1:])) or not (0.85 <= q[cp.CALC_QTS.index(50)] <= 1.15) or q[0] <= 0:
             div.append(f"quantis do veredito fora do padrão em {k}: {q}")
@@ -1217,7 +1228,7 @@ def check_calculadora(calc, data, itbi_records, usn_records):
     if div:
         linhas = "\n".join(f"  - {d}" for d in div[:20])
         raise ValidationError(f"calculadora incoerente ({len(div)}):\n{linhas}")
-    print(f"[validate_build] OK 19/19 — calculadora: {len(calc['vendas'])} vendas de {n_pred} prédios (= revenda limpa de apartamento, sem planta), andar lido em {pct_andar:.0%}, {len(calc['anuncios'])} anúncios do estoque de hoje, cálculo conferido em {testados} prédios conhecidos; erro medido em testes com vendas reais: mediano {prec['predio|*']['mediano']:.0%} no prédio, {prec['predio_poucas|*']['mediano']:.0%} com só 1–2 vendas no prédio, {prec['rua|*']['mediano']:.0%} na rua, {prec['bairro|*']['mediano']:.0%} no bairro.")
+    print(f"[validate_build] OK 19/19 — calculadora: {len(calc['vendas'])} vendas de {n_pred} prédios (= revenda limpa de apartamento, sem planta), andar lido em {pct_andar:.0%}, {len(calc['anuncios'])} anúncios do estoque de hoje, cálculo conferido em {testados} prédios conhecidos; relação cadastro÷útil {calc['razao_util']['mediana'] if calc.get('razao_util') else '?'} ({calc['razao_util']['n'] if calc.get('razao_util') else 0} pares); erro medido em testes com vendas reais: mediano {prec['predio|*']['mediano']:.0%} no prédio, {prec['predio_poucas|*']['mediano']:.0%} com só 1–2 vendas no prédio, {prec['rua|*']['mediano']:.0%} na rua, {prec['bairro|*']['mediano']:.0%} no bairro.")
 
 
 def validate_before_publish(year_to_path, itbi_stats, data, out_path, usn_records, itbi_records, historico=None, calculadora=None):

@@ -47,6 +47,9 @@ CALC_PRECISAO_TESTES = 6000           # vendas retiradas e re-estimadas, por ní
 CALC_PRECISAO_MIN_TESTES = 100        # combinação nível+confiança com menos testes que isso usa o nível inteiro
 CALC_MARGEM_FALLBACK = 0.35           # sem teste suficiente nem no nível inteiro (não deve acontecer)
 CALC_MARGEM_MIN, CALC_MARGEM_MAX = 0.03, 0.60
+# Área útil -> área do cadastro (o ITBI só tem a do cadastro): relação medida em anúncios (útil) x vendas do MESMO prédio e final (cadastro)
+CALC_RAZAO_UTIL_MIN_PARES = 200       # com menos pares que isso a relação não vale (o build trava)
+CALC_RAZAO_UTIL_LIMITES = (0.8, 3.5)  # relação fora disso é erro de digitação/dado ruim e não entra
 # Veredito do preço pedido = quantas vendas parecidas (nos testes com vendas reais) chegaram àquele preço:
 CALC_VEREDITO_ABAIXO = 0.75   # 75%+ das vendas parecidas chegaram ao pedido: abaixo do mercado (dá pra pedir mais)
 CALC_VEREDITO_VERDE = 0.30    # 30%+ (3 em cada 10): preço de mercado (verde)
@@ -64,6 +67,7 @@ CALC_ANDAR_GRUPO_MIN = 4              # grupo (prédio + mesma área) com 4+ ven
 CALC_ANDAR_GRUPO_AMPLITUDE = 5        # ...espalhadas por pelo menos 5 andares
 
 _RE_APTO = re.compile(r"(?:\bAP|\bAPTO|\bAPT|\bAPARTAMENTO)\.?\s*0*(\d{1,4})\b", re.I)
+_RE_UNIDADE_ANUNCIO = re.compile(r" - (?:AP|APTO|APT)?\s*0*(\d{1,4})\b", re.I)   # "Rua X, 251 - 211" -> 211
 _RE_VAGAS_N = re.compile(r"(\d)\s*V\s?G", re.I)
 _RE_VAGA_UMA = re.compile(r"\bE\s*V\s?G|\bVAGA\b", re.I)
 
@@ -210,6 +214,38 @@ def _compute_efeito_andar(vendas_por_predio):
     return out
 
 
+def medir_razao_util(anuncios, vendas, predios):
+    """Relação área do cadastro ÷ área útil, medida onde os dois existem: anúncio ativo (área útil, número do apartamento no
+    endereço) e vendas do ITBI (área do cadastro) do MESMO prédio e MESMO final (mesma planta). Devolve None se houver pares de menos."""
+    areas_final = {}
+    for v in vendas:
+        if v[8] is not None:
+            areas_final.setdefault((v[0], v[8]), []).append(round(v[3]))
+    razoes, preds = [], set()
+    for a in anuncios:
+        pi, util = a[0], a[5]
+        if pi < 0 or not util or util <= 0:
+            continue
+        m = _RE_UNIDADE_ANUNCIO.search(a[3] or "")
+        if not m:
+            continue
+        _andar, final = andar_e_final(int(m.group(1)), predios[pi][4])
+        areas = areas_final.get((pi, final)) if final is not None else None
+        if not areas:
+            continue
+        moda = max(set(areas), key=lambda x: (areas.count(x), -x))
+        r = moda / util
+        if CALC_RAZAO_UTIL_LIMITES[0] <= r <= CALC_RAZAO_UTIL_LIMITES[1]:
+            razoes.append(r)
+            preds.add(pi)
+    if len(razoes) < CALC_RAZAO_UTIL_MIN_PARES:
+        return None
+    razoes.sort()
+    return {"mediana": round(_mediana(razoes), 4), "n": len(razoes), "predios": len(preds),
+            "q": {str(pp): round(_percentil(pp, razoes), 3) for pp in (10, 25, 75, 90)},
+            "amostra": [round(r, 3) for r in razoes]}
+
+
 def preparar_dados(itbi_records, usn_records, indice, fator_fn, gerado_em_iso, centroides=None):
     """Monta o conteúdo do calculadora.json. `fator_fn(indice, bairro, tipo, day)` = correção de tempo da
     Rodada A2 (engine._fator_tempo); `indice` = engine._compute_indice_tempo."""
@@ -320,7 +356,10 @@ def preparar_dados(itbi_records, usn_records, indice, fator_fn, gerado_em_iso, c
             "vendas_com_andar": sum(1 for v in vendas if v[4] is not None),
         },
     }
+    dados["razao_util"] = medir_razao_util(anuncios, vendas, predios)
     dados["precisao"] = calibrar_precisao(dados)
+    # mesma medição, mas com a área do cadastro ESTIMADA pela útil (relação sorteada da amostra real): o erro da área entra na faixa
+    dados["precisao_util"] = calibrar_precisao(dados, ruido=True) if dados["razao_util"] else {}
     return dados
 
 
@@ -439,7 +478,9 @@ def estimar(dados, idx, entrada):
     if not res["ok"]:
         return res
     p = dados["parametros"]
-    prec = dados.get("precisao") or {}
+    usa_util = entrada.get("area_origem") == "util_estimada"   # área do cadastro estimada pela útil: faixa mais larga (tabela própria)
+    prec = (dados.get("precisao_util") if usa_util else dados.get("precisao")) or {}
+    res["area_estimada_pela_util"] = usa_util
     t = prec.get(f"{res['nivel']}|{res['confianca']}")
     if not t or t["n"] < p["precisao_min_testes"]:
         t = prec.get(f"{res['nivel']}|*")
@@ -500,7 +541,13 @@ def estimar(dados, idx, entrada):
     return res
 
 
-def calibrar_precisao(dados):
+def calibrar_precisao(dados, ruido=False):
+    """(ver abaixo) `ruido=True`: em vez da área do cadastro verdadeira, usa a que a calculadora estimaria a partir da área útil
+    (útil = cadastro ÷ relação sorteada da amostra medida; estimada = útil × mediana) — o erro da conversão entra no erro medido."""
+    return _calibrar(dados, dados["razao_util"] if ruido else None)
+
+
+def _calibrar(dados, razao_util):
     """Mede o erro do cálculo de verdade: tira vendas reais (amostra fixa e espaçada) do cálculo, estima cada uma só
     com as outras e compara com o que foi pago (os dois já no preço do último mês completo). Três situações, uma por
     nível: prédio (a venda sai), rua (o prédio inteiro sai) e bairro (prédio e rua saem). Devolve
@@ -508,6 +555,7 @@ def calibrar_precisao(dados):
     confianças do nível)."""
     idx = indexar(dados)
     vs, predios = dados["vendas"], dados["predios"]
+    rz = razao_util["amostra"] if razao_util else None
     passo = max(1, len(vs) // CALC_PRECISAO_TESTES)
     amostra = range(0, len(vs), passo)
     erros = {}
@@ -522,8 +570,9 @@ def calibrar_precisao(dados):
                    "bairro": {p[2]: [j for j in idx["bairro"][p[2]] if j not in fora]}}
             if modo == "bairro":
                 sub["rua"] = {p[3]: []}
+            area_usada = v[3] if rz is None else v[3] * razao_util["mediana"] / rz[(i * 7919) % len(rz)]
             ent = {"predio": pi if modo == "predio" else None, "rua": p[3] if modo != "bairro" else None,
-                   "bairro": p[2], "area": v[3], "andar": v[4]}
+                   "bairro": p[2], "area": area_usada, "andar": v[4]}
             r = _estimar_base(dados, sub, ent)
             if not r["ok"] or not r["nivel"].startswith(modo):
                 continue
