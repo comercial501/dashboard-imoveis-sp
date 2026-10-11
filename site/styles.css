@@ -715,7 +715,7 @@ h1, h2, h3, .brand-name, .calc-valor, .calc-passo-titulo, .calc-sim-titulo, .cre
 .sidebar { border-right: 1px solid var(--border); padding: 24px 14px; }
 .brand { display: block; margin-bottom: 20px; padding: 0 4px; }
 .brand-lockup { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.brand-t { flex-shrink: 0; display: block; width: 30px; height: auto; }
+.brand-t { flex-shrink: 0; display: block; width: 44px; height: auto; }
 .brand-nome { font-family: var(--font-display); font-weight: 500; font-size: 19px; line-height: 1.15; color: var(--brand); letter-spacing: -0.01em; }
 .brand-role { font-size: 10.5px; letter-spacing: .16em; color: var(--text-muted); font-weight: 600; margin: 0; text-transform: uppercase; }
 nav.tabs { gap: 12px; }
@@ -778,7 +778,7 @@ button.calc-chip:hover { border-color: var(--brand); color: var(--brand-deep); }
   header.app-header h1 { font-size: 26px; }
   .brand { display: flex; align-items: center; margin: 0 4px 0 0; padding: 0; }
   .brand-lockup { margin: 0; }
-  .brand-t { width: 24px; }
+  .brand-t { width: 36px; }
   .brand-nome, .brand-role { display: none; }
   nav.tabs { gap: 4px; }
   .nav-grupo { display: contents; }
@@ -793,7 +793,7 @@ button.calc-chip:hover { border-color: var(--brand); color: var(--brand-deep); }
 @media (min-width: 761px) and (max-width: 900px) {
   .brand-lockup { flex-direction: column; align-items: flex-start; gap: 6px; }
   .brand-nome { font-size: 16px; }
-  .brand-t { width: 26px; }
+  .brand-t { width: 36px; }
   .nav-grupo { padding: 6px 4px; }
 }
 
