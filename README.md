@@ -2633,6 +2633,8 @@ agora tudo passa por `anexar()`, que ignora vazios, e `verificar_calculadora.py`
 resultado) em vários pontos; teste de que o campo do carnê abre visível, na tela e com foco; teste de que o endereço aparece uma só vez.
 
 ## Visual Topio (2026-10-11, pedido do Paulo: "mais parecido com o site topio.com.br")
+
+> **Ajustes de 11/10 (noite, pedido do Paulo):** (1) o topo do menu virou o logotipo do P do Paulo + "Paulo Credidio / by Topio imóveis" (o logo oficial da Topio segue só como ícone da aba); (2) as seções do menu ficaram em caixinhas quase transparentes, uma por tema — *Panorama do mercado* (Visão Geral, Estoque × Demanda, Perfil por Bairro, Mapa, Carteira 77), *Onde captar* (Ranking, Prontidão, Captação Ativa, Imóveis Prioritários, Valor de Oportunidade) e *Preços* (Valor pago por bairro, Calculadora de preço); no celular as caixinhas somem e o menu volta a ser uma fila só; (3) a faixa escura do cabeçalho foi trocada por um cabeçalho claro, mais baixo, com uma linha fina embaixo, e a área do conteúdo ficou um pouco mais larga (até 1320 px). Como a faixa escura saiu, o corte lateral (`overflow-x: clip`) também saiu.
 O visual da dashboard passa a seguir o do site topio.com.br. Valores lidos do CSS publicado pelo site: azul da marca `#009dd2`
 (`--brand`), azul escuro `#00739a` (`--brand-deep`, usado em texto e links porque passa no contraste sobre branco), grafite `#1d2226`
 (`--ink`: faixas escuras e botões), `#4d555a` (texto secundário), `#646c71` (apagado), linha `#e1e5e7`, névoa `#f1f4f5` e papel `#fafbfb`

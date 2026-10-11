@@ -729,7 +729,7 @@ nav.tabs button.active { background: #fff; color: var(--text-primary); font-weig
 .sidebar-foot .handle-mini { color: var(--brand-deep); }
 
 /* cabeçalho claro, da mesma cor do fundo da página (pedido do Paulo 11/10): título grafite, linha pequena em azul, uma linha fina embaixo */
-.app { padding-top: 22px; }
+.app { padding-top: 22px; max-width: 1320px; }   /* um pouco mais larga: mais área branca para o conteúdo em tela grande */
 header.app-header { background: none; color: var(--text-primary); padding: 0 0 16px; margin: 0 0 18px; border-bottom: 1px solid var(--border); align-items: flex-end; }
 header.app-header h1 { color: var(--text-primary); font-size: 32px; font-weight: 500; line-height: 1.15; letter-spacing: -0.01em; }
 header.app-header .handle { color: var(--brand-deep); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; font-weight: 500; margin-top: 6px; }
