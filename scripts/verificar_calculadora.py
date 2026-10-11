@@ -87,6 +87,19 @@ import re
 LIXO = re.compile(r"\bnull\b|\bundefined\b|\bNaN\b|\[object|Infinity")
 
 
+def editar(pg):
+    """Depois de calcular, o formulário vira uma linha-resumo: reabre pelo botão Editar (como a pessoa faria)."""
+    if pg.is_visible("#calc-barra-resumo"):
+        pg.click("#calc-editar")
+        pg.wait_for_selector("#calc-corpo-form", state="visible")
+
+
+def abrir_detalhes(pg):
+    """Quartos, banheiros, suítes, vagas, condomínio e IPTU ficam recolhidos em "Mais detalhes"."""
+    if not pg.evaluate("()=>document.getElementById('calc-mais').open"):
+        pg.click("#calc-mais > summary")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--base", default="http://localhost:8899")
@@ -149,13 +162,21 @@ def main():
         # com o endereço escolhido, o plano B ("só pelo bairro") não pode aparecer (parecia "não achei" com o endereço achado)
         tela["plano_b_escondido_com_endereco"] = (not pg.is_visible("#calc-so-bairro")) and (not pg.is_visible(".calc-plano-b"))
         tela["chips_metragem"] = pg.evaluate("()=>[...document.querySelectorAll('.calc-metragens .calc-chip')].map(b=>b.textContent)")
-        # erro sem área
-        pg.click(".calc-botao")
+        # "Mais detalhes" começa FECHADO (só o preço pedido fica à vista); abre ao clicar
+        tela["detalhes"] = {"fechado_no_inicio": not pg.is_visible("#calc-quartos") and not pg.is_visible("#calc-iptu"),
+                            "pedido_visivel": pg.is_visible("#calc-pedido")}
+        pg.click("#calc-mais > summary")
+        tela["detalhes"]["abre_ao_clicar"] = pg.is_visible("#calc-quartos") and pg.is_visible("#calc-iptu") and pg.is_visible("#calc-condominio")
+        pg.click("#calc-mais > summary")
+        tela["detalhes"]["fecha_ao_clicar"] = not pg.is_visible("#calc-quartos")
+        # erro sem área (o formulário continua aberto)
+        pg.click("#calc-calcular")
         tela["erro_sem_area"] = pg.inner_text("#calc-erro") if pg.is_visible("#calc-erro") else None
         pg.click(".calc-metragens .calc-chip >> nth=0")
         area_chip = float(pg.input_value("#calc-area"))
         pg.fill("#calc-andar", "15")
         pg.fill("#calc-area-util", str(round(area_chip * 0.8)))
+        abrir_detalhes(pg)
         pg.fill("#calc-quartos", "3")
         pg.fill("#calc-banheiros", "3")
         pg.fill("#calc-suites", "1")
@@ -164,8 +185,25 @@ def main():
         pg.fill("#calc-iptu", "6000")
         esp = cp.estimar(dados, idx, {"predio": pi, "rua": dados["predios"][pi][3], "bairro": dados["predios"][pi][2], "area": area_chip, "andar": 15, "preco_pedido": None})
         pg.fill("#calc-pedido", str(int(round(esp["estimativa"] * 1.25, -3))))
-        pg.click(".calc-botao")
+        pg.click("#calc-calcular")
         pg.wait_for_selector(".calc-valor", timeout=5000)
+        pg.wait_for_timeout(900)   # rolagem suave
+        tela["resultado_primeiro"] = {
+            "formulario_recolhido": not pg.is_visible("#calc-corpo-form"), "barra_visivel": pg.is_visible("#calc-barra-resumo"),
+            "texto_barra": pg.inner_text("#calc-barra-resumo").replace("\n", " | ")[:200],
+            "valor_no_topo_y": pg.evaluate("()=>Math.round(document.querySelector('.calc-valor').getBoundingClientRect().top)"),
+            "simulador_visivel_sem_rolar": pg.evaluate("()=>document.getElementById('calc-sim').getBoundingClientRect().top < innerHeight"),
+            "scroll_y": pg.evaluate("()=>Math.round(scrollY)")}
+        # Editar: reabre o formulário com TUDO preenchido e o resultado continua lá
+        area_antes = pg.input_value("#calc-area")
+        pg.click("#calc-editar")
+        pg.wait_for_selector("#calc-corpo-form", state="visible")
+        tela["resultado_primeiro"]["editar"] = {"form_visivel": pg.is_visible("#calc-corpo-form"), "barra_some": not pg.is_visible("#calc-barra-resumo"),
+                                                "area_preservada": pg.input_value("#calc-area") == area_antes, "andar_preservado": pg.input_value("#calc-andar") == "15",
+                                                "detalhes_preservados": pg.input_value("#calc-quartos") == "3", "resultado_continua": pg.is_visible(".calc-valor")}
+        pg.click("#calc-calcular")      # recalcula e recolhe de novo
+        pg.wait_for_selector("#calc-barra-resumo", state="visible")
+        tela["resultado_primeiro"]["recolhe_de_novo"] = not pg.is_visible("#calc-corpo-form")
         lixo = []   # palavras que nunca podem aparecer na tela ("null", "undefined", "NaN"...): já aconteceu um "null" solto
         lixo.append(("resultado_1", LIXO.findall(pg.inner_text("#calc-resultado"))))
         tela["valor_na_tela"] = pg.inner_text(".calc-valor")
@@ -181,6 +219,7 @@ def main():
         tela["valor_confere"] = tela["valor_na_tela"].replace("R$", "").replace(" ", "").replace(".", "").strip() == str(esp["estimativa"])
 
         # número da rua sem vendas
+        editar(pg)
         pg.click(".calc-local-card .calc-link")
         rua_nome = dados["predios"][pi][1].rsplit(",", 1)[0]
         pg.fill("#calc-endereco", f"{rua_nome} 99999")
@@ -188,13 +227,14 @@ def main():
         tela["sugestao_sem_vendas"] = pg.inner_text(".calc-sugestao >> nth=0").replace("\n", " | ")
         pg.click(".calc-sugestao >> nth=0")
         pg.fill("#calc-area", str(area_chip))
-        pg.click(".calc-botao")
+        pg.click("#calc-calcular")
         pg.wait_for_selector(".calc-valor", timeout=5000)
         lixo.append(("resultado_rua", LIXO.findall(pg.inner_text("#calc-resultado"))))
         tela["rua_valor"] = pg.inner_text(".calc-valor")
         tela["rua_selo"] = pg.inner_text(".calc-selos")
         tela["rua_porque"] = pg.inner_text(".calc-porque li >> nth=0")
         # endereço inexistente
+        editar(pg)
         pg.click(".calc-local-card .calc-link")
         pg.fill("#calc-endereco", "Rua Que Nao Existe Nenhuma 12")
         tela["inexistente"] = pg.inner_text(".calc-sem-sugestao")
@@ -226,15 +266,16 @@ def main():
         pg.fill("#calc-apto", str(venda[7]))
         fluxos["apto"] = {"predio": nome_b, "numero": venda[7], "andar_esperado": venda[4], "andar_tela": pg.input_value("#calc-andar"),
                           "area_esperada": area_esperada, "area_tela": pg.input_value("#calc-area"), "nota": pg.inner_text("#calc-area-nota")}
-        pg.click(".calc-botao")
+        pg.click("#calc-calcular")
         pg.wait_for_selector(".calc-valor", timeout=5000)
         fluxos["apto"]["nivel_predio_sem_aviso"] = not pg.is_visible(".calc-aviso-area")
         fluxos["apto"]["valor"] = pg.inner_text(".calc-valor")
         # (c) área útil digitada no lugar da construída: o prédio tem vendas, mas nenhuma nessa metragem -> aviso + metragens pra tocar
+        editar(pg)
         pg.fill("#calc-apto", "")
         pg.evaluate("()=>{document.getElementById('calc-area').value='';}")
         pg.fill("#calc-area", str(round(area_esperada * 0.55)))
-        pg.click(".calc-botao")
+        pg.click("#calc-calcular")
         pg.wait_for_selector(".calc-aviso-area", timeout=5000)
         fluxos["aviso_metragem"] = pg.inner_text(".calc-aviso-area").replace("\n", " | ")[:260]
         pg.click(".calc-aviso-area .calc-chip >> nth=0")
@@ -242,10 +283,16 @@ def main():
         fluxos["aviso_sumiu_depois_de_tocar"] = not pg.is_visible(".calc-aviso-area")
         fluxos["valor_depois_de_tocar"] = pg.inner_text(".calc-valor")
         # (d) só a área útil preenchida, sem construída nem apartamento: erro explicando
+        editar(pg)
         pg.fill("#calc-area", "")
         pg.fill("#calc-area-util", "90")
-        pg.click(".calc-botao")
+        pg.click("#calc-calcular")
         fluxos["erro_so_util"] = pg.inner_text("#calc-erro")[:160]
+        # sem estimativa (metragem impossível): o formulário NÃO recolhe — a pessoa precisa corrigir
+        pg.fill("#calc-area", "1500")
+        pg.click("#calc-calcular")
+        pg.wait_for_selector("text=Sem estimativa", timeout=5000)
+        fluxos["sem_estimativa_mantem_form_aberto"] = pg.is_visible("#calc-corpo-form") and not pg.is_visible("#calc-barra-resumo")
         # (e) endereço fora da base -> só pelo bairro
         pg.click(".calc-local-card .calc-link")
         pg.fill("#calc-endereco", "Rua Que Nao Existe Nenhuma 12")
@@ -255,7 +302,7 @@ def main():
         fluxos["plano_b_depois_de_abrir"] = pg.is_visible("#calc-so-bairro")
         pg.select_option("#calc-so-bairro", label="Vila Mariana")
         pg.fill("#calc-area", "120")
-        pg.click(".calc-botao")
+        pg.click("#calc-calcular")
         pg.wait_for_selector(".calc-valor", timeout=5000)
         fluxos["so_bairro"] = {"valor": pg.inner_text(".calc-valor"), "selo": pg.inner_text(".calc-selos"), "local": pg.inner_text(".calc-local-card").replace("\n", " | ")[:160]}
         tela["fluxos"] = fluxos
@@ -266,8 +313,9 @@ def main():
         tela["paridade_andar_final"] = {"casos": len(casos_af), "divergencias": sum(1 for a, b in zip(js_af, py_af) if a != b)}
 
         # pedido absurdo (R$ 2 mi sobre um apartamento de ~R$ 500 mil) tem que ser VERMELHO, com a frase de quantas vendas chegaram
+        editar(pg)
         pg.fill("#calc-pedido", "2000000")
-        pg.click(".calc-botao")
+        pg.click("#calc-calcular")
         pg.wait_for_selector(".calc-veredito", timeout=5000)
         tela["pedido_absurdo"] = {"classe": pg.get_attribute(".calc-veredito", "class"), "selo": pg.inner_text(".calc-veredito-selo"),
                                   "frase": pg.inner_text(".calc-veredito-frase"), "legenda_linhas": pg.locator(".calc-legenda-linha").count(),
@@ -304,7 +352,9 @@ def main():
         pg.fill("#calc-sim-valor", "2000000")
         tela["lixo_na_tela"] = [(n, x) for n, x in lixo if x]
         tela["simulador"] = sim
-        # campos alinhados: em cada linha da grade, todas as caixas terminam na mesma altura
+        # campos alinhados: em cada linha da grade, todas as caixas terminam na mesma altura (formulário aberto, detalhes abertos)
+        editar(pg)
+        abrir_detalhes(pg)
         tela["campos_alinhados"] = pg.evaluate("""()=>{ let ok=true, linhas=0;
           document.querySelectorAll('.calc-grade').forEach(g=>{ const por={}; g.querySelectorAll('.calc-campo').forEach(c=>{ const r=c.getBoundingClientRect(), i=c.querySelector('input').getBoundingClientRect(); const k=Math.round(r.top); (por[k]=por[k]||[]).push(i.bottom); });
             Object.values(por).forEach(l=>{ linhas++; if(Math.max(...l)-Math.min(...l)>1) ok=false; }); }); return {ok, linhas}; }""")
@@ -321,10 +371,12 @@ def main():
         m.click(".calc-sugestao >> nth=0")
         m.click(".calc-metragens .calc-chip >> nth=0")
         m.fill("#calc-andar", "10")
+        tela["mobile_detalhes_fechados"] = not m.is_visible("#calc-quartos")
         m.fill("#calc-pedido", str(int(round(esp["estimativa"] * 1.0, -3))))
-        m.click(".calc-botao")
+        m.click("#calc-calcular")
         m.wait_for_selector(".calc-valor")
         m.wait_for_timeout(600)
+        tela["mobile_resumo"] = {"barra_visivel": m.is_visible("#calc-barra-resumo"), "editar_visivel": m.is_visible("#calc-editar")}
         tela["mobile_largura"] = m.evaluate("()=>({scroll:document.documentElement.scrollWidth, janela:375, innerWidth:innerWidth})")
         tela["mobile_veredito"] = m.inner_text(".calc-veredito").replace("\n", " | ")
         m.screenshot(path=str(prints / "mobile_resultado.png"), full_page=True)
@@ -341,6 +393,12 @@ def main():
           and t["fluxos"]["apto"]["andar_tela"] == str(t["fluxos"]["apto"]["andar_esperado"]) and t["fluxos"]["apto"]["area_tela"] == str(t["fluxos"]["apto"]["area_esperada"])
           and t["fluxos"]["apto"]["nivel_predio_sem_aviso"] and t["fluxos"]["aviso_sumiu_depois_de_tocar"] and "área construída do cadastro" in t["fluxos"]["erro_so_util"]
           and not t["lixo_na_tela"]
+          and t["detalhes"] == {"fechado_no_inicio": True, "pedido_visivel": True, "abre_ao_clicar": True, "fecha_ao_clicar": True}
+          and t["resultado_primeiro"]["formulario_recolhido"] and t["resultado_primeiro"]["barra_visivel"]
+          and 0 <= t["resultado_primeiro"]["valor_no_topo_y"] < 700 and t["resultado_primeiro"]["simulador_visivel_sem_rolar"]
+          and all(t["resultado_primeiro"]["editar"].values()) and t["resultado_primeiro"]["recolhe_de_novo"]
+          and t["fluxos"]["sem_estimativa_mantem_form_aberto"]
+          and t["mobile_detalhes_fechados"] and t["mobile_resumo"]["barra_visivel"] and t["mobile_resumo"]["editar_visivel"]
           and t["simulador"]["existe"] and t["simulador"]["foco_mantido_digitando"] == "calc-sim-valor"
           and t["simulador"]["absurdo"]["selo"] == "FORA DO MERCADO" and "critical" in t["simulador"]["absurdo"]["classe_sim"]
           and t["simulador"]["absurdo"]["campo_formulario"] == "2000000" and t["simulador"]["absurdo"]["resumo_tem_pedido"]

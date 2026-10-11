@@ -2591,3 +2591,14 @@ caía no amarelo por 0,0001 de diferença na porcentagem); Python e JS mudaram j
 `append` do DOM escreve "null"); `verificar_calculadora.py` agora falha se aparecer null/undefined/NaN/[object/Infinity em qualquer
 resultado. Testes novos no `verificar_calculadora.py`: digitar de verdade, botão, barra, limpar, valor baixo, foco, campo do formulário e
 resumo acompanhando. Só tela: não mexe em `calculadora_preco.py` além da regra de limites, nem no `calculadora.json` (build não reexecutado).
+
+### Calculadora: resultado primeiro + "Mais detalhes" recolhido (2026-10-11, pedido do Paulo)
+**Resultado primeiro**: depois de "Calcular o preço", o formulário vira uma linha-resumo ("Rua X, N — bairro · apto · andar · m²", com os botões
+**Editar** e **Nova consulta**) e o resultado (estimativa, "Para anunciar", simulador "E se o proprietário pedir…?", régua e veredito) aparece
+logo abaixo, no topo da tela, sem rolar. "Editar" reabre o formulário com tudo preenchido (o resultado continua visível) e recalcular
+recolhe de novo. Se não houver estimativa (metragem impossível), o formulário NÃO recolhe: a pessoa precisa corrigir. Botão de calcular
+tem `id="calc-calcular"`. **Mais detalhes (opcional)**: quartos, banheiros, suítes, vagas, condomínio e IPTU (que não mudam o preço) ficam
+dentro de um `<details>` fechado; só o "Preço que o proprietário quer pedir" fica à vista (passo "3. Preço pedido"). Abre sozinho se já
+houver algo preenchido (ex.: estado restaurado pelo "Atualizar agora"). Só tela: nenhum cálculo ou dado mudou (build não reexecutado).
+`verificar_calculadora.py` ganhou: detalhes fechados no início/abre/fecha, formulário recolhido com resumo, valor e simulador à vista sem
+rolar (valor a ~218 px do topo), Editar preserva tudo, recolhe de novo, "sem estimativa" mantém o formulário aberto e celular.

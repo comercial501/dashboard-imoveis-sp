@@ -665,3 +665,21 @@ table.data-table tbody tr:hover { background: #f7f5f0; }
 .calc-sim-vazio { margin: 12px 0; padding: 12px 14px; border-radius: 10px; background: var(--status-neutral-bg); color: var(--text-secondary); font-size: 14px; }
 .calc-sim-saida .calc-barra { margin-top: 50px; }
 @media (max-width: 760px) { .calc-sim-input { font-size: 20px; max-width: none; width: 100%; } }
+
+/* Calculadora: resultado primeiro (formulário vira linha-resumo) e "Mais detalhes" recolhido */
+.calc-barra-resumo { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.calc-barra-resumo[hidden], #calc-corpo-form[hidden] { display: none; }
+.calc-barra-resumo-texto { display: grid; gap: 2px; min-width: 0; }
+.calc-barra-resumo-acoes { display: flex; align-items: center; gap: 14px; }
+.calc-barra-resumo .calc-botao-sec { margin-top: 0; }
+.calc-grade-pedido { grid-template-columns: minmax(0, 480px); }
+.calc-mais { margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.calc-mais-resumo { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding: 12px 16px; cursor: pointer; list-style: none; }
+.calc-mais-resumo::-webkit-details-marker { display: none; }
+.calc-mais-resumo::before { content: "▸"; color: var(--gold); font-size: 14px; transition: transform .15s; }
+.calc-mais[open] > .calc-mais-resumo::before { transform: rotate(90deg); }
+.calc-mais-titulo { font-weight: 600; font-size: 14px; }
+.calc-mais-resumo .calc-ajuda { margin: 0; }
+.calc-mais-corpo { padding: 4px 16px 16px; }
+@media (max-width: 760px) { .calc-barra-resumo { flex-direction: column; align-items: flex-start; } .calc-grade-pedido { grid-template-columns: 1fr; } }
+@media print { .calc-barra-resumo-acoes, .calc-mais { display: none !important; } }

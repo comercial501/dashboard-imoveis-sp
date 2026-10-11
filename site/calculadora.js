@@ -316,7 +316,7 @@
   const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
   const numeroDoEndereco = (addrKey) => String((addrKey.split("|")[1] || "")).replace(/^0+(?=\d)/, "");
 
-  let DADOS = null, IDX = null, BUSCA = null;
+  let DADOS = null, IDX = null, BUSCA = null, FORM = null; // FORM: controle do formulário (recolher/expandir)
   const ESTADO = { local: null, apto: "", andar: "", andarAuto: false, area: "", areaAuto: false, areaNota: "", areaUtil: "", quartos: "", banheiros: "", suites: "", vagas: "", condominio: "", iptu: "", pedido: "" };
 
   function montarBusca() {
@@ -519,22 +519,29 @@
         campoNumero("calc-area-util", "Área útil (m²) — opcional", "A da planta. Só para mostrar o R$/m² útil e achar anúncios parecidos", { chave: "areaUtil", min: 10, max: 2000, step: "any", decimal: true, placeholder: "Ex.: 110" })),
       h("div", { class: "calc-ajuda calc-nota-area", id: "calc-area-nota" }, ESTADO.areaNota), metragens));
 
-    // 3. detalhes
+    // 3. preço pedido (sempre visível) + detalhes opcionais (recolhidos: não mudam o preço, só os anúncios parecidos e o resumo)
+    const detalhes = h("details", { class: "calc-mais", id: "calc-mais" },
+      h("summary", { class: "calc-mais-resumo" }, h("span", { class: "calc-mais-titulo" }, "Mais detalhes (opcional)"),
+        h("span", { class: "calc-ajuda" }, "quartos, banheiros, suítes, vagas, condomínio e IPTU — não mudam o preço")),
+      h("div", { class: "calc-mais-corpo" },
+        h("div", { class: "calc-grade calc-grade-4" },
+          campoNumero("calc-quartos", "Quartos", "Contando suítes", { chave: "quartos", max: 15 }),
+          campoNumero("calc-banheiros", "Banheiros", "Sem lavabo e serviço", { chave: "banheiros", max: 15 }),
+          campoNumero("calc-suites", "Suítes", "", { chave: "suites", max: 15 }),
+          campoNumero("calc-vagas", "Vagas", "", { chave: "vagas", max: 15 })),
+        h("div", { class: "calc-grade" },
+          campoNumero("calc-condominio", "Condomínio (R$ por mês)", "", { chave: "condominio", step: 10, placeholder: "Ex.: 2300" }),
+          campoNumero("calc-iptu", "IPTU (R$ por ano)", "O valor total do carnê", { chave: "iptu", step: 10 })),
+        h("p", { class: "calc-ajuda calc-aviso-campos" }, "Quartos, banheiros, suítes, vagas, condomínio e IPTU não mudam o preço calculado — o ITBI não traz esses dados. Servem para escolher os anúncios parecidos e para o resumo.")));
+    if (["quartos", "banheiros", "suites", "vagas", "condominio", "iptu"].some((k) => ESTADO[k] !== "")) detalhes.open = true; // já tem algo preenchido: não esconde
     form.append(h("div", { class: "calc-passo" },
-      h("div", { class: "calc-passo-titulo" }, "3. Detalhes"),
-      h("div", { class: "calc-grade calc-grade-4" },
-        campoNumero("calc-quartos", "Quartos", "Contando suítes", { chave: "quartos", max: 15 }),
-        campoNumero("calc-banheiros", "Banheiros", "Sem lavabo e serviço", { chave: "banheiros", max: 15 }),
-        campoNumero("calc-suites", "Suítes", "", { chave: "suites", max: 15 }),
-        campoNumero("calc-vagas", "Vagas", "", { chave: "vagas", max: 15 })),
-      h("div", { class: "calc-grade" },
-        campoNumero("calc-condominio", "Condomínio (R$ por mês)", "", { chave: "condominio", step: 10, placeholder: "Ex.: 2300" }),
-        campoNumero("calc-iptu", "IPTU (R$ por ano)", "O valor total do carnê", { chave: "iptu", step: 10 }),
+      h("div", { class: "calc-passo-titulo" }, "3. Preço pedido"),
+      h("div", { class: "calc-grade calc-grade-pedido" },
         campoNumero("calc-pedido", "Preço que o proprietário quer pedir (R$) — opcional", "Para saber se está dentro do mercado. Dá para testar outros valores depois, no resultado", { chave: "pedido", step: 1000, placeholder: "Ex.: 1200000" })),
-      h("p", { class: "calc-ajuda calc-aviso-campos" }, "Quartos, banheiros, suítes, vagas, condomínio e IPTU não mudam o preço calculado — o ITBI não traz esses dados. Servem para escolher os anúncios parecidos e para o resumo.")));
+      detalhes));
 
     const msg = h("div", { class: "calc-erro", id: "calc-erro", role: "alert", hidden: true });
-    const botao = h("button", { type: "button", class: "calc-botao", onclick: calcular }, "Calcular o preço");
+    const botao = h("button", { type: "button", class: "calc-botao", id: "calc-calcular", onclick: calcular }, "Calcular o preço");
     form.append(msg, h("div", { class: "calc-acoes" }, botao, h("button", { type: "button", class: "calc-link", onclick: limpar }, "Limpar tudo")));
     return form;
   }
@@ -550,6 +557,7 @@
   function limpar() {
     Object.assign(ESTADO, { local: null, apto: "", andar: "", andarAuto: false, area: "", areaAuto: false, areaNota: "", areaUtil: "", quartos: "", banheiros: "", suites: "", vagas: "", condominio: "", iptu: "", pedido: "" });
     montar();
+    document.getElementById("calc-card").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function entradaDoFormulario() {
@@ -664,6 +672,7 @@
       out.append(h("section", { class: "card" }, h("h2", {}, "Sem estimativa"),
         h("p", {}, "Não há vendas parecidas suficientes (nem no prédio, nem na rua, nem no bairro) para essa metragem. Em vez de chutar um número, a calculadora não responde. Tente conferir a área construída informada."),
         h("p", { class: "muted small" }, "Regra: no prédio precisa de 3+ vendas com área até 20% diferente; na rua, 5+ (até 25%); no bairro, 10+ (até 30%).")));
+      out.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     if (r.teto_verde == null) { // arquivo de dados antigo (sem a tabela de preços): pede a próxima atualização
@@ -798,7 +807,8 @@
     } }, "Copiar resumo");
     out.append(h("section", { class: "card" }, h("h2", {}, "Resumo para conversar com o proprietário"), resumoPre, copiar));
     definir(ent.preco_pedido || null, "inicio");   // pinta régua e veredito com o pedido do formulário (ou vazio)
-    out.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (FORM) FORM.recolher(ent);   // resultado primeiro: o formulário vira uma linha-resumo
+    document.getElementById("calc-card").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function montarResumo(ent, r, nAnuncios) {
@@ -829,9 +839,31 @@
   function montar() {
     root.replaceChildren();
     const form = renderFormulario();
-    root.append(h("section", { class: "card" }, h("h2", {}, "Calculadora de preço de apartamento"),
+    const corpo = h("div", { id: "calc-corpo-form" },
       h("div", { class: "card-sub" }, `Estimativa de venda com base no que foi realmente pago: guias de ITBI de revenda (compra e venda, 100% do imóvel, valor dentro do padrão — a mesma camada limpa do resto do painel), atualizadas para o preço de ${DADOS.mes_base.split("-").reverse().join("/")} pela variação de R$/m² de cada bairro. ${num(DADOS.resumo.vendas)} vendas em ${num(DADOS.resumo.predios)} prédios dos 77 bairros da carteira. Compara primeiro com o próprio prédio, depois com a rua, depois com o bairro — e diz qual dos três usou e quão confiável é.`),
-      form), h("div", { id: "calc-resultado" }));
+      form);
+    const barra = h("div", { class: "calc-barra-resumo", id: "calc-barra-resumo", hidden: true });
+    root.append(h("section", { class: "card", id: "calc-card" }, h("h2", {}, "Calculadora de preço de apartamento"), barra, corpo), h("div", { id: "calc-resultado" }));
+    // Depois de calcular, o formulário vira uma linha-resumo ("Editar" reabre, tudo preenchido) e o resultado fica logo abaixo, no topo da tela.
+    FORM = {
+      recolher(ent) {
+        const s = ESTADO.local;
+        const partes = [s.bairroNome, paraNumero(ESTADO.apto) != null ? `apto ${ESTADO.apto}` : null, ent.andar != null ? `${ent.andar}º andar` : null,
+          `${num(ent.area, ent.area % 1 ? 1 : 0)} m² de área construída`].filter(Boolean);
+        barra.replaceChildren(
+          h("div", { class: "calc-barra-resumo-texto" }, h("b", {}, s.rotulo), h("span", { class: "calc-ajuda" }, partes.join(" · "))),
+          h("div", { class: "calc-barra-resumo-acoes" },
+            h("button", { type: "button", class: "calc-botao calc-botao-sec", id: "calc-editar", onclick: () => FORM.expandir() }, "Editar"),
+            h("button", { type: "button", class: "calc-link", onclick: limpar }, "Nova consulta")));
+        barra.hidden = false;
+        corpo.hidden = true;
+      },
+      expandir() {
+        corpo.hidden = false;
+        barra.hidden = true;
+        corpo.scrollIntoView({ behavior: "smooth", block: "start" });
+      },
+    };
     form.renderLocalEscolhido();
     if (ESTADO.local) { document.getElementById("calc-endereco").value = ESTADO.local.rotulo; }
   }
