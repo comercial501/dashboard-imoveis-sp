@@ -711,28 +711,32 @@ body { font-size: 15px; }
 h1, h2, h3, .brand-name, .calc-valor, .calc-passo-titulo, .calc-sim-titulo, .credito-item .value, .imovel-row .medal { font-family: var(--font-display); font-weight: 500; }
 .calc-valor { font-weight: 500; }
 
-/* faixa fina no topo e menu lateral claro com a marca */
-.sidebar { border-right: 1px solid var(--border); }
-.brand { display: block; margin-bottom: 26px; }
-.brand-logo { display: block; width: 138px; height: auto; margin: 0 0 10px; }
-.brand-role { font-size: 11px; letter-spacing: .14em; color: var(--brand-deep); font-weight: 600; margin: 0; }
-nav.tabs button { font-size: 14px; font-weight: 500; color: var(--text-secondary); border-left: 3px solid transparent; padding: 10px 12px; }
-nav.tabs button:hover { background: var(--surface-2); color: var(--text-primary); }
-nav.tabs button.active { background: var(--surface-2); color: var(--text-primary); font-weight: 600; border-left-color: var(--brand); box-shadow: none; }
+/* faixa fina no topo e menu lateral claro: logo do P do Paulo e seções em caixinhas quase transparentes, uma por tema */
+.sidebar { border-right: 1px solid var(--border); padding: 24px 14px; }
+.brand { display: block; margin-bottom: 20px; padding: 0 4px; }
+.brand-lockup { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.brand-p { flex-shrink: 0; display: block; }
+.brand-nome { font-family: var(--font-display); font-weight: 500; font-size: 18px; line-height: 1.15; color: var(--text-primary); letter-spacing: -0.01em; }
+.brand-by { font-size: 12px; color: var(--brand-deep); margin-top: 3px; letter-spacing: .02em; }
+.brand-role { font-size: 10.5px; letter-spacing: .16em; color: var(--text-muted); font-weight: 600; margin: 0; text-transform: uppercase; }
+nav.tabs { gap: 12px; }
+.nav-grupo { display: flex; flex-direction: column; gap: 2px; padding: 8px 6px 8px; background: rgba(29, 34, 38, .025); border: 1px solid rgba(29, 34, 38, .08); }
+.nav-grupo-titulo { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; color: var(--brand-deep); padding: 4px 8px 6px; }
+nav.tabs button { font-size: 13.5px; font-weight: 500; color: var(--text-secondary); border-left: 3px solid transparent; padding: 8px 10px; }
+nav.tabs button:hover { background: rgba(255, 255, 255, .8); color: var(--text-primary); }
+nav.tabs button.active { background: #fff; color: var(--text-primary); font-weight: 600; border-left-color: var(--brand); box-shadow: none; }
 .sidebar-foot, .sidebar-foot .handle-mini { color: var(--text-muted); }
 .sidebar-foot .handle-mini { color: var(--brand-deep); }
 
-/* cabeçalho como a faixa escura do site: título branco, linha pequena em azul, fontes em cinza claro (a faixa vai de ponta a ponta) */
-.main { overflow-x: clip; }   /* a faixa escura do cabeçalho vai de ponta a ponta da coluna do conteúdo, sem passar por cima do menu */
-.app { padding-top: 0; }
-.faixa-dados-novos:not([hidden]), .aviso-parado:not([hidden]) { margin-top: 16px; }   /* avisos (quando aparecem) ficam acima da faixa escura, com respiro */
-header.app-header { background: var(--ink); color: #fff; padding: 30px 28px; margin: 0 -28px 24px; box-shadow: 0 0 0 100vmax var(--ink); clip-path: inset(0 -100vmax); }
-header.app-header h1 { color: #fff; font-size: 34px; font-weight: 500; line-height: 1.15; letter-spacing: -0.01em; }
-header.app-header .handle { color: var(--brand); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; font-weight: 500; margin-top: 8px; }
-header.app-header .updated { color: rgba(255,255,255,.72); font-size: 12px; }
-header.app-header .fontes-status, header.app-header .fontes-status .fonte-item { color: rgba(255,255,255,.66); }
-header.app-header .fontes-status .fonte-item b { color: #fff; font-weight: 600; }
-header.app-header .fontes-status .fonte-stale { color: #fbbf24; }
+/* cabeçalho claro, da mesma cor do fundo da página (pedido do Paulo 11/10): título grafite, linha pequena em azul, uma linha fina embaixo */
+.app { padding-top: 22px; }
+header.app-header { background: none; color: var(--text-primary); padding: 0 0 16px; margin: 0 0 18px; border-bottom: 1px solid var(--border); align-items: flex-end; }
+header.app-header h1 { color: var(--text-primary); font-size: 32px; font-weight: 500; line-height: 1.15; letter-spacing: -0.01em; }
+header.app-header .handle { color: var(--brand-deep); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; font-weight: 500; margin-top: 6px; }
+header.app-header .updated { color: var(--text-muted); font-size: 12px; }
+header.app-header .fontes-status, header.app-header .fontes-status .fonte-item { color: var(--text-muted); }
+header.app-header .fontes-status .fonte-item b { color: var(--text-primary); font-weight: 600; }
+header.app-header .fontes-status .fonte-stale { color: var(--status-warning); }
 
 /* cartões e tabelas: linha fina, sem sombra */
 section.card { border: 1px solid var(--border); box-shadow: none; padding: 24px 28px; }
@@ -770,17 +774,25 @@ button.calc-chip:hover { border-color: var(--brand); color: var(--brand-deep); }
 .rank-row .rank-bar-fill { background: var(--brand); }
 
 @media (max-width: 760px) {
-  .app { padding-top: 0; }
-  header.app-header { padding: 22px 12px; margin: 0 -12px 16px; }
+  .app { padding-top: 14px; }
+  header.app-header { padding: 0 0 12px; margin: 0 0 14px; }
   header.app-header h1 { font-size: 26px; }
-  .brand { display: flex; align-items: center; margin: 0 4px 0 0; }
-  .brand-logo { width: 46px; margin: 0; }
-  .brand-text { display: none; }
+  .brand { display: flex; align-items: center; margin: 0 4px 0 0; padding: 0; }
+  .brand-lockup { margin: 0; }
+  .brand-p { width: 34px; height: 34px; }
+  .brand-nomes, .brand-role { display: none; }
+  nav.tabs { gap: 4px; }
+  .nav-grupo { display: contents; }
+  .nav-grupo-titulo { display: none; }
 }
 @media print {
-  .main { overflow: visible !important; }   /* o corte lateral da faixa escura só vale na tela: na impressão deixava o PDF completo bem menos compacto (434 páginas em vez de 330) */
-  header.app-header { background: none; color: #000; padding: 0; margin: 0 0 12px; box-shadow: none; clip-path: none; }
+  header.app-header { background: none; color: #000; padding: 0; margin: 0 0 12px; border-bottom: 0; }
   header.app-header h1 { color: #000; font-size: 24px; }
   header.app-header .handle, header.app-header .updated, header.app-header .fontes-status, header.app-header .fontes-status .fonte-item { color: #333; }
   header.app-header .fontes-status .fonte-item b { color: #000; }
+}
+@media (min-width: 761px) and (max-width: 900px) {
+  .brand-lockup { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .brand-nome { font-size: 16px; }
+  .nav-grupo { padding: 6px 4px; }
 }

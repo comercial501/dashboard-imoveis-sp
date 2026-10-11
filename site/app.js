@@ -574,26 +574,35 @@ async function main() {
 }
 
 const PANELS = [
-  { id: "visao-geral", label: "Visão Geral" },
-  { id: "ranking", label: "Ranking de Oportunidade" },
-  { id: "prontidao", label: "Prontidão para Campanha" },
-  { id: "estoque-demanda", label: "Estoque × Demanda" },
-  { id: "perfil", label: "Perfil por Bairro" },
-  { id: "mapa", label: "Mapa" },
-  { id: "captacao", label: "Captação Ativa" },
-  { id: "prioritarios", label: "Imóveis Prioritários" },
-  { id: "valor-oportunidade", label: "Valor de Oportunidade" },
-  { id: "preco-m2", label: "Valor pago por bairro" },
-  { id: "calculadora", label: "Calculadora de preço" },
-  { id: "carteira-77", label: "Carteira 77" },
+  { id: "visao-geral", label: "Visão Geral", grupo: "Panorama do mercado" },
+  { id: "ranking", label: "Ranking de Oportunidade", grupo: "Onde captar" },
+  { id: "prontidao", label: "Prontidão para Campanha", grupo: "Onde captar" },
+  { id: "estoque-demanda", label: "Estoque × Demanda", grupo: "Panorama do mercado" },
+  { id: "perfil", label: "Perfil por Bairro", grupo: "Panorama do mercado" },
+  { id: "mapa", label: "Mapa", grupo: "Panorama do mercado" },
+  { id: "captacao", label: "Captação Ativa", grupo: "Onde captar" },
+  { id: "prioritarios", label: "Imóveis Prioritários", grupo: "Onde captar" },
+  { id: "valor-oportunidade", label: "Valor de Oportunidade", grupo: "Onde captar" },
+  { id: "preco-m2", label: "Valor pago por bairro", grupo: "Preços" },
+  { id: "calculadora", label: "Calculadora de preço", grupo: "Preços" },
+  { id: "carteira-77", label: "Carteira 77", grupo: "Panorama do mercado" },
 ];
+// Ordem das caixinhas do menu lateral (assuntos parecidos ficam juntos, cada um com um nome de tema).
+const GRUPOS_MENU = ["Panorama do mercado", "Onde captar", "Preços"];
 
 function setupTabs() {
   const nav = document.getElementById("tabs");
-  PANELS.forEach((p, i) => {
-    const btn = el("button", { "data-panel": p.id, class: i === 0 ? "active" : "" }, p.label);
-    btn.addEventListener("click", () => showPanel(p.id));
-    nav.appendChild(btn);
+  GRUPOS_MENU.forEach((nome) => {
+    const caixa = el("div", { class: "nav-grupo", role: "group", "aria-label": nome });
+    caixa.appendChild(el("div", { class: "nav-grupo-titulo" }, nome));
+    PANELS.filter((p) => p.grupo === nome).forEach((p) => {
+      const btn = el("button", { "data-panel": p.id, class: p.id === PANELS[0].id ? "active" : "" }, p.label);
+      btn.addEventListener("click", () => showPanel(p.id));
+      caixa.appendChild(btn);
+    });
+    nav.appendChild(caixa);
+  });
+  PANELS.forEach((p) => {
 
     // Título só visível na impressão (ver @media print / .panel-print-title
     // em styles.css) — na tela o nome já está na aba lateral; no PDF
