@@ -2575,3 +2575,19 @@ calibrados à parte (`predio_poucas|media`, `predio_poucas|baixa` na tabela `pre
 Os cortes de cor continuam os mesmos (verde 3+ em 10, amarelo 15–30 em 100, vermelho abaixo de 15 em 100 — Paulo mandou manter).
 `calibrar_precisao` agora usa 6.000 testes por nível. `validate_build` check 19 exige a tabela do nível novo com 100+ testes e erro
 menor que o do bairro. Tela: nunca mostra "Confira a metragem" quando o prédio tem alguma venda parecida (só se cair para rua/bairro).
+
+### Simulador "E se o proprietário pedir…?" (2026-10-10, pedido do Paulo)
+No resultado da calculadora, logo abaixo de "Para anunciar: até R$ X", há um campo para testar outros preços de pedido **na hora**,
+sem recalcular nada (a estimativa não depende do pedido): digitando, arrastando a barra (de 60% a 220% da estimativa, de R$ 1.000
+em R$ 1.000) ou tocando nos botões "Preço de mercado (até R$ X)", "Estimativa" e "Limite amarelo". A cada mudança atualizam a régua em 3
+cores com a marca do Pedido, o veredito (selo, frase de quantas vendas chegaram, quanto baixar pra entrar no verde, evidência do prédio),
+a cor da borda do simulador, o campo "Preço que o proprietário quer pedir" do formulário e o texto do "Copiar resumo". Valor abaixo de
+R$ 10 mil é tratado como vazio (nada quebra). Sem pedido, aparece "Digite um preço acima…". O campo não perde o foco enquanto se digita
+(só a régua e o veredito são redesenhados).
+**Correções que vieram junto**: (1) o veredito agora é decidido pelos **valores em reais** mostrados na régua (`teto_verde`,
+`teto_amarelo`, e o preço do corte "abaixo"), em vez da porcentagem — "até R$ X" inclui o próprio X (antes o botão "Preço de mercado"
+caía no amarelo por 0,0001 de diferença na porcentagem); Python e JS mudaram juntos e `test_calculadora.py` testa os limites exatos.
+(2) Tirou o texto solto **"null"** que aparecia na tela quando o prédio tinha vendas suficientes (nasceu com o nível `predio_poucas`: o
+`append` do DOM escreve "null"); `verificar_calculadora.py` agora falha se aparecer null/undefined/NaN/[object/Infinity em qualquer
+resultado. Testes novos no `verificar_calculadora.py`: digitar de verdade, botão, barra, limpar, valor baixo, foco, campo do formulário e
+resumo acompanhando. Só tela: não mexe em `calculadora_preco.py` além da regra de limites, nem no `calculadora.json` (build não reexecutado).

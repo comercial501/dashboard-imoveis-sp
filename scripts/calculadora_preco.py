@@ -477,11 +477,14 @@ def estimar(dados, idx, entrada):
         if pedido:
             x = pedido / est
             chegaram = 1 - _interp(q, [float(pp) for pp in CALC_QTS], x) / 100
-            if chegaram >= p["veredito_abaixo"]:
+            # A cor é decidida pelos VALORES em reais mostrados na tela ("até R$ X" inclui o próprio X), não pela porcentagem
+            # (no limite exato a porcentagem ficava 0,0001 abaixo do corte e a cor contradizia o texto).
+            preco_abaixo = _arred(est * _interp(CALC_QTS, q, 100 - p["veredito_abaixo"] * 100))
+            if pedido <= preco_abaixo:
                 veredito = "abaixo"
-            elif chegaram >= p["veredito_verde"]:
+            elif pedido <= res["teto_verde"]:
                 veredito = "dentro"
-            elif chegaram >= p["veredito_amarelo"]:
+            elif pedido <= res["teto_amarelo"]:
                 veredito = "alto"
             else:
                 veredito = "fora"

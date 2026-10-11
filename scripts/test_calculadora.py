@@ -155,6 +155,11 @@ casos = ((0.60, "abaixo"), (1.00, "dentro"), (1.069, "dentro"), (1.08, "alto"), 
 for f, esperado in casos:
     r = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None, "preco_pedido": E * f})
     confere(f"veredito pedido = {f} x estimativa", r["veredito"], esperado)
+# limites EXATOS: "até R$ X" inclui o próprio X (o botão "Preço de mercado" da tela usa exatamente o teto verde)
+tv, ta = est["teto_verde"], est["teto_amarelo"]
+for pedido, esperado in ((tv, "dentro"), (tv + 1, "alto"), (ta, "alto"), (ta + 1, "fora"), (est["estimativa"], "dentro")):
+    rr = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None, "preco_pedido": pedido})
+    confere(f"pedido exatamente em R$ {pedido}", rr["veredito"], esperado)
 r = cp.estimar(d, idx, {"predio": 0, "rua": 0, "bairro": 0, "area": 100.0, "andar": None, "preco_pedido": 2_000_000})
 confere("pedido absurdo (R$ 2 mi) é VERMELHO (fora do mercado)", r["veredito"], "fora")
 confere("pedido absurdo: 1 em cada 100 ou menos chegou", (r["pedido_alem_dos_testes"], r["pedido_chegaram_pct"]), (False, 1))

@@ -208,10 +208,12 @@
       if (pedido) {
         const x = pedido / est;
         const chegaram = 1 - interp(q, QTS, x) / 100;
+        // A cor é decidida pelos VALORES em reais mostrados na tela ("até R$ X" inclui o próprio X), não pela porcentagem
+        const precoAbaixo = arred(est * interp(QTS, q, 100 - p.veredito_abaixo * 100));
         let veredito;
-        if (chegaram >= p.veredito_abaixo) veredito = "abaixo";
-        else if (chegaram >= p.veredito_verde) veredito = "dentro";
-        else if (chegaram >= p.veredito_amarelo) veredito = "alto";
+        if (pedido <= precoAbaixo) veredito = "abaixo";
+        else if (pedido <= res.teto_verde) veredito = "dentro";
+        else if (pedido <= res.teto_amarelo) veredito = "alto";
         else veredito = "fora";
         res.veredito = veredito;
         res.pedido_chegaram_pct = arred(chegaram * 100);
@@ -528,7 +530,7 @@
       h("div", { class: "calc-grade" },
         campoNumero("calc-condominio", "Condomínio (R$ por mês)", "", { chave: "condominio", step: 10, placeholder: "Ex.: 2300" }),
         campoNumero("calc-iptu", "IPTU (R$ por ano)", "O valor total do carnê", { chave: "iptu", step: 10 }),
-        campoNumero("calc-pedido", "Preço que o proprietário quer pedir (R$) — opcional", "Para saber se está dentro do mercado", { chave: "pedido", step: 1000, placeholder: "Ex.: 1200000" })),
+        campoNumero("calc-pedido", "Preço que o proprietário quer pedir (R$) — opcional", "Para saber se está dentro do mercado. Dá para testar outros valores depois, no resultado", { chave: "pedido", step: 1000, placeholder: "Ex.: 1200000" })),
       h("p", { class: "calc-ajuda calc-aviso-campos" }, "Quartos, banheiros, suítes, vagas, condomínio e IPTU não mudam o preço calculado — o ITBI não traz esses dados. Servem para escolher os anúncios parecidos e para o resumo.")));
 
     const msg = h("div", { class: "calc-erro", id: "calc-erro", role: "alert", hidden: true });
@@ -639,6 +641,20 @@
       chipsMetragem(ms, true));
   }
 
+  // Veredito do preço pedido (selo colorido + frase de quantas vendas chegaram + quanto baixar + evidência do prédio)
+  function blocoVeredito(ent, r) {
+    const [vt, vc, vx] = VEREDITO[r.veredito];
+    const sinal = r.pedido_vs_estimativa_pct > 0 ? "acima" : "abaixo";
+    return h("div", { class: `calc-veredito ${vc}`, id: "calc-veredito" },
+      h("div", { class: "calc-veredito-titulo" }, h("span", { class: "calc-veredito-selo" }, vt.toUpperCase()), h("b", {}, `Pedido de ${brl(ent.preco_pedido)}`)),
+      h("div", { class: "calc-veredito-frase" }, `${em100(r.pedido_chegaram_pct, r.pedido_alem_dos_testes)} vendas parecidas chegaram a esse valor ou mais.`.replace(/^./, (c) => c.toUpperCase())),
+      h("div", {}, `${vx} O pedido está ${brl(Math.abs(ent.preco_pedido - r.estimativa))} (${num(Math.abs(r.pedido_vs_estimativa_pct), 1)}%) ${sinal} da estimativa de ${brl(r.estimativa)}.`),
+      r.pedido_acima_do_verde > 0 ? h("div", {}, h("b", {}, `Para entrar no preço de mercado, o pedido precisaria baixar ${brl(r.pedido_acima_do_verde)} (até ${brl(r.teto_verde)}).`)) : null,
+      h("div", {}, `Nas ${r.n} vendas parecidas usadas (${NIVEL_CURTO[r.nivel]}), levadas para a sua metragem, a mais alta equivale a ${brl(r.maior_venda)} — ${r.pedido_n_chegaram === 0 ? "nenhuma chegou ao pedido" : `${r.pedido_n_chegaram} ${r.pedido_n_chegaram === 1 ? "chegou" : "chegaram"} ao pedido ou mais`}.`),
+      (r.confianca === "baixa" || r.nivel === "predio_poucas") ? h("div", { class: "calc-ajuda" }, `Como há poucas vendas ${r.nivel === "predio_poucas" ? "parecidas no prédio" : "para comparar"}, o veredito é um indicativo.`) : null,
+      h("div", { class: "calc-ajuda" }, "A comparação é com o que foi PAGO nas vendas (guias de ITBI), não com preços de anúncio."));
+  }
+
   function renderResultado(ent, r) {
     const out = document.getElementById("calc-resultado");
     out.replaceChildren();
@@ -663,6 +679,45 @@
     const iptuMes = paraNumero(ESTADO.iptu) != null ? paraNumero(ESTADO.iptu) / 12 : null;
     const cond = paraNumero(ESTADO.condominio);
 
+    // simulador "E se o proprietário pedir…?": muda o pedido e atualiza régua, cor, frase e resumo na hora (a estimativa não muda)
+    const r0 = estimar(DADOS, IDX, { ...ent, preco_pedido: null });
+    const estMin = Math.floor(r.estimativa * 0.6 / 1000) * 1000, estMax = Math.ceil(r.estimativa * 2.2 / 1000) * 1000;
+    const inputSim = h("input", { id: "calc-sim-valor", type: "number", class: "calc-input calc-sim-input", min: 0, step: 1000, inputmode: "numeric",
+      placeholder: `Ex.: ${num(Math.round(r.teto_verde / 1000) * 1000)}`, "aria-label": "Preço que o proprietário pede, em reais" });
+    const slider = h("input", { id: "calc-sim-slider", type: "range", class: "calc-slider", min: estMin, max: estMax, step: 1000, "aria-label": "Arraste para testar outros preços" });
+    const saida = h("div", { class: "calc-sim-saida", id: "calc-sim-saida" });
+    const simulador = h("div", { class: "calc-sim", id: "calc-sim" });
+    let resumoPre = null, nAnuncios = 0, rAtual = r;
+    const pintar = (valor) => {
+      const v = valor != null && isFinite(valor) && valor >= 10000 ? valor : null;
+      const ent2 = { ...ent, preco_pedido: v };
+      const r2 = v ? estimar(DADOS, IDX, ent2) : r0;
+      rAtual = r2;
+      ESTADO.pedido = v ? String(v) : "";
+      const campo = document.getElementById("calc-pedido");
+      if (campo && document.activeElement !== campo) campo.value = ESTADO.pedido;   // o campo do formulário acompanha
+      simulador.className = "calc-sim" + (v ? ` ${VEREDITO[r2.veredito][1]}` : "");
+      saida.replaceChildren(renderBarra(r2, v), v ? blocoVeredito(ent2, r2)
+        : h("div", { class: "calc-sim-vazio" }, "Digite um preço acima (ou toque num dos botões) para comparar com o mercado."));
+      if (resumoPre) resumoPre.textContent = montarResumo(ent2, r2, nAnuncios);
+    };
+    const definir = (valor, origem) => {
+      if (origem !== "input") inputSim.value = valor == null ? "" : String(valor);
+      if (origem !== "slider" && valor != null) slider.value = String(Math.max(estMin, Math.min(estMax, valor)));
+      pintar(valor);
+    };
+    let quadro = null;
+    inputSim.addEventListener("input", () => { cancelAnimationFrame(quadro); quadro = requestAnimationFrame(() => definir(inputSim.value === "" ? null : Number(inputSim.value), "input")); });
+    slider.addEventListener("input", () => { inputSim.value = slider.value; definir(Number(slider.value), "slider"); });
+    const botoes = [[`Preço de mercado (até ${brl(r.teto_verde)})`, r.teto_verde], [`Estimativa (${brl(r.estimativa)})`, r.estimativa], [`Limite amarelo (${brl(r.teto_amarelo)})`, r.teto_amarelo]];
+    simulador.append(
+      h("div", { class: "calc-sim-titulo" }, "E se o proprietário pedir…?"),
+      h("div", { class: "calc-ajuda" }, "Digite um preço (ou arraste) e veja na hora a cor, a frase e a régua. A estimativa não muda."),
+      h("div", { class: "calc-sim-linha" }, h("span", { class: "calc-sim-rs" }, "R$"), inputSim),
+      slider,
+      h("div", { class: "calc-sim-chips" }, botoes.map(([rot, val]) => h("button", { type: "button", class: "calc-chip", onclick: () => definir(val, "botao") }, rot)),
+        h("button", { type: "button", class: "calc-link", onclick: () => definir(null, "botao") }, "Limpar")));
+
     const card = h("section", { class: "card calc-resultado-card" });
     card.append(
       h("div", { class: "calc-topo" },
@@ -670,27 +725,14 @@
           h("div", { class: "calc-ajuda" }, `R$ ${num(r.m2)}/m² da área construída` + (ent.area_util ? ` · R$ ${num(r.estimativa / ent.area_util)}/m² da área útil` : ""))),
         h("div", { class: "calc-selos" }, h("span", { class: "badge neutral", title: confExpl }, `${confNome} ${PONTOS[r.confianca]}`))),
       h("div", { class: "calc-anunciar" }, h("b", {}, `Para anunciar: até ${brl(r.teto_verde)}`), ` — acima de ${brl(r.teto_amarelo)} o imóvel fica fora do mercado.`),
-      renderBarra(r, ent.preco_pedido),
+      simulador, saida,
       r.nivel === "predio_poucas" ? h("div", { class: "calc-poucas" },
         h("b", {}, `Atenção: só ${r.n} ${r.n === 1 ? "venda parecida" : "vendas parecidas"} neste prédio.`),
         r.segunda_opiniao ? h("div", {}, `Segunda opinião — ${r.segunda_opiniao.nivel === "rua" ? "pela rua" : "pelo bairro"} (${r.segunda_opiniao.n} vendas): ${brl(r.segunda_opiniao.estimativa)} (${r.segunda_opiniao.diferenca_pct > 0 ? "+" : ""}${num(r.segunda_opiniao.diferenca_pct, 1)}% em relação à estimativa do prédio).`) : null,
-        r.segunda_diverge ? h("div", { class: "calc-poucas-alerta" }, "As duas estimativas divergem mais do que a margem de erro: confira a metragem, o andar e o estado do imóvel antes de apresentar o preço ao proprietário.") : null) : null,
+        r.segunda_diverge ? h("div", { class: "calc-poucas-alerta" }, "As duas estimativas divergem mais do que a margem de erro: confira a metragem, o andar e o estado do imóvel antes de apresentar o preço ao proprietário.") : null) : "",
       h("p", { class: "calc-ajuda" }, `Como medimos: em ${r.precisao_testes.toLocaleString("pt-BR")} testes com vendas reais, em casos como este (${NIVEL_CURTO[r.nivel]}, ${confNome.toLowerCase()}), o erro típico foi de ${num(r.precisao_mediana_pct, 0)}%. As cores dizem quantas vendas parecidas chegaram a cada preço. ${confExpl}`),
       h("div", { class: "calc-escada" }, h("div", { class: "calc-rotulo" }, "Por quanto as vendas parecidas fecharam (valores atualizados)"),
         h("div", { class: "calc-escada-grade" }, r.escada.map(([sh, v]) => h("div", { class: "calc-escada-item" }, h("div", { class: "calc-escada-valor" }, brl(v)), h("div", { class: "calc-ajuda" }, `${sh} em cada 100 chegaram a pelo menos isso`))))));
-
-    if (r.veredito) {
-      const [vt, vc, vx] = VEREDITO[r.veredito];
-      const sinal = r.pedido_vs_estimativa_pct > 0 ? "acima" : "abaixo";
-      card.append(h("div", { class: `calc-veredito ${vc}` },
-        h("div", { class: "calc-veredito-titulo" }, h("span", { class: "calc-veredito-selo" }, vt.toUpperCase()), h("b", {}, `Pedido de ${brl(ent.preco_pedido)}`)),
-        h("div", { class: "calc-veredito-frase" }, `${em100(r.pedido_chegaram_pct, r.pedido_alem_dos_testes)} vendas parecidas chegaram a esse valor ou mais.`.replace(/^./, (c) => c.toUpperCase())),
-        h("div", {}, `${vx} O pedido está ${brl(Math.abs(ent.preco_pedido - r.estimativa))} (${num(Math.abs(r.pedido_vs_estimativa_pct), 1)}%) ${sinal} da estimativa de ${brl(r.estimativa)}.`),
-        r.pedido_acima_do_verde > 0 ? h("div", {}, h("b", {}, `Para entrar no preço de mercado, o pedido precisaria baixar ${brl(r.pedido_acima_do_verde)} (até ${brl(r.teto_verde)}).`)) : null,
-        h("div", {}, `Nas ${r.n} vendas parecidas usadas (${NIVEL_CURTO[r.nivel]}), levadas para a sua metragem, a mais alta equivale a ${brl(r.maior_venda)} — ${r.pedido_n_chegaram === 0 ? "nenhuma chegou ao pedido" : `${r.pedido_n_chegaram} ${r.pedido_n_chegaram === 1 ? "chegou" : "chegaram"} ao pedido ou mais`}.`),
-        (r.confianca === "baixa" || r.nivel === "predio_poucas") ? h("div", { class: "calc-ajuda" }, `Como há poucas vendas ${r.nivel === "predio_poucas" ? "parecidas no prédio" : "para comparar"}, o veredito é um indicativo.`) : null,
-        h("div", { class: "calc-ajuda" }, "A comparação é com o que foi PAGO nas vendas (guias de ITBI), não com preços de anúncio.")));
-    }
 
     const porque = h("div", { class: "calc-porque" },
       h("h3", {}, "Como chegamos nesse número"),
@@ -747,13 +789,15 @@
       linhasA.length ? tabela(["Endereço", "Área", "Quartos", "Vagas", "Preço pedido", "Anunciado há", "Código"], linhasA)
         : h("p", { class: "muted" }, "Nenhum anúncio parecido na rede hoje.")));
 
-    // resumo para copiar
-    const resumo = montarResumo(ent, r, anuncios.length);
+    // resumo para copiar (acompanha o pedido do simulador)
+    nAnuncios = anuncios.length;
+    resumoPre = h("pre", { class: "calc-resumo" }, montarResumo(ent, r, nAnuncios));
     const copiar = h("button", { type: "button", class: "calc-botao calc-botao-sec", onclick: async () => {
-      try { await navigator.clipboard.writeText(resumo); copiar.textContent = "Resumo copiado ✓"; } catch (e) { copiar.textContent = "Não consegui copiar — selecione o texto abaixo"; }
+      try { await navigator.clipboard.writeText(resumoPre.textContent); copiar.textContent = "Resumo copiado ✓"; } catch (e) { copiar.textContent = "Não consegui copiar — selecione o texto abaixo"; }
       setTimeout(() => { copiar.textContent = "Copiar resumo"; }, 2500);
     } }, "Copiar resumo");
-    out.append(h("section", { class: "card" }, h("h2", {}, "Resumo para conversar com o proprietário"), h("pre", { class: "calc-resumo" }, resumo), copiar));
+    out.append(h("section", { class: "card" }, h("h2", {}, "Resumo para conversar com o proprietário"), resumoPre, copiar));
+    definir(ent.preco_pedido || null, "inicio");   // pinta régua e veredito com o pedido do formulário (ou vazio)
     out.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 

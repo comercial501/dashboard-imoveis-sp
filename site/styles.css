@@ -650,3 +650,18 @@ table.data-table tbody tr:hover { background: #f7f5f0; }
 /* Calculadora: prédio com só 1 ou 2 vendas parecidas (aviso + segunda opinião) */
 .calc-poucas { margin: 10px 0; padding: 12px 14px; border-radius: 10px; background: var(--status-warning-bg); border-left: 4px solid var(--status-warning); font-size: 13.5px; display: grid; gap: 4px; }
 .calc-poucas-alerta { font-weight: 700; color: var(--status-warning); }
+
+/* Calculadora: simulador "E se o proprietário pedir…?" */
+.calc-sim { margin: 14px 0; padding: 16px 18px; border-radius: 12px; background: var(--surface-2); border-left: 6px solid var(--baseline); }
+.calc-sim.good { border-left-color: var(--status-good); }
+.calc-sim.warning { border-left-color: var(--status-warning); }
+.calc-sim.critical { border-left-color: var(--status-critical); }
+.calc-sim-titulo { font-family: "Playfair Display", Georgia, serif; font-size: 19px; font-weight: 700; margin-bottom: 2px; }
+.calc-sim-linha { display: flex; align-items: center; gap: 10px; margin: 10px 0 6px; }
+.calc-sim-rs { font-size: 22px; font-weight: 700; color: var(--text-secondary); }
+.calc-sim-input { font-size: 24px; font-weight: 700; padding: 12px 14px; max-width: 360px; background: var(--surface); }
+.calc-slider { width: 100%; accent-color: var(--gold); margin: 6px 0 4px; cursor: pointer; }
+.calc-sim-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.calc-sim-vazio { margin: 12px 0; padding: 12px 14px; border-radius: 10px; background: var(--status-neutral-bg); color: var(--text-secondary); font-size: 14px; }
+.calc-sim-saida .calc-barra { margin-top: 50px; }
+@media (max-width: 760px) { .calc-sim-input { font-size: 20px; max-width: none; width: 100%; } }

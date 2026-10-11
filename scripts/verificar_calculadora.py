@@ -82,6 +82,11 @@ def comparar(py, js):
     return difs
 
 
+import re
+
+LIXO = re.compile(r"\bnull\b|\bundefined\b|\bNaN\b|\[object|Infinity")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--base", default="http://localhost:8899")
@@ -161,6 +166,8 @@ def main():
         pg.fill("#calc-pedido", str(int(round(esp["estimativa"] * 1.25, -3))))
         pg.click(".calc-botao")
         pg.wait_for_selector(".calc-valor", timeout=5000)
+        lixo = []   # palavras que nunca podem aparecer na tela ("null", "undefined", "NaN"...): já aconteceu um "null" solto
+        lixo.append(("resultado_1", LIXO.findall(pg.inner_text("#calc-resultado"))))
         tela["valor_na_tela"] = pg.inner_text(".calc-valor")
         tela["valor_python"] = esp["estimativa"]
         tela["veredito"] = pg.inner_text(".calc-veredito").replace("\n", " | ")
@@ -183,6 +190,7 @@ def main():
         pg.fill("#calc-area", str(area_chip))
         pg.click(".calc-botao")
         pg.wait_for_selector(".calc-valor", timeout=5000)
+        lixo.append(("resultado_rua", LIXO.findall(pg.inner_text("#calc-resultado"))))
         tela["rua_valor"] = pg.inner_text(".calc-valor")
         tela["rua_selo"] = pg.inner_text(".calc-selos")
         tela["rua_porque"] = pg.inner_text(".calc-porque li >> nth=0")
@@ -264,6 +272,38 @@ def main():
         tela["pedido_absurdo"] = {"classe": pg.get_attribute(".calc-veredito", "class"), "selo": pg.inner_text(".calc-veredito-selo"),
                                   "frase": pg.inner_text(".calc-veredito-frase"), "legenda_linhas": pg.locator(".calc-legenda-linha").count(),
                                   "para_anunciar": pg.inner_text(".calc-anunciar")}
+        # simulador "E se o proprietário pedir…?": muda o pedido no resultado e atualiza tudo na hora, sem recalcular
+        sim = {}
+        sim["existe"] = pg.is_visible("#calc-sim-valor") and pg.is_visible("#calc-sim-slider")
+        pg.fill("#calc-sim-valor", "")
+        pg.click("#calc-sim-valor")
+        pg.keyboard.type("2000000", delay=40)    # digitando de verdade: o campo não pode perder o foco a cada tecla
+        pg.wait_for_timeout(200)
+        sim["foco_mantido_digitando"] = pg.evaluate("()=>document.activeElement && document.activeElement.id")
+        sim["absurdo"] = {"selo": pg.inner_text(".calc-veredito-selo"), "classe_sim": pg.get_attribute("#calc-sim", "class"),
+                          "campo_formulario": pg.input_value("#calc-pedido"), "resumo_tem_pedido": "R$ 2.000.000" in pg.inner_text(".calc-resumo").replace("\u00a0", " ")}
+        pg.click("text=Preço de mercado (até")
+        pg.wait_for_timeout(150)
+        sim["botao_mercado"] = {"selo": pg.inner_text(".calc-veredito-selo"), "classe_sim": pg.get_attribute("#calc-sim", "class"),
+                                "valor_no_campo": pg.input_value("#calc-sim-valor"), "slider": pg.input_value("#calc-sim-slider"),
+                                "para_anunciar": pg.inner_text(".calc-anunciar")}
+        pg.evaluate("""()=>{const s=document.getElementById('calc-sim-slider'); s.value=s.max; s.dispatchEvent(new Event('input',{bubbles:true}));}""")
+        pg.wait_for_timeout(150)
+        sim["slider_no_maximo"] = {"selo": pg.inner_text(".calc-veredito-selo"), "campo": pg.input_value("#calc-sim-valor")}
+        pg.click("#calc-sim >> text=Limpar")
+        pg.wait_for_timeout(150)
+        sim["limpar"] = {"veredito_visivel": pg.is_visible("#calc-veredito"), "aviso_vazio": pg.is_visible(".calc-sim-vazio"), "campo_vazio": pg.input_value("#calc-sim-valor") == ""}
+        pg.fill("#calc-sim-valor", "1")                 # valor absurdamente baixo (< R$ 10 mil): tratado como vazio, não quebra
+        pg.wait_for_timeout(150)
+        sim["valor_muito_baixo_sem_erro"] = pg.is_visible(".calc-sim-vazio")
+        pg.fill("#calc-sim-valor", "2000000")
+        pg.wait_for_timeout(200)
+        lixo.append(("resultado_simulador", LIXO.findall(pg.inner_text("#calc-resultado"))))
+        pg.click("#calc-sim >> text=Limpar")
+        lixo.append(("resultado_sem_pedido", LIXO.findall(pg.inner_text("#calc-resultado"))))
+        pg.fill("#calc-sim-valor", "2000000")
+        tela["lixo_na_tela"] = [(n, x) for n, x in lixo if x]
+        tela["simulador"] = sim
         # campos alinhados: em cada linha da grade, todas as caixas terminam na mesma altura
         tela["campos_alinhados"] = pg.evaluate("""()=>{ let ok=true, linhas=0;
           document.querySelectorAll('.calc-grade').forEach(g=>{ const por={}; g.querySelectorAll('.calc-campo').forEach(c=>{ const r=c.getBoundingClientRect(), i=c.querySelector('input').getBoundingClientRect(); const k=Math.round(r.top); (por[k]=por[k]||[]).push(i.bottom); });
@@ -300,6 +340,14 @@ def main():
           and t["fluxos"]["conde_de_itu"] and "Conde" in t["fluxos"]["conde_de_itu"][0]
           and t["fluxos"]["apto"]["andar_tela"] == str(t["fluxos"]["apto"]["andar_esperado"]) and t["fluxos"]["apto"]["area_tela"] == str(t["fluxos"]["apto"]["area_esperada"])
           and t["fluxos"]["apto"]["nivel_predio_sem_aviso"] and t["fluxos"]["aviso_sumiu_depois_de_tocar"] and "área construída do cadastro" in t["fluxos"]["erro_so_util"]
+          and not t["lixo_na_tela"]
+          and t["simulador"]["existe"] and t["simulador"]["foco_mantido_digitando"] == "calc-sim-valor"
+          and t["simulador"]["absurdo"]["selo"] == "FORA DO MERCADO" and "critical" in t["simulador"]["absurdo"]["classe_sim"]
+          and t["simulador"]["absurdo"]["campo_formulario"] == "2000000" and t["simulador"]["absurdo"]["resumo_tem_pedido"]
+          and t["simulador"]["botao_mercado"]["selo"] == "NO PREÇO DE MERCADO" and "good" in t["simulador"]["botao_mercado"]["classe_sim"]
+          and t["simulador"]["slider_no_maximo"]["selo"] == "FORA DO MERCADO"
+          and not t["simulador"]["limpar"]["veredito_visivel"] and t["simulador"]["limpar"]["aviso_vazio"] and t["simulador"]["limpar"]["campo_vazio"]
+          and t["simulador"]["valor_muito_baixo_sem_erro"]
           and "critical" in t["pedido_absurdo"]["classe"] and t["pedido_absurdo"]["selo"] == "FORA DO MERCADO" and t["pedido_absurdo"]["legenda_linhas"] == 3
           and t["campos_alinhados"]["ok"]
           and t["plano_b_escondido_com_endereco"] and t["fluxos"]["plano_b_antes_de_abrir"] == {"link_visivel": True, "caixa_aberta": False}
