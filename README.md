@@ -2654,3 +2654,18 @@ claro (sem gastar tinta) e o `--gold-bg` do PDF é azul claro. As faixas de avis
 da faixa escura. Conferido: todos os painéis no computador e no celular, impressão, PDF completo (330 páginas, mesmo texto do anterior),
 `verificar_interface.py`, `verificar_calculadora.py`, `testar_aviso_dado_novo.py` (que passou a copiar o logo), `test_rotina.py` e os testes
 da Cloudflare. Para voltar ao visual anterior: reverter o commit deste ramo.
+
+
+## Relatório "Baixar precificação (PDF)" da Calculadora (2026-10-13)
+
+Na aba Calculadora, o botão do topo (que nas outras abas é "Baixar esta página") passa a ser **Baixar precificação (PDF) ↓**. Ele só aparece depois de calcular
+(e some se não houver estimativa). O PDF é **uma página A4**, em linguagem simples, para mostrar ao proprietário: preço sugerido e faixa provável, **régua
+verde/amarela/vermelha** com o preço pedido (quando há pedido) e a frase do veredito, o **gráfico colorido das vendas reais usadas** (cada ponto já levado para a metragem
+informada e para o preço do último mês completo; a cor do ponto é a faixa em que a venda ficou; círculo vazio = venda fora do padrão; linhas: estimativa, limites verde/amarelo
+e pedido) e a confiança (com o erro típico medido nos testes). **Sem preço pedido** o relatório sai só com preço, faixa, régua de faixas e gráfico, sem o veredito.
+O PDF acompanha o que está na tela, inclusive o preço testado no simulador "E se o proprietário pedir…?".
+
+Como funciona: `montarRelatorio`/`svgVendas` em `site/calculadora.js` montam o relatório num `<div id="relatorio-precificacao">` que só existe na impressão
+(CSS "Relatório de precificação" no fim de `site/styles.css`, `@page relatorio` A4 sem margem); `baixarRelatorio()` marca o `<body>` com `imprimindo-relatorio` (esconde o resto) e chama `window.print()`.
+Os valores vêm do mesmo `estimar()` da tela (nada recalculado à parte). Teste: `python3 scripts/testar_relatorio.py --base http://localhost:8899` (6 cenários: botão só depois de calcular, 1 página,
+nada passando do rodapé, sem "null/undefined/NaN", preço e faixa do PDF = Python, veredito presente só com pedido, PDF acompanha o simulador).

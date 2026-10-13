@@ -285,6 +285,7 @@
     for (const [k, v] of Object.entries(attrs || {})) {
       if (v == null || v === false) continue;
       if (k === "class") e.className = v;
+      else if (k === "html") e.innerHTML = v;   // só strings montadas aqui com números e datas (sem texto digitado)
       else if (k.startsWith("on") && typeof v === "function") e.addEventListener(k.slice(2), v);
       else e.setAttribute(k, v === true ? "" : v);
     }
@@ -728,6 +729,8 @@
   function renderResultado(ent, r) {
     const out = document.getElementById("calc-resultado");
     out.replaceChildren();
+    RELATORIO = null;
+    mostrarBotaoRelatorio(false);
     const aviso = avisoMetragem(ent, r);
     if (aviso) out.append(aviso);
     if (!r.ok) {
@@ -764,6 +767,7 @@
       const ent2 = { ...ent, preco_pedido: v };
       const r2 = v ? estimar(DADOS, IDX, ent2) : r0;
       rAtual = r2;
+      RELATORIO = { ent: ent2, r: r2 };   // o PDF sai com o que está na tela (inclui o preço testado no simulador)
       ESTADO.pedido = v ? String(v) : "";
       const campo = document.getElementById("calc-pedido");
       if (campo && document.activeElement !== campo) campo.value = ESTADO.pedido;   // o campo do formulário acompanha
@@ -874,6 +878,7 @@
     } }, "Copiar resumo");
     out.append(h("section", { class: "card" }, h("h2", {}, "Resumo para conversar com o proprietário"), resumoPre, copiar));
     definir(ent.preco_pedido || null, "inicio");   // pinta régua e veredito com o pedido do formulário (ou vazio)
+    mostrarBotaoRelatorio(true);
     if (FORM) FORM.recolher(ent);   // resultado primeiro: o formulário vira uma linha-resumo
     document.getElementById("calc-card").scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -895,6 +900,128 @@
     linhas.push("Acabamento, reforma, vista e estado do prédio não entram no cálculo e podem mudar o valor.");
     return linhas.join("\n");
   }
+
+  // ---- relatório em PDF ("Baixar precificação") -------------------------------------------------------------------
+  // Uma página A4, em linguagem simples, para mostrar ao proprietário: preço sugerido, régua do mercado (com o pedido,
+  // se houver), gráfico das vendas reais usadas e a confiança. Sai da conta que está na tela (inclui o preço testado no
+  // simulador). A impressão esconde o resto da página (ver "Relatório de precificação" em styles.css).
+  let RELATORIO = null;
+
+  function mostrarBotaoRelatorio(on) {
+    const b = document.querySelector('.panel[data-panel="calculadora"] .page-pdf-btn');
+    if (b) b.hidden = !on;
+  }
+
+  const mil = (v) => v >= 1e6 ? `R$ ${(v / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} milhões` : `R$ ${num(Math.round(v / 1000))} mil`;
+
+  // Gráfico das vendas reais usadas: cada ponto é uma venda (já levada para a metragem informada e para o preço de hoje),
+  // sobre faixas verde/amarela/vermelha iguais às da régua. Linha tracejada = estimativa; linha escura = pedido, se houver.
+  function svgVendas(ent, r) {
+    const vs = DADOS.vendas, W = 702, H = 236, mE = 14, mD = 150, mT = 18, mB = 22, pw = W - mE - mD, ph = H - mT - mB;
+    const pts = r.similares.slice(0, 12).map((i, k) => ({ v: vs[i], eq: r.similares_eq[k], flag: r.similares_flag[k] }));
+    const meses = pts.map((p) => Math.floor(p.v[1] / 100) * 12 + (p.v[1] % 100));
+    let x0 = Math.min(...meses) - 0.8, x1 = Math.max(...meses) + 0.8;
+    if (x1 - x0 < 4) { const c = (x0 + x1) / 2; x0 = c - 2; x1 = c + 2; }
+    const pedido = ent.preco_pedido || null;
+    const y0 = Math.min(...pts.map((p) => p.eq), r.piso_mercado) * 0.93;
+    const y1 = Math.max(...pts.map((p) => p.eq), r.teto_amarelo * 1.08, (pedido || 0) * 1.05);
+    const X = (m) => mE + ((m - x0) / (x1 - x0)) * pw, Y = (v) => mT + (1 - (v - y0) / (y1 - y0)) * ph;
+    const cor = (v) => v <= r.teto_verde ? "#1f9d55" : v <= r.teto_amarelo ? "#d99a1c" : "#c0392b";
+    const f = (n) => n.toFixed(1);
+    const faixa = (de, ate, c) => `<rect x="${mE}" y="${f(Y(Math.min(ate, y1)))}" width="${pw}" height="${f(Y(Math.max(de, y0)) - Y(Math.min(ate, y1)))}" fill="${c}"/>`;
+    const linha = (v, c, dash, txt, negrito) => `<line x1="${mE}" x2="${mE + pw}" y1="${f(Y(v))}" y2="${f(Y(v))}" stroke="${c}" stroke-width="${negrito ? 2 : 1.4}" ${dash ? `stroke-dasharray="${dash}"` : ""}/><text x="${mE + pw + 8}" y="${f(Y(v) + 3.5)}" font-size="10.5" font-weight="${negrito ? 700 : 600}" fill="${c}">${txt}</text>`;
+    const compacto = pts.length > 6;
+    const rotulos = pts.map((p, k) => {
+      const x = X(meses[k]), y = Y(p.eq), c = cor(p.eq);
+      const t1 = mil(p.eq), t2 = compacto ? ymLabel(p.v[1]) : `${ymLabel(p.v[1])}${p.v[4] != null ? ` · ${p.v[4]}º andar` : ""}`;
+      const esq = x > mE + pw - 95, tx = esq ? x - 11 : x + 11, anc = esq ? "end" : "start";
+      const halo = 'stroke="#fff" stroke-width="3.5" stroke-linejoin="round" paint-order="stroke"';   // contorno branco: o texto lê por cima das linhas
+      return `<circle cx="${f(x)}" cy="${f(y)}" r="6.5" fill="${p.flag !== 0 ? "#fff" : c}" stroke="${c}" stroke-width="2.4"/>`
+        + `<text x="${f(tx)}" y="${f(y - 1)}" text-anchor="${anc}" font-size="11.5" font-weight="700" fill="#1d2226" ${halo}>${t1}</text>`
+        + `<text x="${f(tx)}" y="${f(y + 11)}" text-anchor="${anc}" font-size="9.5" fill="#646c71" ${halo}>${t2}</text>`;
+    }).join("");
+    return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">`
+      + faixa(y0, r.teto_verde, "#e3f4ea") + faixa(r.teto_verde, r.teto_amarelo, "#fdf1d3") + faixa(r.teto_amarelo, y1, "#f8dcd8")
+      + linha(r.teto_verde, "#1f7a43", "2 3", `Até ${mil(r.teto_verde)}`, false) + linha(r.teto_amarelo, "#a3392d", "2 3", `Acima de ${mil(r.teto_amarelo)}`, false)
+      + linha(r.estimativa, "#1d2226", "6 4", `Estimativa ${mil(r.estimativa)}`, false)
+      + (pedido ? linha(pedido, "#8a5a00", "", `Pedido ${mil(pedido)}`, true) : "")
+      + rotulos + `</svg>`;
+  }
+
+  function montarRelatorio(ent, r) {
+    const s = ESTADO.local, p = DADOS.parametros;
+    const mb = DADOS.mes_base.split("-").map(Number), mesBaseTxt = `${MESES[mb[1] - 1]}/${mb[0]}`;
+    const [confNome] = CONF_TEXTO[r.confianca];
+    const pedido = ent.preco_pedido || null;
+    const metragem = ent.area_util ? `${num(ent.area_util, ent.area_util % 1 ? 1 : 0)} m² úteis` : `${num(ent.area, ent.area % 1 ? 1 : 0)} m² (metragem do cadastro)`;
+    const hoje = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" });
+    const [vt, vc, vx] = pedido && r.veredito ? VEREDITO[r.veredito] : [];
+    const nPontos = Math.min(12, r.similares.length);
+    const base = r.nivel.startsWith("predio") ? "no mesmo prédio" : r.nivel === "rua" ? "na mesma rua" : `no bairro ${DADOS.bairros[ent.bairro]}`;
+    const verde = Math.round(p.veredito_verde * 100), amarelo = Math.round(p.veredito_amarelo * 100);
+    const lo = Math.min(r.piso_mercado, pedido || Infinity) * 0.97, hi = Math.max(r.teto_amarelo * 1.12, (pedido || 0) * 1.04);
+    const pos = (v) => `${Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)).toFixed(2)}%`;
+    const regua = h("div", { class: "rel-regua" },
+      h("div", { class: "rel-z verde", style: `left:0;width:${pos(r.teto_verde)}` }),
+      h("div", { class: "rel-z amarelo", style: `left:${pos(r.teto_verde)};width:calc(${pos(r.teto_amarelo)} - ${pos(r.teto_verde)})` }),
+      h("div", { class: "rel-z vermelho", style: `left:${pos(r.teto_amarelo)};right:0` }),
+      h("div", { class: "rel-pin", style: `left:${pos(r.teto_verde)}` }, h("span", {}, mil(r.teto_verde))),
+      h("div", { class: "rel-pin", style: `left:${pos(r.teto_amarelo)}` }, h("span", {}, mil(r.teto_amarelo))),
+      pedido ? h("div", { class: `rel-pin rel-pedido ${r.veredito}`, style: `left:${pos(pedido)}` }, h("span", {}, `PEDIDO ${mil(pedido)}`)) : null);
+    const e = h("div", { class: "rel-pagina" },
+      h("div", { class: "rel-topo" },
+        h("div", { class: "rel-marca" }, h("img", { src: "logo-topio-t.png", alt: "" }), h("div", {}, h("b", {}, "Paulo Credidio"), h("span", {}, "by Topio imóveis"))),
+        h("div", { class: "rel-data" }, "Precificação de imóvel", h("br"), `Dados de ${mesBaseTxt} · gerado em ${hoje}`)),
+      h("div", { class: "rel-hero" },
+        h("div", {}, h("div", { class: "rel-eyebrow" }, `Apartamento · ${s.bairroNome}`), h("h1", {}, s.rotulo),
+          h("p", {}, `${ent.andar != null ? `${ent.andar}º andar · ` : ""}${metragem}`)),
+        h("div", { class: "rel-preco" }, h("small", {}, "Preço sugerido de venda"), h("div", { class: "rel-big" }, mil(r.estimativa)),
+          h("p", {}, "Faixa provável: ", h("b", {}, `${mil(r.minimo)} a ${mil(r.maximo)}`)))),
+      h("section", { class: "rel-sec" },
+        h("h2", {}, pedido ? "Onde o preço pedido cai no mercado?" : "Até quanto vale anunciar?"),
+        h("div", { class: "rel-sub" }, `Comparamos com vendas reais de apartamentos parecidos, já atualizadas para o preço de ${mesBaseTxt}.`),
+        regua,
+        h("div", { class: "rel-leg" },
+          h("div", { class: "verde" }, h("b", {}, `Até ${mil(r.teto_verde)}`), `Preço de mercado. ${Math.round(p.veredito_verde * 10)} ou mais em cada 10 vendas parecidas chegaram a esse valor.`),
+          h("div", { class: "amarelo" }, h("b", {}, `${mil(r.teto_verde)} a ${mil(r.teto_amarelo)}`), `Acima do mercado. De ${amarelo} a ${verde} em cada 100 chegaram: exige negociação.`),
+          h("div", { class: "vermelho" }, h("b", {}, `Acima de ${mil(r.teto_amarelo)}`), `Fora do mercado. Menos de ${amarelo} em cada 100 chegaram.`)),
+        pedido && r.veredito ? h("div", { class: `rel-veredito ${r.veredito}` },
+          h("div", { class: "rel-big2" }, vt === "Acima do mercado" ? "Pedido acima do mercado" : vt === "Abaixo do mercado" ? "Pedido abaixo do mercado" : vt === "Fora do mercado" ? "Pedido fora do mercado" : "Pedido no preço de mercado"),
+          h("p", {}, `${em100(r.pedido_chegaram_pct, r.pedido_alem_dos_testes)} vendas parecidas chegaram a ${mil(pedido)} ou mais. ${vx}`
+            + (r.pedido_acima_do_verde > 0 ? ` Para entrar no preço de mercado, o pedido precisaria ficar em até ${mil(r.teto_verde)}.` : ""))) : null),
+      h("section", { class: "rel-sec" },
+        h("h2", {}, "Vendas reais usadas na conta"),
+        h("div", { class: "rel-sub" }, `${nPontos === r.n ? `As ${r.n} vendas` : `As ${nPontos} mais parecidas entre as ${r.n} vendas`} ${base}, cada uma já levada para ${num(ent.area, ent.area % 1 ? 1 : 0)} m² de cadastro e para o preço de ${mesBaseTxt}. A cor mostra a faixa em que cada venda ficou; círculo vazio = venda fora do padrão.`),
+        h("div", { class: "rel-grafico", html: svgVendas(ent, r) })),
+      h("section", { class: "rel-conf" },
+        h("b", {}, `${confNome}. `),
+        `Em ${r.precisao_testes.toLocaleString("pt-BR")} testes com vendas que já aconteceram, em casos como este o erro típico foi de cerca de ${num(r.precisao_mediana_pct, 0)}%.`,
+        r.area_estimada_pela_util ? " A metragem do cadastro foi estimada a partir da área útil, então a estimativa é menos firme." : "",
+        r.nivel === "predio_poucas" ? ` Só ${r.n} ${r.n === 1 ? "venda parecida" : "vendas parecidas"} no prédio: use com cautela.` : ""),
+      h("div", { class: "rel-rodape" }, "Estimativa feita com guias de ITBI de revenda (valor realmente pago), atualizadas pela variação de preço do bairro. Acabamento, reforma, vista e estado do prédio não entram na conta e podem mudar o valor. Não é laudo de avaliação. Paulo Credidio · by Topio imóveis."));
+    return e;
+  }
+
+  function baixarRelatorio() {
+    if (!RELATORIO) return;
+    const { ent, r } = RELATORIO;
+    let caixa = document.getElementById("relatorio-precificacao");
+    if (!caixa) { caixa = h("div", { id: "relatorio-precificacao" }); document.body.appendChild(caixa); }
+    caixa.replaceChildren(montarRelatorio(ent, r));
+    const tituloAntes = document.title;
+    const nome = ESTADO.local.rotulo.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
+    document.title = `precificacao_${nome}_${new Date().toISOString().slice(0, 10)}`;
+    document.body.classList.add("imprimindo-relatorio");
+    const limpar = () => { document.body.classList.remove("imprimindo-relatorio"); document.title = tituloAntes; caixa.replaceChildren(); window.removeEventListener("afterprint", limpar); };
+    window.addEventListener("afterprint", limpar);
+    // espera o logo carregar (e a fonte) antes de abrir a impressão
+    const logo = caixa.querySelector("img");
+    const abrir = () => setTimeout(() => window.print(), 150);
+    if (logo && !logo.complete) { logo.addEventListener("load", abrir, { once: true }); logo.addEventListener("error", abrir, { once: true }); } else abrir();
+  }
+  window.calcBaixarRelatorio = baixarRelatorio;
+  window.__calcUltimaEntrada = () => (RELATORIO ? RELATORIO.ent : null);   // só para o teste scripts/testar_relatorio.py
+  window.calcMontarRelatorioParaTeste = () => (RELATORIO ? (() => { const c = document.getElementById("relatorio-precificacao") || document.body.appendChild(h("div", { id: "relatorio-precificacao" })); c.replaceChildren(montarRelatorio(RELATORIO.ent, RELATORIO.r)); return c; })() : null);
 
   function calcular() {
     resolverPeloApto();

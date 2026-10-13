@@ -663,8 +663,11 @@ function setupTabs() {
     // (ver printPage). Botão visível na tela (escondido na impressão via
     // .page-pdf-btn em @media print); meta-cabeçalho (período/filtros/
     // data de geração) some na tela, só aparece impresso.
-    const pageBtn = el("button", { class: "page-pdf-btn", type: "button" }, "Baixar esta página ↓");
-    pageBtn.addEventListener("click", () => printPage(p.id, p.label));
+    // Na Calculadora o botão baixa a PRECIFICAÇÃO (uma página para o proprietário) e só aparece depois de calcular.
+    const ehCalc = p.id === "calculadora";
+    const pageBtn = el("button", { class: "page-pdf-btn", type: "button" }, ehCalc ? "Baixar precificação (PDF) ↓" : "Baixar esta página ↓");
+    if (ehCalc) pageBtn.hidden = true;
+    pageBtn.addEventListener("click", () => (ehCalc ? (window.calcBaixarRelatorio && window.calcBaixarRelatorio()) : printPage(p.id, p.label)));
     panelEl.prepend(pageBtn);
   });
 }

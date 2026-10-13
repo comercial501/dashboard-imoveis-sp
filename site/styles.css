@@ -809,3 +809,55 @@ button.calc-chip:hover { border-color: var(--brand); color: var(--brand-deep); }
   .card-resumo { display: none; }
   .card-resumo + .card-sub:not(.recolhido) { padding: 0; background: none; border-left: 0; }
 }
+
+.page-pdf-btn[hidden] { display: none; }
+
+/* Relatório de precificação (Calculadora → "Baixar precificação"): uma página A4, só existe na impressão */
+#relatorio-precificacao { display: none; }
+@page relatorio { size: A4; margin: 0; }
+#relatorio-precificacao, #relatorio-precificacao * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.rel-pagina { width: 210mm; height: 297mm; padding: 11mm 12mm 10mm; position: relative; overflow: hidden; background: #fff; color: var(--ink); font-family: var(--font-body); font-size: 13px; page: relatorio; }
+.rel-pagina h1, .rel-pagina h2, .rel-big, .rel-big2 { font-family: var(--font-display); font-weight: 500; }
+.rel-topo { display: flex; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.rel-marca { display: flex; align-items: center; gap: 12px; }
+.rel-marca img { width: 46px; height: auto; }
+.rel-marca b { display: block; font-family: var(--font-display); font-weight: 500; font-size: 19px; color: var(--brand); line-height: 1.1; }
+.rel-marca span { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-muted); }
+.rel-data { font-size: 11px; color: var(--text-muted); text-align: right; line-height: 1.5; }
+.rel-hero { margin-top: 16px; display: grid; grid-template-columns: 1.25fr 1fr; gap: 22px; align-items: stretch; }
+.rel-eyebrow { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--brand-deep); font-weight: 600; }
+.rel-hero h1 { font-size: 26px; line-height: 1.15; margin: 6px 0 4px; }
+.rel-hero p { color: var(--text-secondary); font-size: 13px; }
+.rel-preco { background: var(--ink); color: #fff; padding: 18px 22px; }
+.rel-preco small { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: #9fd9ee; }
+.rel-big { font-size: 40px; line-height: 1.05; margin: 6px 0 4px; }
+.rel-preco p { font-size: 12px; color: #d5dde0; }
+.rel-sec { margin-top: 18px; }
+.rel-sec h2 { font-size: 17px; margin-bottom: 3px; }
+.rel-sub { color: var(--text-secondary); margin-bottom: 12px; font-size: 12px; line-height: 1.45; }
+.rel-regua { position: relative; height: 20px; margin: 34px 4px 10px; }
+.rel-z { position: absolute; top: 0; height: 20px; }
+.rel-z.verde { background: #bfe6cf; } .rel-z.amarelo { background: #f7dc9a; } .rel-z.vermelho { background: #efb4ac; }
+.rel-pin { position: absolute; top: -20px; transform: translateX(-50%); font-size: 10.5px; font-weight: 600; white-space: nowrap; text-align: center; }
+.rel-pin:after { content: ""; display: block; width: 2px; height: 36px; background: var(--ink); margin: 2px auto 0; }
+.rel-pin.rel-pedido { top: -34px; color: #8a5a00; font-weight: 700; }
+.rel-pin.rel-pedido:after { background: #8a5a00; height: 48px; width: 3px; }
+.rel-leg { display: flex; gap: 10px; margin-top: 12px; }
+.rel-leg > div { flex: 1; padding: 9px 12px; border-top: 4px solid; font-size: 11px; line-height: 1.45; background: var(--surface-2); }
+.rel-leg b { display: block; font-size: 12.5px; margin-bottom: 2px; }
+.rel-leg .verde { border-color: #5cb985; } .rel-leg .amarelo { border-color: #d99a1c; } .rel-leg .vermelho { border-color: #d9776b; }
+.rel-veredito { margin-top: 12px; padding: 12px 18px; border-left: 6px solid; }
+.rel-veredito.abaixo, .rel-veredito.dentro { background: #eaf7ef; border-color: #1f9d55; }
+.rel-veredito.alto { background: #fff8e6; border-color: #d99a1c; }
+.rel-veredito.fora { background: #fdeceb; border-color: #c0392b; }
+.rel-big2 { font-size: 19px; }
+.rel-veredito p { margin-top: 4px; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.rel-grafico svg { width: 100%; height: auto; display: block; }
+.rel-conf { margin-top: 12px; padding: 10px 14px; background: var(--surface-2); font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+.rel-conf b { color: var(--ink); }
+.rel-rodape { position: absolute; left: 12mm; right: 12mm; bottom: 9mm; border-top: 1px solid var(--border); padding-top: 8px; font-size: 9.5px; color: var(--text-muted); line-height: 1.5; }
+@media print {
+  body.imprimindo-relatorio > *:not(#relatorio-precificacao) { display: none !important; }
+  body.imprimindo-relatorio #relatorio-precificacao { display: block; page: relatorio; }
+  body.imprimindo-relatorio { background: #fff; }
+}
