@@ -2684,3 +2684,5 @@ Só na tela (<= 760 px; o computador e o PDF não mudam). Bloco "Celular — ver
 - **Filtros recolhidos** num botão («Filtro: todos os bairros… ALTERAR ▾») na Visão Geral e na Captação Ativa; o botão mostra o filtro ativo.
 - **Voltar ao topo** (aparece depois de rolar) e cartões com menos margem.
 - Teste: `python3 scripts/testar_mobile.py --base http://localhost:8899` (menu, folhas, as 12 seções, topo, «Como usar», listas de 10, cartões, filtros, voltar ao topo, e a conferência de que no computador nada disso aparece). `testar_aviso_dado_novo.py` agora usa o menu de baixo nas verificações de celular.
+
+**Ícone da tela de início (13/10):** trocado para o símbolo PRETO da Topio (`topio_simbolo_preto.png`, enviado pelo Paulo) sobre fundo BRANCO (`apple-touch-icon.png` 180, `icon-192.png`, `icon-512.png`). O fundo é branco porque o iPhone pinta de preto qualquer parte transparente do ícone (o símbolo preto sumiria). O nome embaixo do ícone continua "Imóveis-SP".
