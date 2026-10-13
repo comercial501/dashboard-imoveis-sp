@@ -879,3 +879,94 @@ button.calc-chip:hover { border-color: var(--brand); color: var(--brand-deep); }
 .rel-legpts span { display: inline-flex; align-items: center; gap: 6px; }
 .rel-legpts i { display: inline-block; width: 11px; height: 11px; border-radius: 50% !important; }
 .rel-legpts i.vazio { background: #fff; border: 2px solid #8a9298; }
+
+/* ==================================================================================================================== */
+/* Celular — versão clara (13/10, pedido do Paulo): menu de baixo, topo enxuto, "Como usar", cartões no lugar de tabelas,  */
+/* só 10 itens por lista com "Ver mais", filtros recolhidos num botão e botão de voltar ao topo. Só na tela (<= 760 px).   */
+/* ==================================================================================================================== */
+#menu-baixo, #menu-veu, #menu-folha, #voltar-topo, #cabecalho-secao, #ver-fontes, .como-usar, .filtro-chip, .ver-mais-celular { display: none; }
+
+@media screen and (max-width: 760px) {
+  body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  [hidden] { display: none !important; }
+
+  /* topo: só o símbolo e o nome (o menu fica embaixo) */
+  .sidebar { padding: 8px 14px; overflow: visible; gap: 0; }
+  nav.tabs { display: none; }
+  .brand { margin: 0; }
+  .brand-lockup { margin: 0; gap: 10px; }
+  .brand-t { width: 34px; }
+  .brand-nome { display: block; font-size: 17px; }
+  .brand-role { display: none; }
+
+  /* menu de baixo (4 botões) e a folha com as seções */
+  #menu-baixo { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 90; background: #fff; border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); }
+  #menu-baixo button { flex: 1; appearance: none; background: none; border: 0; border-top: 3px solid transparent; padding: 8px 2px 9px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: var(--font-body); font-size: 11px; font-weight: 500; color: var(--text-muted); cursor: pointer; }
+  #menu-baixo button.on { color: var(--brand-deep); font-weight: 700; border-top-color: var(--brand); }
+  #menu-baixo button.on svg { color: var(--brand); }
+  #menu-veu { display: block; position: fixed; inset: 0; z-index: 85; background: rgba(29, 34, 38, .4); }
+  #menu-folha { display: block; position: fixed; left: 0; right: 0; bottom: calc(60px + env(safe-area-inset-bottom)); z-index: 88; background: #fff; border-top: 3px solid var(--brand); padding: 14px 16px 8px; box-shadow: 0 -10px 30px rgba(29, 34, 38, .18); max-height: 70vh; overflow-y: auto; }
+  #menu-folha h3 { font-family: var(--font-body); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--brand-deep); font-weight: 600; margin-bottom: 4px; }
+  #menu-folha .folha-item { display: block; width: 100%; text-align: left; appearance: none; background: none; border: 0; border-bottom: 1px solid var(--border); padding: 15px 6px; font-family: var(--font-body); font-size: 16px; color: var(--text-primary); cursor: pointer; }
+  #menu-folha .folha-item:last-child { border-bottom: 0; }
+  #menu-folha .folha-item.on { font-weight: 700; border-left: 3px solid var(--brand); padding-left: 11px; background: var(--surface-2); }
+
+  /* cabeçalho: grupo + nome da seção; datas e fontes numa linha, com "ver fontes" */
+  header.app-header { display: block; padding: 0 0 10px; margin: 0 0 12px; }
+  header.app-header h1, header.app-header .handle { display: none; }
+  #cabecalho-secao { display: block; margin: 6px 0 4px; }
+  #cabecalho-secao .cab-eyebrow { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; font-weight: 600; color: var(--brand-deep); }
+  #cabecalho-secao .cab-titulo { font-family: var(--font-display); font-weight: 500; font-size: 25px; line-height: 1.15; }
+  header.app-header > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+  header.app-header .updated { font-size: 11.5px; }
+  #ver-fontes { display: inline; appearance: none; background: none; border: 0; padding: 0; font-family: var(--font-body); font-size: 11.5px; font-weight: 600; color: var(--brand-deep); text-decoration: underline; cursor: pointer; }
+  header.app-header .fontes-status { display: none; width: 100%; margin-top: 6px; }
+  header.app-header.fontes-abertas .fontes-status { display: flex; }
+
+  /* "Como usar" */
+  .como-usar { display: block; background: #fff; border: 1px solid var(--border); border-left: 4px solid var(--brand); padding: 11px 14px; margin: 0 0 12px; }
+  .como-usar b { display: block; font-family: var(--font-display); font-weight: 500; font-size: 15px; margin-bottom: 4px; }
+  .como-usar ol { padding-left: 19px; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+  .page-pdf-btn { margin-bottom: 10px; }
+
+  /* tabelas viram cartões: cada linha é um cartão, com o nome em destaque e rótulo + valor nas demais células */
+  .table-scroll { border: 0; max-height: none !important; overflow: visible !important; }
+  table.data-table, table.data-table tbody { display: block; width: 100%; min-width: 0; }
+  table.data-table thead { display: none; }
+  table.data-table tr { display: block; background: #fff; border: 1px solid var(--border); padding: 10px 14px; margin-bottom: 10px; }
+  table.data-table td { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 4px 0; border: 0; text-align: right; white-space: normal !important; max-width: none; min-width: 0; }
+  table.data-table td::before { content: attr(data-label); flex: 0 0 46%; text-align: left; color: var(--text-muted); font-size: 12px; font-weight: 500; }
+  table.data-table td[data-label=""]::before { display: none; }
+  table.data-table td.td-titulo { display: block; text-align: left; font-family: var(--font-display); font-weight: 500; font-size: 18px; padding: 0 0 6px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+  table.data-table td.td-titulo::before { display: none; }
+  table.data-table tr { position: relative; }
+  table.data-table td.td-titulo { padding-right: 44px; }
+  table.data-table td[data-label="#"] { position: absolute; top: 10px; right: 14px; display: block; padding: 1px 8px; background: #e3f4fa; color: var(--brand-deep); font-weight: 700; font-size: 12px; }
+  table.data-table td[data-label="#"]::before { display: none; }
+
+  /* listas com nota (Prontidão, Visão Geral): nome e nota em cima, barra embaixo, texto em largura toda */
+  .rank-row { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "num corpo nota" "barra barra barra"; gap: 8px 12px; align-items: center; padding: 12px 4px; }
+  .rank-row .rank-num { grid-area: num; }
+  .rank-row .rank-body { grid-area: corpo; }
+  .rank-row .rank-score { grid-area: nota; width: auto; font-family: var(--font-display); font-size: 26px; font-weight: 500; }
+  .rank-row .rank-bar-track { grid-area: barra; max-width: none; }
+  .rank-row .rank-name { font-family: var(--font-display); font-weight: 500; font-size: 17px; }
+
+  /* só 10 itens, com "Ver mais" */
+  .lista-limitada:not(.lista-aberta) .extra-celular { display: none !important; }
+  .lista-limitada > .ver-mais-celular { display: block; }
+  .ver-mais-celular { width: 100%; appearance: none; background: #fff; border: 1px solid var(--ink); padding: 13px; margin-top: 6px; font-family: var(--font-body); font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); cursor: pointer; }
+
+  /* filtros recolhidos */
+  .filtro-chip { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; appearance: none; background: #fff; border: 1px solid var(--border); padding: 12px 14px; margin: 4px 0 12px; font-family: var(--font-body); font-size: 13.5px; color: var(--text-primary); text-align: left; cursor: pointer; }
+  .filtro-chip-acao { flex-shrink: 0; font-size: 11px; font-weight: 600; letter-spacing: .1em; color: var(--brand-deep); }
+  .filtros-recolhiveis:not(.filtros-abertos) .filtros-grid, #captacao-filtros-caixa:not(.filtros-abertos) #captacao-filtros { display: none; }
+
+  /* voltar ao topo */
+  #voltar-topo { display: flex; align-items: center; justify-content: center; position: fixed; right: 14px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 70; width: 44px; height: 44px; background: var(--ink); color: #fff; border: 0; font-size: 20px; cursor: pointer; }
+  .app { padding-bottom: 40px; }
+  [id] { scroll-margin-top: 66px; }
+  section.card { padding: 16px 14px; }
+  section.card h2 { font-size: 19px; }
+  .rank-row .rank-meta { font-size: 12.5px; line-height: 1.4; }
+}

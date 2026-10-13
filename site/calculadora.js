@@ -695,7 +695,7 @@
   function tabela(cabecalhos, linhas, classe) {
     return h("div", { class: "table-scroll" }, h("table", { class: `data-table ${classe || ""}` },
       h("thead", {}, h("tr", {}, cabecalhos.map((c) => h("th", {}, c)))),
-      h("tbody", {}, linhas.map((l) => h("tr", {}, l.map((c) => h("td", {}, c)))))));
+      h("tbody", {}, linhas.map((l) => h("tr", {}, l.map((c, i) => h("td", { "data-label": cabecalhos[i] }, c)))))));
   }
 
   // Quando o prédio tem vendas mas nenhuma com a metragem digitada, o cálculo cai pra rua/bairro. Isso não pode passar
@@ -844,6 +844,7 @@
     const vs = DADOS.vendas;
     const areaTxt = `${num(ent.area, ent.area % 1 ? 1 : 0)} m²`;
     const FLAG = { "-1": "abaixo do padrão", "1": "acima do padrão" };
+    const CAB_VENDAS = ["Mês da venda", "Onde", "Andar", "Área construída", "Valor pago", "Atualizado", "R$/m²", `Equivale a ${areaTxt}`, "Vagas"];
     const linhasV = r.similares.map((i, k) => {
       const v = vs[i], p = DADOS.predios[v[0]];
       const igual = Math.abs(v[3] - ent.area) / ent.area <= 0.03;
@@ -858,8 +859,8 @@
     out.append(h("section", { class: "card" }, h("h2", {}, "Vendas parecidas (ITBI)"),
       h("div", { class: "card-sub" }, `${linhasV.length === r.n ? `As ${r.n} vendas usadas no cálculo` : `As ${linhasV.length} mais parecidas entre as ${r.n} usadas no cálculo`} — valor realmente registrado na guia de ITBI, em ordem de semelhança com o seu apartamento. Como as metragens podem ser diferentes, a última coluna leva cada venda para ${areaTxt} (valor atualizado para ${mesBaseTxt}, R$/m² × ${areaTxt}, com ajuste de andar): é ela que se compara com a estimativa e com o pedido. O andar é estimado pelo número do apartamento (ex.: apto 152 = 15º); “Vagas” só aparece quando está escrita no complemento.`),
       h("div", { class: "table-scroll" }, h("table", { class: "data-table calc-tabela-vendas" },
-        h("thead", {}, h("tr", {}, ["Mês da venda", "Onde", "Andar", "Área construída", "Valor pago", "Atualizado", "R$/m²", `Equivale a ${areaTxt}`, "Vagas"].map((c) => h("th", {}, c)))),
-        h("tbody", {}, linhasV.map((l) => h("tr", { class: l.atipica ? "calc-linha-atipica" : "" }, l.cels.map((c) => h("td", {}, c))))))),
+        h("thead", {}, h("tr", {}, CAB_VENDAS.map((c) => h("th", {}, c)))),
+        h("tbody", {}, linhasV.map((l) => h("tr", { class: l.atipica ? "calc-linha-atipica" : "" }, l.cels.map((c, i) => h("td", { "data-label": CAB_VENDAS[i] }, c))))))),
       nAtip ? h("p", { class: "calc-ajuda calc-nota-atipica" }, `${nAtip === 1 ? "A venda marcada" : `As ${nAtip} vendas marcadas`} “fora do padrão” ficou entre os 10% mais baixos ou mais altos preços que vendas parecidas costumam ter. Pode ser acabamento, estado ou condições diferentes das demais, ou valor declarado diferente do real. Entram no cálculo, mas a mediana não é puxada por elas.`) : null));
 
     // anúncios parecidos

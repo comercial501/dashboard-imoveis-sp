@@ -263,7 +263,7 @@ def main():
         ctx.close()
 
         # ---- celular com a faixa visível ----
-        ctx, pg, erros, navs = abrir_e_interagir(lambda pg: pg.click('nav.tabs button:has-text("Captação Ativa")'), mobile=True)
+        ctx, pg, erros, navs = abrir_e_interagir(lambda pg: (pg.click('#menu-baixo button[data-grupo="Onde captar"]'), pg.click('#menu-folha .folha-item:has-text("Captação Ativa")')), mobile=True)   # menu de baixo do celular
         f = faixa(pg)
         geo = pg.evaluate("""()=>{const f=document.getElementById('faixa-dados-novos').getBoundingClientRect(); const m=document.querySelector('.sidebar').getBoundingClientRect(); const h=document.querySelector('header.app-header').getBoundingClientRect();
             return {faixa_topo:f.top, menu_fundo:m.bottom, faixa_fundo:f.bottom, header_topo:h.top, faixa_esq:f.left, faixa_dir:f.right, janela:innerWidth, largura_pagina:document.documentElement.scrollWidth, botao_dentro:document.getElementById('faixa-dados-novos-botao').getBoundingClientRect().right<=innerWidth}}""")

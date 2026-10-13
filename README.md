@@ -2671,3 +2671,16 @@ Os valores vêm do mesmo `estimar()` da tela (nada recalculado à parte). Teste:
 nada passando do rodapé, sem "null/undefined/NaN", preço e faixa do PDF = Python, veredito presente só com pedido, PDF acompanha o simulador).
 
 **Atualização (13/10, 2ª rodada do relatório):** (1) o gráfico das vendas virou uma faixa horizontal de preço (esquerda = mais barato) com as mesmas cores da régua; pontos de preço parecido se empilham em vez de se sobrepor e não há texto em cima dos pontos (só a escala embaixo e uma legenda com a contagem por faixa) — com 10+ vendas o texto colado nos pontos ficava ilegível; (2) novo balão **"Pedida sugerida pelo corretor"** na tela da Calculadora (campo em R$, ao lado do preço calculado; `ESTADO.corretor`) — quando preenchido, o PDF mostra dois balões lado a lado (preço sugerido pela calculadora + pedida do corretor, com a faixa de mercado em que ela cai) e uma linha azul tracejada no gráfico; vazio, o balão não sai. O nome do balão está em `calculadora.js` (busque "Pedida sugerida pelo corretor") e em `montarRelatorio`.
+
+
+## Celular — versão clara (2026-10-13)
+
+Só na tela (<= 760 px; o computador e o PDF não mudam). Bloco "Celular — versão clara" no fim de `site/styles.css`; lógica em `site/app.js` (`setupMenuBaixo`, `COMO_USAR`, `limitarLista`, `recolherFiltrosCelular`).
+- **Menu de baixo** com 4 botões (um por tema: Panorama, Onde captar, Campanhas, Calculadora). Tocar abre uma "folha" com as seções do tema; «Calculadora» abre direto. A fila de abas que rolava para o lado saiu do celular.
+- **Topo enxuto:** símbolo + nome; em cada seção, o tema (em azul) e o nome da seção; datas e fontes numa linha com «ver fontes ▾» (⚠ quando alguma fonte está velha).
+- **«Como usar»:** 2–3 passos curtos no começo de cada seção (textos em `COMO_USAR`, no `app.js`). Só aparece no celular.
+- **Tabelas viram cartões** (cada célula leva `data-label` com o nome da coluna; a 1ª coluna de nome vira o título do cartão; o «#» vira uma etiqueta no canto). Listas com nota (Prontidão, Visão Geral) ficam em 2 linhas (nome + nota, barra embaixo).
+- **Só 10 itens por lista** com «Ver mais (n restantes)» / «Ver só os 10 primeiros» (Ranking, Prontidão, Estoque × Demanda, Carteira 77, Valor pago, Valor de Oportunidade, Imóveis Prioritários, Top 30 da Captação). As linhas extras só ficam escondidas por CSS (classe `extra-celular`), então o PDF e o computador mostram tudo.
+- **Filtros recolhidos** num botão («Filtro: todos os bairros… ALTERAR ▾») na Visão Geral e na Captação Ativa; o botão mostra o filtro ativo.
+- **Voltar ao topo** (aparece depois de rolar) e cartões com menos margem.
+- Teste: `python3 scripts/testar_mobile.py --base http://localhost:8899` (menu, folhas, as 12 seções, topo, «Como usar», listas de 10, cartões, filtros, voltar ao topo, e a conferência de que no computador nada disso aparece). `testar_aviso_dado_novo.py` agora usa o menu de baixo nas verificações de celular.

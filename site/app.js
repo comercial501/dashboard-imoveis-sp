@@ -200,7 +200,7 @@ function sortableTable(container, { columns, rows, initialSortKey, initialSortDi
       const tr = el("tr");
       columns.forEach((c) => {
         const val = r[c.key];
-        const td = el("td", { class: c.key === "desc" ? "desc" : "" });
+        const td = el("td", { class: (c.key === "desc" ? "desc" : "") + (/^(Bairro|Endereço|Imóvel)$/.test(c.label) ? " td-titulo" : ""), "data-label": c.label || "" });
         if (c.render) td.appendChild(c.render(r));
         else td.textContent = c.fmt ? c.fmt(val, r) : (val == null ? "—" : String(val));
         tr.appendChild(td);
@@ -553,7 +553,12 @@ async function main() {
 
   setupTabs();
   montarResumos();
+  setupMenuBaixo();
   const filtrosUI = setupFiltros();
+  setupFiltrosCelular();
+  observarListasCelular();
+  atualizarMenuBaixo(PANEL_ATIVO);
+  setTimeout(atualizarCabecalhoMobile, 1500);
   const salvo = lerEstadoSalvo();
   if (salvo) { // voltou do "Atualizar agora": devolve filtros e alternadores antes de desenhar
     INTERAGIU = true; // quem tinha estado guardado já mexeu na página: nunca recarrega sozinho
@@ -633,6 +638,161 @@ function montarResumos() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Celular (<= 760 px): menu de baixo, topo enxuto, "Como usar", cartões, só 10 itens + "Ver mais", filtros recolhidos.
+// Tudo isto só aparece no celular (CSS em styles.css, bloco "Celular — versão clara"); no computador e no PDF nada muda.
+// ---------------------------------------------------------------------------
+const COMO_USAR = {
+  "visao-geral": ["Escolha bairros e/ou uma faixa de preço em “Filtros”: todas as telas se ajustam.", "Veja “Onde anunciar agora”: os 10 bairros com a melhor nota.", "Confira os “Alertas” no fim: casos em que o preço pedido está longe do pago."],
+  "perfil": ["Escolha um bairro na lista.", "Veja a faixa de preço que mais vendeu e quanto estoque a rede tem nessa faixa.", "Compare o preço por m² pago × pedido."],
+  "preco-m2": ["Ache o bairro e a faixa de metragem.", "Veja o valor pago em revendas de apartamento: o do meio e a faixa em que ficou a maioria.", "“Poucas vendas” = referência ainda frágil."],
+  "mapa": ["Cada bolha é um bairro.", "Quanto maior a bolha, mais vendas; quanto mais escura, maior a nota no Ranking.", "Toque numa bolha para ver os números do bairro."],
+  "carteira-77": ["Veja os 77 bairros que o painel acompanha.", "Compare revendas, lançamentos e giro dos últimos 12 meses.", "A forma de pagamento mostra quanto foi financiado por banco."],
+  "estoque-demanda": ["Veja quantos anúncios a rede nonStop tem na faixa de preço que mais vende em cada bairro.", "Compare com as revendas dos últimos 12 meses.", "Atenção: estoque = só a rede nonStop, não o mercado inteiro."],
+  "captacao": ["Use “Filtros” para escolher bairro, valor e tipo.", "Comece pelo “Top 30 da semana”: endereços com revendas repetidas e nenhuma unidade anunciada hoje.", "Abra um bairro para ver todos os endereços dele."],
+  "ranking": ["A nota vai de 0 a 100 para cada um dos 77 bairros.", "Quanto maior, mais liquidez: volume e tendência de revendas.", "“Amostra pequena” = poucos dados; o bairro não entra no top 10."],
+  "prontidao": ["Comece pelos bairros do topo da lista.", "Toque num bairro para ver os 10 melhores imóveis anunciados hoje.", "Atenção: estoque = só a rede nonStop."],
+  "prioritarios": ["Sem escolher bairro, aparecem os 50 melhores da carteira.", "Escolha um bairro para ver todos os imóveis pontuados dele.", "“Anúncio antigo” = confirme se ainda está disponível."],
+  "valor-oportunidade": ["Veja imóveis anunciados 20% ou mais abaixo do que se pagou em parecidos.", "Alterne entre casa e apartamento.", "Cada achado diz com quantas vendas foi comparado."],
+  "calculadora": ["Digite o endereço e escolha na lista.", "Informe o número do apartamento (ou a área útil).", "Toque em calcular: veja o preço, a régua e baixe o PDF."],
+};
+const MQ_CELULAR = window.matchMedia ? window.matchMedia("(max-width: 760px)") : { matches: false, addEventListener() {} };
+const ICONES_MENU = {
+  "Panorama do mercado": '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="7" height="7"/><rect x="13.5" y="3.5" width="7" height="7"/><rect x="3.5" y="13.5" width="7" height="7"/><rect x="13.5" y="13.5" width="7" height="7"/></svg>',
+  "Onde captar": '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>',
+  "Campanhas Topio": '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3.5 10v4h4l8 4.5v-13L7.5 10h-4z"/><path d="M19 9.5a4 4 0 0 1 0 5"/></svg>',
+  "Calculadora Topio": '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="2.5" width="14" height="19"/><rect x="8" y="5.5" width="8" height="4"/><path d="M8.5 13h1M12 13h1M15.5 13h1M8.5 16.5h1M12 16.5h1M15.5 16.5h1"/></svg>',
+};
+const NOME_CURTO_MENU = { "Panorama do mercado": "Panorama", "Onde captar": "Onde captar", "Campanhas Topio": "Campanhas", "Calculadora Topio": "Calculadora" };
+
+function setupMenuBaixo() {
+  const barra = el("nav", { id: "menu-baixo", "aria-label": "Menu principal" });
+  const veu = el("div", { id: "menu-veu", hidden: "" });
+  const folha = el("div", { id: "menu-folha", role: "dialog", "aria-label": "Seções", hidden: "" });
+  const fechar = () => { folha.hidden = true; veu.hidden = true; barra.querySelectorAll("button").forEach((b) => b.setAttribute("aria-expanded", "false")); };
+  GRUPOS_MENU.forEach((nome) => {
+    const itens = PANELS.filter((p) => p.grupo === nome);
+    const b = el("button", { type: "button", "data-grupo": nome, "aria-expanded": "false" });
+    b.innerHTML = `${ICONES_MENU[nome]}<span>${NOME_CURTO_MENU[nome] || nome}</span>`;
+    b.addEventListener("click", () => {
+      if (itens.length === 1) { fechar(); showPanel(itens[0].id); return; }   // grupo de uma seção só: vai direto
+      const abrindo = folha.hidden || folha.dataset.grupo !== nome;
+      fechar();
+      if (!abrindo) return;
+      folha.dataset.grupo = nome;
+      folha.replaceChildren(el("h3", {}, nome), ...itens.map((p) => {
+        const a = el("button", { type: "button", class: "folha-item" + (p.id === PANEL_ATIVO ? " on" : ""), "data-panel": p.id }, p.label);
+        a.addEventListener("click", () => { fechar(); showPanel(p.id); });
+        return a;
+      }));
+      folha.hidden = false; veu.hidden = false; b.setAttribute("aria-expanded", "true");
+    });
+    barra.appendChild(b);
+  });
+  veu.addEventListener("click", fechar);
+  document.body.append(veu, folha, barra);
+  // título da seção + "ver fontes" no cabeçalho (celular)
+  const head = document.querySelector("header.app-header");
+  const secao = el("div", { id: "cabecalho-secao" }, [el("div", { class: "cab-eyebrow" }), el("div", { class: "cab-titulo" })]);
+  head.prepend(secao);
+  const upd = document.getElementById("updated-at");
+  const ver = el("button", { type: "button", id: "ver-fontes", "aria-expanded": "false" }, "ver fontes ▾");
+  ver.addEventListener("click", () => { const ab = head.classList.toggle("fontes-abertas"); ver.setAttribute("aria-expanded", String(ab)); atualizarCabecalhoMobile(); });
+  upd.after(ver);
+  // voltar ao topo
+  const topo = el("button", { type: "button", id: "voltar-topo", "aria-label": "Voltar ao topo", hidden: "" }, "↑");
+  topo.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+  document.body.appendChild(topo);
+  window.addEventListener("scroll", () => { topo.hidden = window.scrollY < 700; }, { passive: true });
+}
+
+let PANEL_ATIVO = "visao-geral";
+function atualizarMenuBaixo(id) {
+  PANEL_ATIVO = id;
+  const p = PANELS.find((x) => x.id === id);
+  document.querySelectorAll("#menu-baixo button").forEach((b) => b.classList.toggle("on", !!p && b.dataset.grupo === p.grupo));
+  atualizarCabecalhoMobile();
+}
+function atualizarCabecalhoMobile() {
+  const p = PANELS.find((x) => x.id === PANEL_ATIVO);
+  const sec = document.getElementById("cabecalho-secao");
+  if (sec && p) { sec.querySelector(".cab-eyebrow").textContent = p.grupo; sec.querySelector(".cab-titulo").textContent = p.label; }
+  const ver = document.getElementById("ver-fontes");
+  if (ver) {
+    const aberto = ver.getAttribute("aria-expanded") === "true";
+    const velho = !!document.querySelector("#fontes-status .fonte-stale");
+    ver.textContent = (aberto ? "ocultar fontes ▴" : "ver fontes ▾") + (velho && !aberto ? " ⚠" : "");
+  }
+}
+
+// Só 10 itens por lista no celular, com "Ver mais" (as demais linhas ficam escondidas por CSS; no computador e no PDF tudo aparece).
+const LISTAS_LIMITADAS = [
+  ["ranking-table", "tbody > tr"], ["estoque-demanda-table", "tbody > tr"], ["carteira-77-table", "tbody > tr"], ["preco-m2-table", "tbody > tr"],
+  ["valor-oportunidade-table", "tbody > tr"], ["prontidao-table", ".rank-row"], ["prioritarios-table", ".imovel-row"], ["captacao-top30", ".top30-item"],
+];
+const LIMITE_CELULAR = 10;
+function limitarLista(containerId, seletor) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  const itens = [...c.querySelectorAll(seletor)];
+  itens.forEach((it, i) => it.classList.toggle("extra-celular", i >= LIMITE_CELULAR));
+  let btn = c.querySelector(":scope > .ver-mais-celular");
+  if (itens.length <= LIMITE_CELULAR) { if (btn) btn.remove(); c.classList.remove("lista-limitada"); return; }
+  c.classList.add("lista-limitada");
+  if (!btn) {
+    btn = el("button", { type: "button", class: "ver-mais-celular" });
+    btn.addEventListener("click", () => { c.classList.toggle("lista-aberta"); atualizarBotaoVerMais(c, btn); });
+    c.appendChild(btn);
+  }
+  atualizarBotaoVerMais(c, btn);
+}
+function atualizarBotaoVerMais(c, btn) {
+  const total = c.querySelectorAll(".extra-celular").length + LIMITE_CELULAR;
+  btn.textContent = c.classList.contains("lista-aberta") ? "Ver só os 10 primeiros ▴" : `Ver mais (${total - LIMITE_CELULAR} restantes) ▾`;
+}
+function observarListasCelular() {
+  LISTAS_LIMITADAS.forEach(([id, sel]) => {
+    const c = document.getElementById(id);
+    if (!c) return;
+    let travado = false;
+    const obs = new MutationObserver(() => {
+      if (travado) return;
+      travado = true;
+      requestAnimationFrame(() => { obs.disconnect(); limitarLista(id, sel); obs.observe(c, { childList: true, subtree: true }); travado = false; });
+    });
+    limitarLista(id, sel);
+    obs.observe(c, { childList: true, subtree: true });
+  });
+}
+
+// Filtros recolhidos num botão só (celular): "Filtro: todos os bairros  ALTERAR ▾". Toque abre/fecha os campos.
+function recolherFiltrosCelular(raizId, alvoSeletor, resumoFn) {
+  const raiz = document.getElementById(raizId);
+  const alvo = raiz && raiz.querySelector(alvoSeletor);
+  if (!raiz || !alvo || raiz.querySelector(":scope > .filtro-chip")) return;
+  const chip = el("button", { type: "button", class: "filtro-chip", "aria-expanded": "false" }, [el("span", { class: "filtro-chip-txt" }), el("span", { class: "filtro-chip-acao" }, "ALTERAR ▾")]);
+  const atualizar = () => { chip.querySelector(".filtro-chip-txt").textContent = resumoFn(); };
+  chip.addEventListener("click", () => {
+    const ab = raiz.classList.toggle("filtros-abertos");
+    chip.setAttribute("aria-expanded", String(ab));
+    chip.querySelector(".filtro-chip-acao").textContent = ab ? "FECHAR ▴" : "ALTERAR ▾";
+  });
+  alvo.before(chip);
+  raiz.classList.add("filtros-recolhiveis");
+  ["change", "input", "click"].forEach((ev) => raiz.addEventListener(ev, () => setTimeout(atualizar, 60)));
+  atualizar();
+}
+function setupFiltrosCelular() {
+  recolherFiltrosCelular("filtros-card", ".filtros-grid", () => (filtersActive() ? `Filtro: ${filtrosResumoLabel()}` : "Filtro: todos os bairros, qualquer preço"));
+  const capt = document.getElementById("captacao-filtros");
+  if (capt && !capt.dataset.recolhivel) {
+    capt.dataset.recolhivel = "1";
+    const cx = el("div", { id: "captacao-filtros-caixa" });
+    capt.before(cx); cx.appendChild(capt);
+    recolherFiltrosCelular("captacao-filtros-caixa", "#captacao-filtros", () => { const t = captacaoFiltrosTexto(); return t.length ? `Filtro: ${t.join(" · ")}` : "Filtro: todos os bairros, todas as faixas"; });
+  }
+}
+
 function setupTabs() {
   const nav = document.getElementById("tabs");
   GRUPOS_MENU.forEach((nome) => {
@@ -669,6 +829,8 @@ function setupTabs() {
     if (ehCalc) pageBtn.hidden = true;
     pageBtn.addEventListener("click", () => (ehCalc ? (window.calcBaixarRelatorio && window.calcBaixarRelatorio()) : printPage(p.id, p.label)));
     panelEl.prepend(pageBtn);
+    const passos = COMO_USAR[p.id];
+    if (passos) pageBtn.after(el("div", { class: "como-usar" }, [el("b", {}, "Como usar"), el("ol", {}, passos.map((t) => el("li", {}, t)))]));
   });
 }
 
@@ -692,6 +854,7 @@ function showPanel(id) {
   if (id === "calculadora") ensureCalculadoraLoaded();
   document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.dataset.panel === id));
   document.querySelectorAll("nav.tabs button").forEach((b) => b.classList.toggle("active", b.dataset.panel === id));
+  if (typeof atualizarMenuBaixo === "function") atualizarMenuBaixo(id);
   window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
 }
 document.addEventListener("DOMContentLoaded", () => showPanel("visao-geral"));
