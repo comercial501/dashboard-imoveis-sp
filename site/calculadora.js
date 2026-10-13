@@ -323,7 +323,7 @@
   const numeroDoEndereco = (addrKey) => String((addrKey.split("|")[1] || "")).replace(/^0+(?=\d)/, "");
 
   let DADOS = null, IDX = null, BUSCA = null, FORM = null, LINHA = null, AJUSTE = null, CHIPS = null; // FORM: controle do formulário (recolher/expandir)
-  const ESTADO = { local: null, apto: "", andar: "", andarAuto: false, area: "", areaAuto: false, areaNota: "", areaManual: false, areaOrigem: "", plantaEscolhida: "", mostrarPlantas: false, ajustarAberto: false, areaUtil: "", quartos: "", banheiros: "", suites: "", vagas: "", condominio: "", iptu: "", pedido: "" };
+  const ESTADO = { local: null, apto: "", andar: "", andarAuto: false, area: "", areaAuto: false, areaNota: "", areaManual: false, areaOrigem: "", plantaEscolhida: "", mostrarPlantas: false, ajustarAberto: false, areaUtil: "", quartos: "", banheiros: "", suites: "", vagas: "", condominio: "", iptu: "", pedido: "", corretor: "" };
 
   function montarBusca() {
     BUSCA = {
@@ -616,7 +616,7 @@
   }
 
   function limpar() {
-    Object.assign(ESTADO, { local: null, apto: "", andar: "", andarAuto: false, area: "", areaAuto: false, areaNota: "", areaManual: false, areaOrigem: "", plantaEscolhida: "", mostrarPlantas: false, ajustarAberto: false, areaUtil: "", quartos: "", banheiros: "", suites: "", vagas: "", condominio: "", iptu: "", pedido: "" });
+    Object.assign(ESTADO, { local: null, apto: "", andar: "", andarAuto: false, area: "", areaAuto: false, areaNota: "", areaManual: false, areaOrigem: "", plantaEscolhida: "", mostrarPlantas: false, ajustarAberto: false, areaUtil: "", quartos: "", banheiros: "", suites: "", vagas: "", condominio: "", iptu: "", pedido: "", corretor: "" });
     montar();
     document.getElementById("calc-card").scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -798,6 +798,12 @@
       h("div", { class: "calc-topo" },
         h("div", {}, h("div", { class: "calc-rotulo" }, "O apartamento vale cerca de"), h("div", { class: "calc-valor" }, brl(r.estimativa)),
           h("div", { class: "calc-ajuda" }, `R$ ${num(r.m2)}/m² da área construída` + (ent.area_util ? ` · R$ ${num(r.estimativa / ent.area_util)}/m² da área útil` : ""))),
+        h("div", { class: "calc-corretor" }, h("label", { class: "calc-rotulo", for: "calc-corretor" }, "Pedida sugerida pelo corretor"),
+          h("div", { class: "calc-sim-linha" }, h("span", { class: "calc-sim-rs" }, "R$"),
+            h("input", { id: "calc-corretor", type: "number", class: "calc-input calc-corretor-input", min: 0, step: 1000, inputmode: "numeric", value: ESTADO.corretor,
+              placeholder: "Ex.: " + num(Math.round(r.teto_verde / 1000) * 1000), "aria-label": "Preço de pedida sugerido pelo corretor, em reais",
+              oninput: (ev) => { ESTADO.corretor = ev.target.value; } })),
+          h("span", { class: "calc-ajuda" }, "Com quanto você acha que vale começar o anúncio. Sai no PDF ao lado do preço da calculadora.")),
         h("div", { class: "calc-selos" }, h("span", { class: "badge neutral", title: confExpl }, `${confNome} ${PONTOS[r.confianca]}`))),
       h("div", { class: "calc-anunciar" }, h("b", {}, `Para anunciar: até ${brl(r.teto_verde)}`), ` — acima de ${brl(r.teto_amarelo)} o imóvel fica fora do mercado.`),
       r.area_estimada_pela_util ? h("div", { class: "calc-poucas" },
@@ -914,38 +920,49 @@
 
   const mil = (v) => v >= 1e6 ? `R$ ${(v / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} milhões` : `R$ ${num(Math.round(v / 1000))} mil`;
 
-  // Gráfico das vendas reais usadas: cada ponto é uma venda (já levada para a metragem informada e para o preço de hoje),
-  // sobre faixas verde/amarela/vermelha iguais às da régua. Linha tracejada = estimativa; linha escura = pedido, se houver.
+  // Gráfico das vendas reais usadas: o preço fica na horizontal, em faixas verde/amarela/vermelha iguais às da régua; cada ponto é uma
+  // venda (já levada para a metragem informada e para o preço de hoje). Pontos de preço parecido se empilham em vez de se sobrepor,
+  // e não há texto em cima dos pontos (só a escala embaixo) — com 10+ vendas o texto colado nos pontos virava uma confusão.
   function svgVendas(ent, r) {
-    const vs = DADOS.vendas, W = 702, H = 236, mE = 14, mD = 150, mT = 18, mB = 22, pw = W - mE - mD, ph = H - mT - mB;
-    const pts = r.similares.slice(0, 12).map((i, k) => ({ v: vs[i], eq: r.similares_eq[k], flag: r.similares_flag[k] }));
-    const meses = pts.map((p) => Math.floor(p.v[1] / 100) * 12 + (p.v[1] % 100));
-    let x0 = Math.min(...meses) - 0.8, x1 = Math.max(...meses) + 0.8;
-    if (x1 - x0 < 4) { const c = (x0 + x1) / 2; x0 = c - 2; x1 = c + 2; }
-    const pedido = ent.preco_pedido || null;
-    const y0 = Math.min(...pts.map((p) => p.eq), r.piso_mercado) * 0.93;
-    const y1 = Math.max(...pts.map((p) => p.eq), r.teto_amarelo * 1.08, (pedido || 0) * 1.05);
-    const X = (m) => mE + ((m - x0) / (x1 - x0)) * pw, Y = (v) => mT + (1 - (v - y0) / (y1 - y0)) * ph;
+    const vs = DADOS.vendas, W = 702, mE = 16, mD = 16, pw = W - mE - mD, R = 6.5, passo = 15;
+    const pts = r.similares.slice(0, 12).map((i, k) => ({ v: vs[i], eq: r.similares_eq[k], flag: r.similares_flag[k] })).sort((a, b) => a.eq - b.eq);
+    const pedido = ent.preco_pedido || null, corretor = paraNumero(ESTADO.corretor);
+    const x0 = Math.min(...pts.map((p) => p.eq), r.piso_mercado, corretor || Infinity) * 0.9;
+    const x1 = Math.max(...pts.map((p) => p.eq), r.teto_amarelo * 1.1, (pedido || 0) * 1.05, (corretor || 0) * 1.05);
+    const X = (v) => mE + ((v - x0) / (x1 - x0)) * pw;
     const cor = (v) => v <= r.teto_verde ? "#1f9d55" : v <= r.teto_amarelo ? "#d99a1c" : "#c0392b";
+    // empilha: cada ponto sobe/desce para a primeira "linha" livre perto dele
+    const linhas = [];
+    const desloc = [0, -1, 1, -2, 2, -3, 3];
+    pts.forEach((p) => {
+      p.x = X(p.eq);
+      p.l = desloc.find((d) => !linhas.some((q) => q.l === d && Math.abs(q.x - p.x) < 2 * R + 2));
+      linhas.push(p);
+    });
+    const alto = Math.max(...pts.map((p) => Math.abs(p.l)));
+    const topoLinhas = 52, cy = topoLinhas + 6 + alto * passo + R, areaH = (alto * 2 + 1) * passo + 14, yAxis = topoLinhas + areaH, H = yAxis + 30;
     const f = (n) => n.toFixed(1);
-    const faixa = (de, ate, c) => `<rect x="${mE}" y="${f(Y(Math.min(ate, y1)))}" width="${pw}" height="${f(Y(Math.max(de, y0)) - Y(Math.min(ate, y1)))}" fill="${c}"/>`;
-    const linha = (v, c, dash, txt, negrito) => `<line x1="${mE}" x2="${mE + pw}" y1="${f(Y(v))}" y2="${f(Y(v))}" stroke="${c}" stroke-width="${negrito ? 2 : 1.4}" ${dash ? `stroke-dasharray="${dash}"` : ""}/><text x="${mE + pw + 8}" y="${f(Y(v) + 3.5)}" font-size="10.5" font-weight="${negrito ? 700 : 600}" fill="${c}">${txt}</text>`;
-    const compacto = pts.length > 6;
-    const rotulos = pts.map((p, k) => {
-      const x = X(meses[k]), y = Y(p.eq), c = cor(p.eq);
-      const t1 = mil(p.eq), t2 = compacto ? ymLabel(p.v[1]) : `${ymLabel(p.v[1])}${p.v[4] != null ? ` · ${p.v[4]}º andar` : ""}`;
-      const esq = x > mE + pw - 95, tx = esq ? x - 11 : x + 11, anc = esq ? "end" : "start";
-      const halo = 'stroke="#fff" stroke-width="3.5" stroke-linejoin="round" paint-order="stroke"';   // contorno branco: o texto lê por cima das linhas
-      return `<circle cx="${f(x)}" cy="${f(y)}" r="6.5" fill="${p.flag !== 0 ? "#fff" : c}" stroke="${c}" stroke-width="2.4"/>`
-        + `<text x="${f(tx)}" y="${f(y - 1)}" text-anchor="${anc}" font-size="11.5" font-weight="700" fill="#1d2226" ${halo}>${t1}</text>`
-        + `<text x="${f(tx)}" y="${f(y + 11)}" text-anchor="${anc}" font-size="9.5" fill="#646c71" ${halo}>${t2}</text>`;
-    }).join("");
-    return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">`
-      + faixa(y0, r.teto_verde, "#e3f4ea") + faixa(r.teto_verde, r.teto_amarelo, "#fdf1d3") + faixa(r.teto_amarelo, y1, "#f8dcd8")
-      + linha(r.teto_verde, "#1f7a43", "2 3", `Até ${mil(r.teto_verde)}`, false) + linha(r.teto_amarelo, "#a3392d", "2 3", `Acima de ${mil(r.teto_amarelo)}`, false)
-      + linha(r.estimativa, "#1d2226", "6 4", `Estimativa ${mil(r.estimativa)}`, false)
-      + (pedido ? linha(pedido, "#8a5a00", "", `Pedido ${mil(pedido)}`, true) : "")
-      + rotulos + `</svg>`;
+    const faixa = (de, ate, c) => `<rect x="${f(X(Math.max(de, x0)))}" y="${topoLinhas}" width="${f(X(Math.min(ate, x1)) - X(Math.max(de, x0)))}" height="${areaH}" fill="${c}"/>`;
+    const halo = 'stroke="#fff" stroke-width="3.5" stroke-linejoin="round" paint-order="stroke"';
+    const vert = (v, c, dash, w) => `<line x1="${f(X(v))}" x2="${f(X(v))}" y1="${topoLinhas - 4}" y2="${yAxis}" stroke="${c}" stroke-width="${w}" ${dash ? `stroke-dasharray="${dash}"` : ""}/>`;
+    const rot = (v, linha, c, txt) => { const x = X(v), esq = x > W - 130; return `<text x="${f(x + (esq ? -5 : 5))}" y="${topoLinhas - 8 - linha * 14}" text-anchor="${esq ? "end" : "start"}" font-size="10.5" font-weight="700" fill="${c}" ${halo}>${txt}</text>`; };
+    // escala (R$ mil) embaixo
+    const passos = [10, 20, 25, 50, 100, 200, 250, 500];
+    const faixaMil = (x1 - x0) / 1000, pm = passos.find((q) => faixaMil / q <= 8) || 500;
+    let escala = `<line x1="${mE}" x2="${mE + pw}" y1="${yAxis}" y2="${yAxis}" stroke="#9aa3a8" stroke-width="1"/>`;
+    for (let m = Math.ceil(x0 / 1000 / pm) * pm; m * 1000 <= x1; m += pm) {
+      const x = X(m * 1000);
+      escala += `<line x1="${f(x)}" x2="${f(x)}" y1="${yAxis}" y2="${yAxis + 4}" stroke="#9aa3a8"/><text x="${f(x)}" y="${yAxis + 17}" text-anchor="middle" font-size="10" fill="#646c71">R$ ${num(m)} mil</text>`;
+    }
+    const pontos = pts.map((p) => `<circle cx="${f(p.x)}" cy="${f(cy + p.l * passo)}" r="${R}" fill="${p.flag !== 0 ? "#fff" : cor(p.eq)}" stroke="${cor(p.eq)}" stroke-width="2.4"/>`).join("");
+    return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${f(H)}" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">`
+      + faixa(x0, r.teto_verde, "#e3f4ea") + faixa(r.teto_verde, r.teto_amarelo, "#fdf1d3") + faixa(r.teto_amarelo, x1, "#f8dcd8")
+      + vert(r.estimativa, "#1d2226", "6 4", 1.6) + (pedido ? vert(pedido, "#8a5a00", "", 2.4) : "") + (corretor ? vert(corretor, "#00739a", "2 3", 2) : "")
+      + pontos + escala
+      + rot(r.estimativa, 0, "#1d2226", `Estimativa ${mil(r.estimativa)}`)
+      + (pedido ? rot(pedido, 1, "#8a5a00", `Pedido ${mil(pedido)}`) : "")
+      + (corretor ? rot(corretor, pedido ? 2 : 1, "#00739a", `Pedida sugerida ${mil(corretor)}`) : "")
+      + `</svg>`;
   }
 
   function montarRelatorio(ent, r) {
@@ -957,6 +974,12 @@
     const hoje = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" });
     const [vt, vc, vx] = pedido && r.veredito ? VEREDITO[r.veredito] : [];
     const nPontos = Math.min(12, r.similares.length);
+    const corretor = paraNumero(ESTADO.corretor);
+    const zonaCorretor = !corretor ? null : corretor <= r.teto_verde ? ["Dentro do preço de mercado", "verde"] : corretor <= r.teto_amarelo ? ["Acima do mercado: exige negociação", "amarelo"] : ["Fora do mercado", "vermelho"];
+    const usados = r.similares.slice(0, 12).map((i, k) => ({ eq: r.similares_eq[k], flag: r.similares_flag[k] }));
+    const nz = (f) => usados.filter((u) => f(u.eq)).length;
+    const nVerde = nz((v) => v <= r.teto_verde), nAmarelo = nz((v) => v > r.teto_verde && v <= r.teto_amarelo), nVermelho = nz((v) => v > r.teto_amarelo), nFora = usados.filter((u) => u.flag !== 0).length;
+    const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
     const base = r.nivel.startsWith("predio") ? "no mesmo prédio" : r.nivel === "rua" ? "na mesma rua" : `no bairro ${DADOS.bairros[ent.bairro]}`;
     const verde = Math.round(p.veredito_verde * 100), amarelo = Math.round(p.veredito_amarelo * 100);
     const lo = Math.min(r.piso_mercado, pedido || Infinity) * 0.97, hi = Math.max(r.teto_amarelo * 1.12, (pedido || 0) * 1.04);
@@ -972,11 +995,13 @@
       h("div", { class: "rel-topo" },
         h("div", { class: "rel-marca" }, h("img", { src: "logo-topio-t.png", alt: "" }), h("div", {}, h("b", {}, "Paulo Credidio"), h("span", {}, "by Topio imóveis"))),
         h("div", { class: "rel-data" }, "Precificação de imóvel", h("br"), `Dados de ${mesBaseTxt} · gerado em ${hoje}`)),
-      h("div", { class: "rel-hero" },
-        h("div", {}, h("div", { class: "rel-eyebrow" }, `Apartamento · ${s.bairroNome}`), h("h1", {}, s.rotulo),
+      h("div", { class: "rel-hero" + (corretor ? " dois" : "") },
+        h("div", { class: "rel-end" }, h("div", { class: "rel-eyebrow" }, `Apartamento · ${s.bairroNome}`), h("h1", {}, s.rotulo),
           h("p", {}, `${ent.andar != null ? `${ent.andar}º andar · ` : ""}${metragem}`)),
-        h("div", { class: "rel-preco" }, h("small", {}, "Preço sugerido de venda"), h("div", { class: "rel-big" }, mil(r.estimativa)),
-          h("p", {}, "Faixa provável: ", h("b", {}, `${mil(r.minimo)} a ${mil(r.maximo)}`)))),
+        h("div", { class: "rel-preco" }, h("small", {}, corretor ? "Preço sugerido pela calculadora" : "Preço sugerido de venda"), h("div", { class: "rel-big" }, mil(r.estimativa)),
+          h("p", {}, "Faixa provável: ", h("b", {}, `${mil(r.minimo)} a ${mil(r.maximo)}`))),
+        corretor ? h("div", { class: "rel-corretor" }, h("small", {}, "Pedida sugerida pelo corretor"), h("div", { class: "rel-big" }, mil(corretor)),
+          h("p", {}, h("span", { class: `rel-ponto ${zonaCorretor[1]}` }), h("b", {}, zonaCorretor[0]))) : null),
       h("section", { class: "rel-sec" },
         h("h2", {}, pedido ? "Onde o preço pedido cai no mercado?" : "Até quanto vale anunciar?"),
         h("div", { class: "rel-sub" }, `Comparamos com vendas reais de apartamentos parecidos, já atualizadas para o preço de ${mesBaseTxt}.`),
@@ -991,8 +1016,13 @@
             + (r.pedido_acima_do_verde > 0 ? ` Para entrar no preço de mercado, o pedido precisaria ficar em até ${mil(r.teto_verde)}.` : ""))) : null),
       h("section", { class: "rel-sec" },
         h("h2", {}, "Vendas reais usadas na conta"),
-        h("div", { class: "rel-sub" }, `${nPontos === r.n ? `As ${r.n} vendas` : `As ${nPontos} mais parecidas entre as ${r.n} vendas`} ${base}, cada uma já levada para ${num(ent.area, ent.area % 1 ? 1 : 0)} m² de cadastro e para o preço de ${mesBaseTxt}. A cor mostra a faixa em que cada venda ficou; círculo vazio = venda fora do padrão.`),
-        h("div", { class: "rel-grafico", html: svgVendas(ent, r) })),
+        h("div", { class: "rel-sub" }, `${nPontos === r.n ? `As ${r.n} vendas` : `As ${nPontos} mais parecidas entre as ${r.n} vendas`} ${base}, cada uma já levada para ${num(ent.area, ent.area % 1 ? 1 : 0)} m² de cadastro e para o preço de ${mesBaseTxt}. Cada ponto é uma venda: quanto mais à direita, mais cara; a cor mostra a faixa em que ela ficou.`),
+        h("div", { class: "rel-grafico", html: svgVendas(ent, r) }),
+        h("div", { class: "rel-legpts" },
+          h("span", {}, h("i", { class: "verde" }), plural(nVerde, "venda no preço de mercado", "vendas no preço de mercado")),
+          h("span", {}, h("i", { class: "amarelo" }), plural(nAmarelo, "venda acima do mercado", "vendas acima do mercado")),
+          h("span", {}, h("i", { class: "vermelho" }), plural(nVermelho, "venda fora do mercado", "vendas fora do mercado")),
+          nFora ? h("span", {}, h("i", { class: "vazio" }), plural(nFora, "venda fora do padrão", "vendas fora do padrão")) : null)),
       h("section", { class: "rel-conf" },
         h("b", {}, `${confNome}. `),
         `Em ${r.precisao_testes.toLocaleString("pt-BR")} testes com vendas que já aconteceram, em casos como este o erro típico foi de cerca de ${num(r.precisao_mediana_pct, 0)}%.`,

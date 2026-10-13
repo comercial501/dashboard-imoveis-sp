@@ -832,10 +832,10 @@ button.calc-chip:hover { border-color: var(--brand); color: var(--brand-deep); }
 .rel-preco small { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: #9fd9ee; }
 .rel-big { font-size: 40px; line-height: 1.05; margin: 6px 0 4px; }
 .rel-preco p { font-size: 12px; color: #d5dde0; }
-.rel-sec { margin-top: 18px; }
+.rel-sec { margin-top: 15px; }
 .rel-sec h2 { font-size: 17px; margin-bottom: 3px; }
 .rel-sub { color: var(--text-secondary); margin-bottom: 12px; font-size: 12px; line-height: 1.45; }
-.rel-regua { position: relative; height: 20px; margin: 34px 4px 10px; }
+.rel-regua { position: relative; height: 20px; margin: 32px 4px 8px; }
 .rel-z { position: absolute; top: 0; height: 20px; }
 .rel-z.verde { background: #bfe6cf; } .rel-z.amarelo { background: #f7dc9a; } .rel-z.vermelho { background: #efb4ac; }
 .rel-pin { position: absolute; top: -20px; transform: translateX(-50%); font-size: 10.5px; font-weight: 600; white-space: nowrap; text-align: center; }
@@ -861,3 +861,21 @@ button.calc-chip:hover { border-color: var(--brand); color: var(--brand-deep); }
   body.imprimindo-relatorio #relatorio-precificacao { display: block; page: relatorio; }
   body.imprimindo-relatorio { background: #fff; }
 }
+
+/* balão do corretor (tela) e no relatório */
+.calc-corretor { flex: 1 1 260px; max-width: 360px; border: 1px solid var(--brand); background: rgba(0,157,210,.05); padding: 10px 14px; display: grid; gap: 6px; }
+.calc-corretor-input { font-size: 20px; font-weight: 600; padding: 8px 10px; max-width: 220px; background: var(--surface); }
+.rel-hero.dois { grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+.rel-hero.dois .rel-end { grid-column: 1 / -1; }
+.rel-hero.dois .rel-big { font-size: 32px; margin: 4px 0 2px; }
+.rel-hero.dois .rel-preco, .rel-hero.dois .rel-corretor { padding: 13px 20px; }
+.rel-hero.dois h1 { font-size: 24px; margin: 4px 0 2px; }
+.rel-corretor { border: 2px solid var(--brand); padding: 16px 20px; color: var(--ink); background: #fff; }
+.rel-corretor small { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--brand-deep); }
+.rel-corretor p { font-size: 12px; margin-top: 2px; display: flex; align-items: center; gap: 7px; }
+.rel-ponto { display: inline-block; width: 10px; height: 10px; border-radius: 50% !important; }
+.rel-ponto.verde, .rel-legpts i.verde { background: #1f9d55; } .rel-ponto.amarelo, .rel-legpts i.amarelo { background: #d99a1c; } .rel-ponto.vermelho, .rel-legpts i.vermelho { background: #c0392b; }
+.rel-legpts { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; font-size: 11px; color: var(--text-secondary); }
+.rel-legpts span { display: inline-flex; align-items: center; gap: 6px; }
+.rel-legpts i { display: inline-block; width: 11px; height: 11px; border-radius: 50% !important; }
+.rel-legpts i.vazio { background: #fff; border: 2px solid #8a9298; }

@@ -88,6 +88,10 @@ def main():
         pi = next(i for i, v in sorted(idx["predio"].items()) if len(v) == 2 and dados["vendas"][v[0]][7])
         vv = dados["vendas"][idx["predio"][pi][0]]
         cenarios.append(("poucas_vendas", dict(end=dados["predios"][pi][1].replace(",", ""), apto=vv[7], pedido=round(vv[2] * 1.5, -3)), True))
+        # prédio com muitas vendas (11+): era o caso em que o gráfico ficava confuso
+        pm = next(i for i, v in sorted(idx["predio"].items(), key=lambda kv: -len(kv[1])) if dados["vendas"][v[0]][7])
+        vm = dados["vendas"][idx["predio"][pm][0]]
+        cenarios.append(("muitas_vendas", dict(end=dados["predios"][pm][1].replace(",", ""), apto=vm[7], pedido=round(vm[2] * 1.2, -3)), True))
         for nome, kw, com_pedido in cenarios:
             abrir()
             ok(not pg.is_visible(BTN), f"{nome}: antes de calcular o botão do PDF não aparece")
@@ -111,7 +115,19 @@ def main():
                 r = cp.estimar(dados, idx, ent)
                 ok(est == mil(r["estimativa"]), f"{nome}: preço sugerido do PDF ({est}) = Python ({mil(r['estimativa'])})")
                 ok(mil(r["minimo"]) in texto and mil(r["maximo"]) in texto, f"{nome}: faixa provável do PDF = Python")
+            if nome == "muitas_vendas":
+                pg.fill("#calc-corretor", "650000"); pg.wait_for_timeout(300)   # só para gerar a imagem mais cheia (pedido + corretor)
+                nn, tt = relatorio("muitas_vendas_corretor")
+                ok(nn == 1 and SOBRA and SOBRA["cabe"] and SOBRA["folga"] >= 4, f"muitas_vendas: com pedido e corretor, 1 página e nada passa do rodapé ({SOBRA})")
+                pg.fill("#calc-corretor", "")
             if nome == "com_pedido":
+                # balão "Pedida sugerida pelo corretor": só aparece no PDF quando preenchido
+                ok("pedida sugerida pelo corretor" not in texto.lower(), "com_pedido: sem valor do corretor, o balão não sai no PDF")
+                pg.fill("#calc-corretor", "740000"); pg.wait_for_timeout(300)
+                n3, t3 = relatorio("com_pedido_corretor")
+                ok(n3 == 1 and "pedida sugerida pelo corretor" in t3.lower() and "R$ 740 mil" in t3 and "preço sugerido pela calculadora" in t3.lower(), "com_pedido: com o valor do corretor (R$ 740 mil) o PDF mostra os dois balões, em 1 página")
+                ok(SOBRA and SOBRA["cabe"] and SOBRA["folga"] >= 4, f"com_pedido: com os dois balões nada passa do rodapé ({SOBRA})")
+                pg.fill("#calc-corretor", ""); pg.wait_for_timeout(200)
                 # o simulador manda: trocar o pedido na tela troca o PDF
                 pg.fill("#calc-sim-valor", "2000000"); pg.wait_for_timeout(500)
                 n2, t2 = relatorio("com_pedido_simulador")
