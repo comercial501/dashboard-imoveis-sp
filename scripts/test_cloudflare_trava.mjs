@@ -55,9 +55,25 @@ r = await chamar(await token({ kid: "chave-que-nao-existe" }));
 ok(r.status === 403 && !r.passou, "chave desconhecida: 403");
 r = await chamar(await token({ payload: { aud: AUD } }));
 ok(r.status === 200 && r.passou, "aud como texto (não lista) também vale");
-for (const caminho of ["/", "/index.html", "/data.json", "/raw.json", "/calculadora.js", "/calculadora.json", "/logo-topio-t.png", "/apple-touch-icon.png", "/icon-192.png", "/icon-512.png", "/manifest.webmanifest", "/app.js", "/engine.js", "/styles.css", "/qualquer/coisa.csv"]) {
+for (const caminho of ["/", "/index.html", "/data.json", "/raw.json", "/calculadora.js", "/calculadora.json", "/logo-topio-t.png", "/icon-192.png", "/icon-512.png", "/manifest.webmanifest", "/app.js", "/engine.js", "/styles.css", "/qualquer/coisa.csv"]) {
   const x = await chamar(null, env, `https://site.pages.dev${caminho}`);
   ok(x.status === 403 && !x.passou, `sem login: ${caminho} → 403`);
+}
+// única exceção: o ícone do celular (o iPhone baixa sem login). Só esse caminho exato, só GET/HEAD.
+r = await chamar(null, env, "https://site.pages.dev/apple-touch-icon.png");
+ok(r.status === 200 && r.passou, "ícone do celular (/apple-touch-icon.png) abre sem login");
+r = await chamar(null, {}, "https://site.pages.dev/apple-touch-icon.png");
+ok(r.status === 200 && r.passou, "ícone do celular abre mesmo sem as variáveis configuradas (é só o logotipo)");
+r = await chamar(null, env, "https://site.pages.dev/apple-touch-icon.png?x=1");
+ok(r.status === 200 && r.passou, "ícone com parâmetro na frente continua sendo só o ícone");
+for (const c of ["/apple-touch-icon.png/", "/APPLE-TOUCH-ICON.PNG", "/apple-touch-icon.png.bak", "/apple-touch-icon.png/../data.json", "//apple-touch-icon.png", "/icon-192.png", "/icon-512.png", "/logo-topio-t.png", "/manifest.webmanifest", "/data.json", "/raw.json", "/calculadora.json", "/%61pple-touch-icon.png/../data.json"]) {
+  const x = await chamar(null, env, `https://site.pages.dev${c}`);
+  ok(x.status === 403 && !x.passou, `sem login: ${c} continua fechado (só o ícone exato é a exceção)`);
+}
+{
+  let passou = false;
+  const x = await onRequest({ request: new Request("https://site.pages.dev/apple-touch-icon.png", { method: "POST" }), env, next: async () => { passou = true; return new Response("x"); } });
+  ok(x.status === 403 && !passou, "ícone: POST (não é leitura) → 403");
 }
 r = await chamar(await token(), { TEAM_DOMAIN: TEAM });
 ok(r.status === 503 && !r.passou, "sem POLICY_AUD configurado: 503 (fecha tudo)");

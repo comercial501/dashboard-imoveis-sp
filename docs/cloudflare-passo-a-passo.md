@@ -76,3 +76,19 @@ Salve e publique de novo: GitHub → **Actions** → **Publicar na Cloudflare (m
 - **Tela "Acesso negado"** logo depois de logar → o `POLICY_AUD` não é o do aplicativo certo, ou o `TEAM_DOMAIN` está com barra no final / endereço errado.
 - **O código não chega** → o e-mail não está na lista da etapa 7 (por segurança a Cloudflare nem envia), ou caiu no spam.
 - **Para tirar alguém do acesso**: apague o e-mail da lista (etapa 7) e, se quiser derrubar sessões abertas, em Zero Trust → Access → Applications → o aplicativo → revogue as sessões.
+
+
+## Ícone da tela de início do celular (única exceção ao login)
+
+O iPhone baixa a imagem do ícone sozinho, **sem o login do Safari**. Com o site todo atrás do código por e-mail, ele recebia a tela de login e mostrava uma letra "I" azul.
+Para o símbolo da Topio aparecer, **uma única imagem** abre sem login: `https://NOME.pages.dev/apple-touch-icon.png` (só o logotipo, nenhum dado). Duas partes:
+
+1. **No código (já feito):** `functions/_middleware.js` deixa passar só esse caminho exato (GET/HEAD). Qualquer outro caminho, variação ou arquivo continua exigindo o login.
+2. **Na Cloudflare (à mão, uma vez):** Zero Trust → **Access controls** → **Applications** → **Add an application** → **Self-hosted**.
+   - Nome: `Torre de Controle — ícone do celular`.
+   - **Public hostname**: `torre-topio.pages.dev`, com o **caminho** `apple-touch-icon.png` (campo "Path").
+   - **Policies** → **Add a policy** → ação **Bypass** → regra **Include** → **Everyone**. Salve.
+   - Como esse aplicativo é mais específico (tem caminho), ele vale só para essa imagem; o aplicativo "Torre de Controle" continua protegendo o resto.
+
+Depois: `python3 scripts/testar_acesso_anonimo.py https://NOME.pages.dev` deve mostrar a imagem como a única exceção ("é o ícone (imagem PNG)"), e todo o resto fechado.
+No iPhone: apagar o atalho antigo e adicionar de novo (o iPhone guarda o ícone velho).

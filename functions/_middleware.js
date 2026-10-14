@@ -72,8 +72,14 @@ function negar(status, texto) {
   return new Response(texto, { status, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex" } });
 }
 
+// ÚNICA exceção à trava: o ícone da tela de início do celular. O iPhone baixa essa imagem sozinho, sem o login do Safari,
+// e sem ela mostra uma letra "I" azul no lugar do símbolo da Topio. É só o logotipo — nenhum dado. Caminho exato (nada de
+// pasta, variação ou outro arquivo) e só leitura (GET/HEAD). Todo o resto continua exigindo o login do Access.
+export const PUBLICOS_SEM_LOGIN = new Set(["/apple-touch-icon.png"]);
+
 export async function onRequest(context) {
   const { request, env, next } = context;
+  if ((request.method === "GET" || request.method === "HEAD") && PUBLICOS_SEM_LOGIN.has(new URL(request.url).pathname)) return next();
   if (!env.TEAM_DOMAIN || !env.POLICY_AUD) return negar(503, "Acesso ainda não configurado.");
   const token = request.headers.get("cf-access-jwt-assertion");
   if (!token) return negar(403, "Acesso negado: faça login pelo endereço oficial.");

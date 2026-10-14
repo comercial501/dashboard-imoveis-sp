@@ -45,7 +45,11 @@ def main(bases):
         for c in CAMINHOS:
             status, cab, corpo = pedir(base + c)
             destino = cab.get("Location") or cab.get("location") or ""
-            if status == 200:
+            if c == "/apple-touch-icon.png" and status == 200:
+                # única exceção combinada: o ícone do celular (o iPhone baixa sem login). Só vale se for mesmo a imagem PNG.
+                ok = "image/png" in (cab.get("Content-Type") or cab.get("content-type") or "") and corpo[:4] in ("\ufffdPNG", "\x89PNG")
+                resultado = "é o ícone (imagem PNG) — a única exceção permitida" if ok else "200 mas NÃO é a imagem do ícone!"
+            elif status == 200:
                 resultado, ok = "ENTREGOU CONTEÚDO SEM LOGIN", False
             elif status in (301, 302, 303, 307, 308):
                 # só vale se for pro login da Cloudflare
