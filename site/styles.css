@@ -970,3 +970,6 @@ button.calc-chip:hover { border-color: var(--brand); color: var(--brand-deep); }
   section.card h2 { font-size: 19px; }
   .rank-row .rank-meta { font-size: 12.5px; line-height: 1.4; }
 }
+
+.calc-aviso-fora { background: #fff8e6; border-left: 4px solid #d99a1c; padding: 10px 14px; margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+.calc-aviso-fora b { color: var(--text-primary); }

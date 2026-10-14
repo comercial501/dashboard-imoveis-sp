@@ -1858,7 +1858,7 @@ def _compute_captacao_top30(captacao_estrategica):
 # ---------------------------------------------------------------------------
 # Orquestração principal
 # ---------------------------------------------------------------------------
-def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_externo, unidades_por_endereco=None):
+def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_externo, unidades_por_endereco=None, registros_fora=None):
     """years: lista de 3 anos ascendente, ex: [2024, 2025, 2026].
     carteira_77_bairros: dict bairro -> {unidades_iptu, giro_12m_pct, ...}
     de cascata_completa.gerar_dados_carteira_77()['bairros'] — fonte
@@ -2237,7 +2237,7 @@ def compute(itbi_records, usn_records, years, carteira_77_bairros, periodo_12m_e
     # Calculadora de preço (protótipo, 2026-10-10): dados em arquivo à parte (site/calculadora.json), pra não
     # engordar o data.json; build_data.py tira esta chave antes de gravar o data.json.
     calculadora = calculadora_preco.preparar_dados(itbi_records, usn_records, indice_tempo, _fator_tempo,
-                                                   datetime.now(timezone.utc).isoformat(), centroids)
+                                                   datetime.now(timezone.utc).isoformat(), centroids, fora_records=registros_fora)
 
     return {
         "_calculadora": calculadora,

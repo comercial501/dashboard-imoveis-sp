@@ -670,6 +670,9 @@ def gerar_dados_carteira_77():
     }
 
 
+FORA_REVENDA = []   # preenchido por resolver_registros_engine(): revendas que ficaram fora da carteira (Calculadora)
+
+
 def resolver_registros_engine():
     """Item 1 da Etapa 2 (2026-10-01): resolve bairro (carteira de 77) +
     marca is_revenda/is_planta em TODOS OS ANOS (não só a janela de 12
@@ -734,10 +737,12 @@ def resolver_registros_engine():
 
     out = []
     fora_ou_incerto = 0
+    fora_revenda = []   # revendas de fora da carteira: só a Calculadora usa (ver regioes_fora.py); nenhum painel
     for r in buckets["revenda"]:
         destino, _metodo = resolucao_revenda.get(_rkey(r), (None, None))
         if destino is None:
             fora_ou_incerto += 1
+            fora_revenda.append({**r, "is_revenda": True, "is_planta": False})
             continue
         out.append({**r, "bairro": destino, "is_revenda": True, "is_planta": False})
     for r in buckets["planta"]:
@@ -746,7 +751,9 @@ def resolver_registros_engine():
             fora_ou_incerto += 1
             continue
         out.append({**r, "bairro": destino, "is_revenda": False, "is_planta": True})
-    print(f"[engine] registros na carteira (77): {len(out)} | fora_carteira/incerto: {fora_ou_incerto}")
+    print(f"[engine] registros na carteira ({len(targets)}): {len(out)} | fora_carteira/incerto: {fora_ou_incerto}")
+    global FORA_REVENDA
+    FORA_REVENDA = fora_revenda
     stats = {
         "total_rows_seen": parse_stats["total_rows_seen"],
         "total_rows_matched_todos_usos": parse_stats["total_rows_matched"],

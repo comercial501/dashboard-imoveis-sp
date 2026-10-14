@@ -15,8 +15,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from normalize import TARGETS
 from exportar_valor_pago_por_bairro import checar_consistencia_com_carteira_77, resolver_revenda_todos_anos
 
+N_BAIRROS = len(TARGETS)   # 77 + Belém (14/10/2026): o número vem da própria carteira, não fixo
 ROOT = Path(__file__).resolve().parent.parent
 DATA_JSON = ROOT / "site" / "data.json"
 
@@ -24,8 +26,8 @@ DATA_JSON = ROOT / "site" / "data.json"
 def main():
     data = json.loads(DATA_JSON.read_text(encoding="utf-8"))
 
-    assert "bairros" in data and len(data["bairros"]) == 77, (
-        f"esperava 77 bairros em `bairros` (item 1 da Etapa 2 migrou o motor pra base nova), achei {len(data.get('bairros', {}))}"
+    assert "bairros" in data and len(data["bairros"]) == N_BAIRROS, (
+        f"esperava {N_BAIRROS} bairros em `bairros` (item 1 da Etapa 2 migrou o motor pra base nova), achei {len(data.get('bairros', {}))}"
     )
 
     assert "carteira_77" in data, "data.json sem o campo carteira_77 — build_data.py rodou sem a etapa nova?"
@@ -35,7 +37,7 @@ def main():
         assert chave in c77, f"carteira_77 sem a chave '{chave}'"
 
     bairros = c77["bairros"]
-    assert len(bairros) == 77, f"esperava 77 bairros em carteira_77.bairros, achei {len(bairros)}"
+    assert len(bairros) == N_BAIRROS, f"esperava {N_BAIRROS} bairros em carteira_77.bairros, achei {len(bairros)}"
 
     for b, v in bairros.items():
         for campo in ("revenda_12m", "planta_12m", "unidades_iptu", "giro_12m_pct"):

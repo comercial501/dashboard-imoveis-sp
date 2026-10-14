@@ -1109,7 +1109,7 @@ def check_dedup_aplicada(usn_records):
     print(f"[validate_build] OK 9/19 — {len(usn_records)} anúncios no estoque, nenhuma duplicata (endereço+área+preço ±3%) restante.")
 
 
-def check_calculadora(calc, data, itbi_records, usn_records):
+def check_calculadora(calc, data, itbi_records, usn_records, fora_limpos=None):
     """Calculadora de preço (aba nova, 2026-10-10): confere o calculadora.json ANTES de publicar. Trava se:
     a lista de vendas não for exatamente a revenda limpa de apartamento (mesma camada do resto do painel, sem
     planta), se algum valor/área/fator/andar sair do padrão, se o mês base não bater com a correção de tempo,
@@ -1126,8 +1126,17 @@ def check_calculadora(calc, data, itbi_records, usn_records):
                  if r["tipo_imovel"] == "apartamento" and r.get("is_revenda") and r.get("is_clean_sale")
                  and r["bairro"] in TARGETS and r["day"] is not None and r.get("area") and r.get("addr_key")
                  and cp.AREA_MIN <= r["area"] <= cp.AREA_MAX and excel_serial_to_ym(r["day"]) >= (2024, 1)]
-    if len(calc["vendas"]) != len(esperadas):
-        div.append(f"{len(calc['vendas'])} vendas no arquivo, mas a camada limpa tem {len(esperadas)} revendas de apartamento")
+    # o resto da cidade (14/10/2026): revendas limpas de apartamento FORA da carteira, com a região no lugar do bairro
+    esperadas_fora = [r for r in (fora_limpos or [])
+                      if r["tipo_imovel"] == "apartamento" and r.get("is_revenda") and r.get("is_clean_sale") and r.get("bairro")
+                      and r["bairro"] not in TARGETS and r["day"] is not None and r.get("area") and r.get("addr_key")
+                      and cp.AREA_MIN <= r["area"] <= cp.AREA_MAX and excel_serial_to_ym(r["day"]) >= (2024, 1)]
+    if len(calc["vendas"]) != len(esperadas) + len(esperadas_fora):
+        div.append(f"{len(calc['vendas'])} vendas no arquivo, mas a camada limpa tem {len(esperadas)} revendas de apartamento na carteira + {len(esperadas_fora)} fora dela")
+    if calc.get("n_carteira") != len(TARGETS) or calc["bairros"][:len(TARGETS)] != list(TARGETS):
+        div.append("os primeiros bairros do arquivo não são exatamente os da carteira (n_carteira)")
+    if esperadas_fora and not (calc.get("resumo", {}).get("vendas_fora", 0) > 0 and len(calc["bairros"]) > len(TARGETS)):
+        div.append("há vendas fora da carteira na camada limpa, mas o arquivo não tem nenhuma região de fora")
     n_pred = len(calc["predios"])
     n_ruas = len(calc["ruas"])
     n_bairros = len(calc["bairros"])
@@ -1231,7 +1240,7 @@ def check_calculadora(calc, data, itbi_records, usn_records):
     print(f"[validate_build] OK 19/19 — calculadora: {len(calc['vendas'])} vendas de {n_pred} prédios (= revenda limpa de apartamento, sem planta), andar lido em {pct_andar:.0%}, {len(calc['anuncios'])} anúncios do estoque de hoje, cálculo conferido em {testados} prédios conhecidos; relação cadastro÷útil {calc['razao_util']['mediana'] if calc.get('razao_util') else '?'} ({calc['razao_util']['n'] if calc.get('razao_util') else 0} pares); erro medido em testes com vendas reais: mediano {prec['predio|*']['mediano']:.0%} no prédio, {prec['predio_poucas|*']['mediano']:.0%} com só 1–2 vendas no prédio, {prec['rua|*']['mediano']:.0%} na rua, {prec['bairro|*']['mediano']:.0%} no bairro.")
 
 
-def validate_before_publish(year_to_path, itbi_stats, data, out_path, usn_records, itbi_records, historico=None, calculadora=None):
+def validate_before_publish(year_to_path, itbi_stats, data, out_path, usn_records, itbi_records, historico=None, calculadora=None, fora_limpos=None):
     """Chamado por build_data.py logo antes de escrever site/data.json.
     Levanta SystemExit (para o processo com código != 0) se qualquer
     checagem falhar — build_data.py não deve capturar essa exceção."""
@@ -1254,5 +1263,5 @@ def validate_before_publish(year_to_path, itbi_stats, data, out_path, usn_record
     check_historico_anuncios(historico, data)
     check_forma_pagamento(data)
     check_contexto_credito(data)
-    check_calculadora(calculadora, data, itbi_records, usn_records)
+    check_calculadora(calculadora, data, itbi_records, usn_records, fora_limpos)
     print("[validate_build] todas as checagens passaram — liberado pra publicar.")

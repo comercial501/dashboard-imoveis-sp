@@ -4,7 +4,7 @@ Teste da versão CELULAR do dashboard (uso LOCAL — não roda no GitHub Actions
 
 Celular (390 px): menu de baixo com 4 botões e a folha de seções; topo enxuto (grupo + nome da seção, fontes recolhidas); "Como usar" em toda
 seção; tabelas viram cartões; só 10 itens por lista com "Ver mais"; filtros recolhidos num botão; voltar ao topo; nada rola para o lado; sem erro de console.
-Computador (1300 px): nada disso aparece e tudo continua como era (menu lateral, 77 linhas, tabelas, filtros abertos).
+Computador (1300 px): nada disso aparece e tudo continua como era (menu lateral, todas as linhas, tabelas, filtros abertos).
 
 Uso:
   cd site && python3 serve_no_cache.py 8899 &
@@ -16,7 +16,7 @@ from playwright.sync_api import sync_playwright
 
 PAINEIS = [
     ("visao-geral", "Visão Geral", "Panorama do mercado"), ("perfil", "Perfil por Bairro", "Panorama do mercado"), ("preco-m2", "Valor pago por bairro", "Panorama do mercado"),
-    ("mapa", "Mapa", "Panorama do mercado"), ("carteira-77", "Carteira 77", "Panorama do mercado"),
+    ("mapa", "Mapa", "Panorama do mercado"), ("carteira-77", "Carteira de bairros", "Panorama do mercado"),
     ("estoque-demanda", "Estoque × Demanda", "Onde captar"), ("captacao", "Captação Ativa", "Onde captar"), ("ranking", "Ranking de Oportunidade", "Onde captar"),
     ("prontidao", "Prontidão para Campanha", "Campanhas Topio"), ("prioritarios", "Imóveis Prioritários", "Campanhas Topio"), ("valor-oportunidade", "Valor de Oportunidade", "Campanhas Topio"),
     ("calculadora", "Calculadora de preço", "Calculadora Topio"),
@@ -122,8 +122,8 @@ def main():
         ok(not pg.is_visible(".panel.active .como-usar"), "computador: o «Como usar» do celular não aparece")
         ok(pg.is_visible("#filtros-card .filtros-grid") and not pg.is_visible("#filtros-card .filtro-chip"), "computador: filtros abertos, sem o botão de recolher")
         pg.evaluate("()=>showPanel('ranking')"); pg.wait_for_timeout(800)
-        d = pg.evaluate("""()=>({thead:getComputedStyle(document.querySelector('#ranking-table thead')).display, visiveis:[...document.querySelectorAll('#ranking-table tbody tr')].filter(e=>e.getClientRects().length).length, botao:!!document.querySelector('#ranking-table .ver-mais-celular')&&document.querySelector('#ranking-table .ver-mais-celular').getClientRects().length>0})""")
-        ok(d["thead"] != "none" and d["visiveis"] == 77 and not d["botao"], f"computador/ranking: tabela normal com as {d['visiveis']} linhas e sem «Ver mais»")
+        d = pg.evaluate("""()=>({total:document.querySelectorAll('#ranking-table tbody tr').length, thead:getComputedStyle(document.querySelector('#ranking-table thead')).display, visiveis:[...document.querySelectorAll('#ranking-table tbody tr')].filter(e=>e.getClientRects().length).length, botao:!!document.querySelector('#ranking-table .ver-mais-celular')&&document.querySelector('#ranking-table .ver-mais-celular').getClientRects().length>0})""")
+        ok(d["thead"] != "none" and d["visiveis"] == d["total"] and d["total"] > 10 and not d["botao"], f"computador/ranking: tabela normal com as {d['visiveis']} linhas e sem «Ver mais»")
         ok(not erros, "computador: nenhum erro de console")
         ctx.close(); br.close()
     print("\nRESULTADO:", "OK" if not falhas else f"{len(falhas)} FALHA(S)")

@@ -65,7 +65,7 @@ def _carregar_targets_77():
 
 
 TARGETS = _carregar_targets_77()
-assert len(TARGETS) == 77, f"esperava 77 bairros-alvo na carteira nova, achei {len(TARGETS)}"
+assert len(TARGETS) == 78, f"esperava 78 bairros-alvo na carteira (77 + Belém, 14/10/2026), achei {len(TARGETS)}"
 
 ALIASES = {
     "BROOKLIN PAULISTA": "BROOKLIN",

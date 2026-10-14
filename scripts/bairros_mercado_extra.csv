@@ -22,3 +22,7 @@ Alto de Pinheiros,ALTO DE PINHEIROS,3569,"05458-901, 05458-900, 05458-001, 05466
 Alto de Pinheiros,ALTO PINHEIROS,59,"05467-000, 05466-040, 05460-010, 05465-050, 05468-140",Alto de Pinheiros,NOVO_BAIRRO,"bairro novo (Aclimação/Vila Leopoldina/Alto de Pinheiros) -- classificado automaticamente, sem ambiguidade"
 Alto de Pinheiros,ALTO DE  PINHEIROS,3,"05467-010, 05466-907, 05465-050",Alto de Pinheiros,NOVO_BAIRRO,"bairro novo (Aclimação/Vila Leopoldina/Alto de Pinheiros) -- classificado automaticamente, sem ambiguidade"
 Alto de Pinheiros,ALTO  DE  PINHEIROS,3,"05466-020, 05455-002",Alto de Pinheiros,NOVO_BAIRRO,"bairro novo (Aclimação/Vila Leopoldina/Alto de Pinheiros) -- classificado automaticamente, sem ambiguidade"
+Belém,BELENZINHO,7592,"03015, 03170, 03059, 03058",Belém,NOVO_BAIRRO,"bairro novo (Belém, com Belenzinho) -- pedido do Paulo em 14/10/2026; antes estava como FORA na tabela revisada"
+Belém,BELEM,1445,"03058, 03059, 03057",Belém,NOVO_BAIRRO,"bairro novo (Belém, com Belenzinho) -- pedido do Paulo em 14/10/2026; antes estava como FORA na tabela revisada"
+Belém,BELEMZINHO,10,"03058, 03021, 03052",Belém,NOVO_BAIRRO,"bairro novo (Belém, com Belenzinho) -- erro de digitação de Belenzinho"
+Belém,SMART STUDIOS BELEM,172,03062,Belém,NOVO_BAIRRO,"bairro novo (Belém, com Belenzinho) -- condomínio no Belenzinho"

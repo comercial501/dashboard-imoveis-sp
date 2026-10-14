@@ -482,7 +482,14 @@ def main():
     unidades_endereco = cascata_completa.unidades_por_endereco()
     print(f"[build] unidades IPTU por endereço: {len(unidades_endereco)} endereços")
 
-    result = engine.compute(itbi_records, usn_records, years, carteira_77["bairros"], periodo_12m_externo, unidades_endereco)
+    # Calculadora: o resto da cidade (revendas fora dos bairros da carteira). Cada venda ganha uma "região" (nome do cadastro do IPTU
+    # no CEP + sub-região) e passa pela MESMA camada limpa; só a Calculadora usa (nenhum painel). Ver regioes_fora.py.
+    import regioes_fora
+    fora_regioes = regioes_fora.atribuir_regioes(cascata_completa.FORA_REVENDA)
+    fora_limpos, fora_stats = clean_itbi.build_clean_layer(fora_regioes, log=lambda *a, **k: None)
+    print(f"[build] Calculadora — fora da carteira: {len(cascata_completa.FORA_REVENDA)} revendas -> {len(fora_regioes)} com região -> {sum(1 for r in fora_limpos if r['is_clean_sale'])} limpas")
+
+    result = engine.compute(itbi_records, usn_records, years, carteira_77["bairros"], periodo_12m_externo, unidades_endereco, registros_fora=fora_limpos)
     print(f"[build] motor de cálculo concluído ({time.time() - t_start:.1f}s total)")
     calculadora = result.pop("_calculadora")
 
@@ -576,7 +583,7 @@ def main():
     # falhar — nem o CSV nem o raw.json chegam a ser escritos, o data.json
     # anterior fica intacto no disco/git.
     validate_build.validate_before_publish(year_to_path, itbi_stats, data, OUT, usn_records, itbi_records,
-                                           historico=(historico_novo, _USN_ANTES_DEDUP), calculadora=calculadora)
+                                           historico=(historico_novo, _USN_ANTES_DEDUP), calculadora=calculadora, fora_limpos=fora_limpos)
 
     if historico_novo is not None:
         historico_anuncios.salvar(historico_novo)

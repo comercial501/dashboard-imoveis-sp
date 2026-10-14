@@ -246,23 +246,28 @@ def medir_razao_util(anuncios, vendas, predios):
             "amostra": [round(r, 3) for r in razoes]}
 
 
-def preparar_dados(itbi_records, usn_records, indice, fator_fn, gerado_em_iso, centroides=None):
+def preparar_dados(itbi_records, usn_records, indice, fator_fn, gerado_em_iso, centroides=None, fora_records=None):
     """Monta o conteúdo do calculadora.json. `fator_fn(indice, bairro, tipo, day)` = correção de tempo da
-    Rodada A2 (engine._fator_tempo); `indice` = engine._compute_indice_tempo."""
+    Rodada A2 (engine._fator_tempo); `indice` = engine._compute_indice_tempo.
+    `fora_records` (14/10/2026): revendas do RESTO de São Paulo (fora dos bairros da carteira), já com a "região" no campo
+    `bairro` (ver regioes_fora.py) e já na camada limpa. Entram só na Calculadora: o nível «bairro» deles é a região, a correção
+    de tempo usa o índice da cidade (a função cai nele quando não conhece o bairro) e não há anúncios da rede nesses endereços."""
     mes_base = "%04d-%02d" % indice["mes_base"]
-    bairros = list(TARGETS)
-    b_idx = {b: i for i, b in enumerate(bairros)}
+    n_carteira = len(TARGETS)
 
-    brutas = []
-    for r in itbi_records:
+    def serve(r):
         if r["tipo_imovel"] != "apartamento" or not (r.get("is_revenda") and r.get("is_clean_sale")):
-            continue
-        if r["bairro"] not in b_idx or r["day"] is None or not r.get("area") or not r.get("addr_key") or not (AREA_MIN <= r["area"] <= AREA_MAX):
-            continue  # área de 4 m² ou 5.000 m² no cadastro é erro de digitação, não apartamento
+            return False
+        if not r.get("bairro") or r["day"] is None or not r.get("area") or not r.get("addr_key") or not (AREA_MIN <= r["area"] <= AREA_MAX):
+            return False  # área de 4 m² ou 5.000 m² no cadastro é erro de digitação, não apartamento
         ano, mes = excel_serial_to_ym(r["day"])
-        if ano * 100 + mes < INICIO_VENDAS_YM:  # vendas registradas atrasadas (2020–2023): o índice de tempo só começa em 2024
-            continue
-        brutas.append(r)
+        return ano * 100 + mes >= INICIO_VENDAS_YM  # vendas registradas atrasadas (2020–2023): o índice de tempo só começa em 2024
+
+    brutas_carteira = [r for r in itbi_records if r["bairro"] in set(TARGETS) and serve(r)]
+    brutas_fora = [r for r in (fora_records or []) if r["bairro"] not in set(TARGETS) and serve(r)]
+    bairros = list(TARGETS) + sorted({r["bairro"] for r in brutas_fora})
+    b_idx = {b: i for i, b in enumerate(bairros)}
+    brutas = brutas_carteira + brutas_fora
 
     # O mesmo prédio às vezes cai em dois ou três bairros vizinhos na resolução de bairro (ex.: Rua João Cachoeira, 892
     # em Itaim Bibi, Jardim Paulista e Vila Nova Conceição), o que partia as vendas dele. Junta no bairro com mais vendas
@@ -273,9 +278,14 @@ def preparar_dados(itbi_records, usn_records, indice, fator_fn, gerado_em_iso, c
     for r in brutas:
         n_por.setdefault(r["addr_key"], Counter())[r["bairro"]] += 1
     bairro_do_predio = {}
+    carteira = set(TARGETS)
     for ak, cont in n_por.items():
-        dom = sorted(cont.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+        so_carteira = {b: n for b, n in cont.items() if b in carteira}
+        dom = sorted((so_carteira or cont).items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
         for b in cont:
+            if so_carteira and b not in carteira:   # o mesmo prédio com algumas vendas "fora" e outras na carteira: fica tudo no bairro da carteira
+                bairro_do_predio[(ak, b)] = dom
+                continue
             ca, cb = centroides.get(dom), centroides.get(b)
             junta = b == dom or (ca and cb and haversine_km(ca[0], ca[1], cb[0], cb[1]) <= MESMO_PREDIO_KM)
             bairro_do_predio[(ak, b)] = dom if junta else b
@@ -335,6 +345,7 @@ def preparar_dados(itbi_records, usn_records, indice, fator_fn, gerado_em_iso, c
         "gerado_em_iso": gerado_em_iso,
         "mes_base": mes_base,
         "bairros": bairros,
+        "n_carteira": n_carteira,   # bairros[0:n_carteira] = os da carteira; o resto são regiões de fora (só a Calculadora usa)
         "ruas": ruas,
         "predios": predios,
         "vendas": vendas,
@@ -353,6 +364,8 @@ def preparar_dados(itbi_records, usn_records, indice, fator_fn, gerado_em_iso, c
         },
         "resumo": {
             "vendas": len(vendas), "predios": len(predios), "ruas": len(ruas), "anuncios": len(anuncios),
+            "vendas_carteira": len(brutas_carteira), "vendas_fora": len(brutas_fora),
+            "predios_carteira": sum(1 for p in predios if p[2] < n_carteira), "bairros_carteira": n_carteira, "regioes_fora": len(bairros) - n_carteira,
             "vendas_com_andar": sum(1 for v in vendas if v[4] is not None),
         },
     }

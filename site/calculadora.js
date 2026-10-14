@@ -322,6 +322,8 @@
   const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
   const numeroDoEndereco = (addrKey) => String((addrKey.split("|")[1] || "")).replace(/^0+(?=\d)/, "");
 
+  const nCarteira = () => (DADOS.n_carteira != null ? DADOS.n_carteira : DADOS.bairros.length);   // bairros[0..n) = carteira; o resto são regiões de fora (só a Calculadora usa)
+  const foraDaCarteira = (bairroIdx) => bairroIdx != null && bairroIdx >= nCarteira();
   let DADOS = null, IDX = null, BUSCA = null, FORM = null, LINHA = null, AJUSTE = null, CHIPS = null; // FORM: controle do formulário (recolher/expandir)
   const ESTADO = { local: null, apto: "", andar: "", andarAuto: false, area: "", areaAuto: false, areaNota: "", areaManual: false, areaOrigem: "", plantaEscolhida: "", mostrarPlantas: false, ajustarAberto: false, areaUtil: "", quartos: "", banheiros: "", suites: "", vagas: "", condominio: "", iptu: "", pedido: "", corretor: "" };
 
@@ -352,11 +354,13 @@
       rotulo: bonito(DADOS.predios[p.i][1]), bairroNome: DADOS.bairros[DADOS.predios[p.i][2]],
     }));
     if (numero !== null && out.length < 8) {
-      const ruas = BUSCA.ruas.filter((r) => casa(r.texto)).slice(0, 4);
+      // a mesma rua passa por vários bairros: cada trecho aparece com o nome do bairro, pra escolher o certo (não esconde os outros)
+      const ruas = BUSCA.ruas.filter((r) => casa(r.texto)).slice(0, 12);
       for (const r of ruas) {
+        if (out.length >= 8) break;
         if (out.some((o) => o.tipo === "predio" && o.rua === r.i)) continue;
-        // mesmo nome e número de um prédio que já está na lista (ex.: o mesmo endereço aparecendo em outro bairro): é o mesmo endereço, não repete
-        if (out.some((o) => o.rotulo === `${bonito(r.nome)}, ${numero}`)) continue;
+        // mesmo nome, número E bairro de um prédio que já está na lista: é o mesmo endereço, não repete
+        if (out.some((o) => o.rotulo === `${bonito(r.nome)}, ${numero}` && o.bairroNome === DADOS.bairros[r.bairro])) continue;
         out.push({ tipo: "rua", predio: null, rua: r.i, bairro: r.bairro, rotulo: `${bonito(r.nome)}, ${numero}`, bairroNome: DADOS.bairros[r.bairro], semVendas: true });
       }
     }
@@ -543,7 +547,7 @@
     const caixaBusca = h("div", { class: "calc-busca" }, h("label", { class: "calc-rotulo", for: "calc-endereco" }, "Endereço do imóvel"), entrada, lista);
     // plano B: o endereço não tem venda de apartamento na base -> calcula só pelo bairro (confiança baixa)
     const selBairro = h("select", { id: "calc-so-bairro", class: "calc-input", "aria-label": "Bairro" }, h("option", { value: "" }, "Escolha o bairro…"),
-      DADOS.bairros.map((b, i) => [i, b]).sort((x, y) => x[1].localeCompare(y[1], "pt-BR")).map(([i, b]) => h("option", { value: String(i) }, b)));
+      DADOS.bairros.slice(0, nCarteira()).map((b, i) => [i, b]).sort((x, y) => x[1].localeCompare(y[1], "pt-BR")).map(([i, b]) => h("option", { value: String(i) }, b)));
     selBairro.addEventListener("change", () => {
       if (selBairro.value === "") return;
       const i = Number(selBairro.value);
@@ -733,6 +737,10 @@
     mostrarBotaoRelatorio(false);
     const aviso = avisoMetragem(ent, r);
     if (aviso) out.append(aviso);
+    if (foraDaCarteira(ent.bairro)) {
+      out.append(h("div", { class: "calc-aviso-fora" }, h("b", {}, "Endereço fora dos bairros da carteira. "),
+        `A região é ${DADOS.bairros[ent.bairro].replace(" (fora da carteira)", "")}. A estimativa usa só vendas registradas (ITBI) do próprio prédio, da rua ou da região — os painéis e os anúncios da rede nonStop cobrem apenas os bairros da carteira.`));
+    }
     if (!r.ok) {
       out.append(h("section", { class: "card" }, h("h2", {}, "Sem estimativa"),
         h("p", {}, "Não há vendas parecidas suficientes (nem no prédio, nem na rua, nem no bairro) para essa metragem. Em vez de chutar um número, a calculadora não responde. Tente conferir a área construída informada."),
@@ -874,7 +882,7 @@
     out.append(h("section", { class: "card" }, h("h2", {}, "À venda agora (nonStop)"),
       h("div", { class: "card-sub" }, `Anúncios ativos da rede: primeiro os do mesmo prédio, depois ${critA}${ent.quartos != null ? `, com ${ent.quartos} ${ent.quartos === 1 ? "quarto" : "quartos"}` : ""}. Preço pedido, não preço pago — a área aqui é a útil do anúncio.`),
       linhasA.length ? tabela(["Endereço", "Área", "Quartos", "Vagas", "Preço pedido", "Anunciado há", "Código"], linhasA)
-        : h("p", { class: "muted" }, "Nenhum anúncio parecido na rede hoje.")));
+        : h("p", { class: "muted" }, foraDaCarteira(ent.bairro) ? "A rede nonStop só é consultada nos bairros da carteira; para este endereço não há comparação com anúncios." : "Nenhum anúncio parecido na rede hoje.")));
 
     // resumo para copiar (acompanha o pedido do simulador)
     nAnuncios = anuncios.length;
@@ -1076,7 +1084,7 @@
     root.replaceChildren();
     const form = renderFormulario();
     const corpo = h("div", { id: "calc-corpo-form" },
-      calcResumo(h("div", { class: "card-sub recolhido" }, `Estimativa de venda com base no que foi realmente pago: guias de ITBI de revenda (compra e venda, 100% do imóvel, valor dentro do padrão — a mesma camada limpa do resto do painel), atualizadas para o preço de ${DADOS.mes_base.split("-").reverse().join("/")} pela variação de R$/m² de cada bairro. ${num(DADOS.resumo.vendas)} vendas em ${num(DADOS.resumo.predios)} prédios dos 77 bairros da carteira. Compara primeiro com o próprio prédio, depois com a rua, depois com o bairro — e diz qual dos três usou e quão confiável é.`)),
+      calcResumo(h("div", { class: "card-sub recolhido" }, `Estimativa de venda com base no que foi realmente pago: guias de ITBI de revenda (compra e venda, 100% do imóvel, valor dentro do padrão — a mesma camada limpa do resto do painel), atualizadas para o preço de ${DADOS.mes_base.split("-").reverse().join("/")} pela variação de R$/m² de cada bairro (fora da carteira, pela variação da cidade). ${DADOS.resumo.vendas_fora != null ? `${num(DADOS.resumo.vendas)} vendas em ${num(DADOS.resumo.predios)} prédios de São Paulo — ${num(DADOS.resumo.predios_carteira)} deles nos ${DADOS.resumo.bairros_carteira} bairros da carteira (com anúncios da rede), os demais no resto da cidade (só vendas).` : `${num(DADOS.resumo.vendas)} vendas em ${num(DADOS.resumo.predios)} prédios dos bairros da carteira.`} Compara primeiro com o próprio prédio, depois com a rua, depois com o bairro — e diz qual dos três usou e quão confiável é.`)),
       form);
     const barra = h("div", { class: "calc-barra-resumo", id: "calc-barra-resumo", hidden: true });
     root.append(h("section", { class: "card", id: "calc-card" }, h("h2", {}, "Calculadora de preço de apartamento"), barra, corpo), h("div", { id: "calc-resultado" }));

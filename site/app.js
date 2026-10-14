@@ -537,6 +537,8 @@ async function main() {
   const m = DATA.meta;
   document.getElementById("updated-at").textContent = `Dados de ${m.years.join("/")} · atualizado em ${fmtDataHoraBR(DATA.generated_at_iso || DATA.generated_at)} (Brasília)`;
   const fonte = m.usn && m.usn.fonte === "nonstop_api" ? "API nonStop" : "export nonStop";
+  const _nb = DATA.bairros ? Object.keys(DATA.bairros).length : 0;
+  const _foot = document.getElementById("n-bairros-foot"); if (_foot && _nb) _foot.textContent = `${_nb} bairros da carteira`;
   document.getElementById("fontes-foot").textContent = `ITBI (Prefeitura) · ${fonte}`;
   renderFontesStatus();
   conferirVersaoNoServidor(); // ao abrir: se o servidor tem versão mais nova, recarrega; senão decide o aviso
@@ -584,7 +586,7 @@ const PANELS = [
   { id: "perfil", label: "Perfil por Bairro", grupo: "Panorama do mercado" },
   { id: "preco-m2", label: "Valor pago por bairro", grupo: "Panorama do mercado" },
   { id: "mapa", label: "Mapa", grupo: "Panorama do mercado" },
-  { id: "carteira-77", label: "Carteira 77", grupo: "Panorama do mercado" },
+  { id: "carteira-77", label: "Carteira de bairros", grupo: "Panorama do mercado" },
   { id: "estoque-demanda", label: "Estoque × Demanda", grupo: "Onde captar" },
   { id: "captacao", label: "Captação Ativa", grupo: "Onde captar" },
   { id: "ranking", label: "Ranking de Oportunidade", grupo: "Onde captar" },
@@ -603,7 +605,7 @@ const RESUMOS_SECOES = {
   "Contexto de crédito": "Juros e inflação do Banco Central, só como pano de fundo para quem financia um imóvel.",
   "Resumo da carteira": "Os números principais dos bairros que estão no filtro.",
   "Alertas": "Casos de casa em que o preço pedido por m² está bem diferente do pago (mais de 20 pontos).",
-  "Ranking de Oportunidade": "Nota de 0 a 100 para os 77 bairros: metade pelo volume de revendas, metade pela tendência de revendas.",
+  "Ranking de Oportunidade": "Nota de 0 a 100 para os bairros da carteira: metade pelo volume de revendas, metade pela tendência de revendas.",
   "Prontidão para Campanha por Bairro": "Nota de cada bairro para fazer campanha agora, juntando 5 sinais (revendas, estoque, captação, imóveis prioritários e achados de valor).",
   "Estoque da rede × Demanda": "Quantos anúncios a rede nonStop tem na faixa de preço que mais vende, frente às revendas dos últimos 12 meses.",
   "Perfil por Bairro": "Escolha um bairro e veja a faixa de preço que mais vendeu, o estoque da rede e o preço por m² pago × pedido.",
@@ -613,7 +615,7 @@ const RESUMOS_SECOES = {
   "Valor de Oportunidade": "Imóveis anunciados 20% ou mais abaixo do que se pagou em imóveis parecidos.",
   "Concentração por bairro": "Em quais bairros aparecem mais imóveis anunciados bem abaixo do preço pago (os 15 primeiros).",
   "Valor pago por bairro": "Quanto realmente se pagou (mediana e faixa) em revendas de apartamento, por bairro e metragem, nos últimos 12 meses.",
-  "Carteira 77": "Os 77 bairros que o painel acompanha, com revendas, lançamentos, giro e forma de pagamento.",
+  "Carteira de bairros": "Os bairros que o painel acompanha, com revendas, lançamentos, giro e forma de pagamento.",
 };
 function montarResumos() {
   document.querySelectorAll("section.card").forEach((card) => {
@@ -647,10 +649,10 @@ const COMO_USAR = {
   "perfil": ["Escolha um bairro na lista.", "Veja a faixa de preço que mais vendeu e quanto estoque a rede tem nessa faixa.", "Compare o preço por m² pago × pedido."],
   "preco-m2": ["Ache o bairro e a faixa de metragem.", "Veja o valor pago em revendas de apartamento: o do meio e a faixa em que ficou a maioria.", "“Poucas vendas” = referência ainda frágil."],
   "mapa": ["Cada bolha é um bairro.", "Quanto maior a bolha, mais vendas; quanto mais escura, maior a nota no Ranking.", "Toque numa bolha para ver os números do bairro."],
-  "carteira-77": ["Veja os 77 bairros que o painel acompanha.", "Compare revendas, lançamentos e giro dos últimos 12 meses.", "A forma de pagamento mostra quanto foi financiado por banco."],
+  "carteira-77": ["Veja os bairros que o painel acompanha.", "Compare revendas, lançamentos e giro dos últimos 12 meses.", "A forma de pagamento mostra quanto foi financiado por banco."],
   "estoque-demanda": ["Veja quantos anúncios a rede nonStop tem na faixa de preço que mais vende em cada bairro.", "Compare com as revendas dos últimos 12 meses.", "Atenção: estoque = só a rede nonStop, não o mercado inteiro."],
   "captacao": ["Use “Filtros” para escolher bairro, valor e tipo.", "Comece pelo “Top 30 da semana”: endereços com revendas repetidas e nenhuma unidade anunciada hoje.", "Abra um bairro para ver todos os endereços dele."],
-  "ranking": ["A nota vai de 0 a 100 para cada um dos 77 bairros.", "Quanto maior, mais liquidez: volume e tendência de revendas.", "“Amostra pequena” = poucos dados; o bairro não entra no top 10."],
+  "ranking": ["A nota vai de 0 a 100 para cada bairro da carteira.", "Quanto maior, mais liquidez: volume e tendência de revendas.", "“Amostra pequena” = poucos dados; o bairro não entra no top 10."],
   "prontidao": ["Comece pelos bairros do topo da lista.", "Toque num bairro para ver os 10 melhores imóveis anunciados hoje.", "Atenção: estoque = só a rede nonStop."],
   "prioritarios": ["Sem escolher bairro, aparecem os 50 melhores da carteira.", "Escolha um bairro para ver todos os imóveis pontuados dele.", "“Anúncio antigo” = confirme se ainda está disponível."],
   "valor-oportunidade": ["Veja imóveis anunciados 20% ou mais abaixo do que se pagou em parecidos.", "Alterne entre casa e apartamento.", "Cada achado diz com quantas vendas foi comparado."],
@@ -1207,7 +1209,7 @@ function renderVisaoGeral() {
   const fech = DATA.carteira_77.fechamento;
   const mesesIncompletosLabel = DATA.periodo_12m.meses_incompletos.map(fmtMesAno).join(" e ");
   document.getElementById("visao-sub").textContent =
-    `${fmtInt(fech.revenda.total)} vendas de revenda e ${fmtInt(fech.planta.total)} de planta na carteira de ${DATA.carteira_77.bairros ? Object.keys(DATA.carteira_77.bairros).length : 77} bairros (período ${periodo12mLabel()}) · ${DATA.meta.usn.rows_matched.toLocaleString("pt-BR")} anúncios de venda no estoque atual. ` +
+    `${fmtInt(fech.revenda.total)} vendas de revenda e ${fmtInt(fech.planta.total)} de planta na carteira de ${DATA.carteira_77.bairros ? Object.keys(DATA.carteira_77.bairros).length : Object.keys(DATA.bairros).length} bairros (período ${periodo12mLabel()}) · ${DATA.meta.usn.rows_matched.toLocaleString("pt-BR")} anúncios de venda no estoque atual. ` +
     `${mesesIncompletosLabel} ainda têm dado incompleto (guia paga com atraso chega depois), número tende a subir um pouco em execuções futuras.`;
 
   // Item 4 (2026-10-01): limpa antes de montar — sem isso, os 4 cards e
