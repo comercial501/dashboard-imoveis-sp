@@ -353,7 +353,8 @@
       tipo: "predio", predio: p.i, rua: p.rua, bairro: DADOS.predios[p.i][2],
       rotulo: bonito(DADOS.predios[p.i][1]), bairroNome: DADOS.bairros[DADOS.predios[p.i][2]],
     }));
-    if (numero !== null && out.length < 8) {
+    // "sem vendas neste número": só quando NENHUM prédio com esse número tem vendas (se o número existe com vendas, é ele; não oferece o trecho da mesma rua em outro bairro)
+    if (numero !== null && out.length < 8 && !out.some((o) => o.tipo === "predio")) {
       // a mesma rua passa por vários bairros: cada trecho aparece com o nome do bairro, pra escolher o certo (não esconde os outros)
       const ruas = BUSCA.ruas.filter((r) => casa(r.texto)).slice(0, 12);
       for (const r of ruas) {

@@ -92,6 +92,11 @@ def main():
         pm = next(i for i, v in sorted(idx["predio"].items(), key=lambda kv: -len(kv[1])) if dados["vendas"][v[0]][7])
         vm = dados["vendas"][idx["predio"][pm][0]]
         cenarios.append(("muitas_vendas", dict(end=dados["predios"][pm][1].replace(",", ""), apto=vm[7], pedido=round(vm[2] * 1.2, -3)), True))
+        # prédio FORA da carteira (resto de São Paulo, 14/10/2026): tem que achar, calcular, avisar na tela e gerar o PDF de 1 página
+        nc = dados.get("n_carteira", len(dados["bairros"]))
+        pf = next(i for i, v in sorted(idx["predio"].items(), key=lambda kv: -len(kv[1])) if dados["predios"][i][2] >= nc and dados["vendas"][v[0]][7])
+        vf = dados["vendas"][idx["predio"][pf][0]]
+        cenarios.append(("fora_da_carteira", dict(end=dados["predios"][pf][1].replace(",", ""), apto=vf[7], pedido=round(vf[2] * 1.3, -3)), True))
         for nome, kw, com_pedido in cenarios:
             abrir()
             ok(not pg.is_visible(BTN), f"{nome}: antes de calcular o botão do PDF não aparece")
@@ -104,6 +109,9 @@ def main():
             n, texto = relatorio(nome)
             ok(n == 1, f"{nome}: o relatório cabe em 1 página A4 (tem {n})")
             ok(SOBRA and SOBRA["cabe"] and SOBRA["folga"] >= 4, f"{nome}: nada passa do fim da página nem encosta no rodapé ({SOBRA})")
+            if nome == "fora_da_carteira":
+                ok("fora da carteira" in texto.lower(), "fora_da_carteira: o PDF diz que o endereço é fora da carteira")
+                ok(pg.is_visible(".calc-aviso-fora"), "fora_da_carteira: a tela avisa que o endereço é fora da carteira")
             ok(not LIXO.search(texto), f"{nome}: sem 'null', 'undefined' ou 'NaN' no texto")
             ok("Paulo Credidio" in texto and "by Topio" in texto, f"{nome}: assinatura Paulo Credidio · by Topio imóveis")
             ok("preço sugerido de venda" in texto.lower() and "vendas reais usadas na conta" in texto.lower(), f"{nome}: blocos do preço sugerido e do gráfico")

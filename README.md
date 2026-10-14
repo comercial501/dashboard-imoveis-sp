@@ -2688,3 +2688,20 @@ Só na tela (<= 760 px; o computador e o PDF não mudam). Bloco "Celular — ver
 **Ícone da tela de início (13/10):** trocado para o símbolo PRETO da Topio (`topio_simbolo_preto.png`, enviado pelo Paulo) sobre fundo BRANCO (`apple-touch-icon.png` 180, `icon-192.png`, `icon-512.png`). O fundo é branco porque o iPhone pinta de preto qualquer parte transparente do ícone (o símbolo preto sumiria). O nome embaixo do ícone continua "Imóveis-SP".
 
 **Ícone público (14/10):** o iPhone baixa o ícone da tela de início sem login e mostrava um "I" azul. `functions/_middleware.js` agora tem a lista `PUBLICOS_SEM_LOGIN` com UM caminho exato (`/apple-touch-icon.png`, só GET/HEAD) — a única exceção à trava; testes novos em `test_cloudflare_trava.mjs` (variações do caminho continuam fechadas, POST fechado), `test_cloudflare_e2e.mjs` e `testar_acesso_anonimo.py`. Falta, no painel da Cloudflare, o aplicativo Access "Bypass" só para esse caminho (ver `docs/cloudflare-passo-a-passo.md`).
+
+## Belém na carteira + Calculadora para toda São Paulo (2026-10-14)
+
+**A. Belém (com o Belenzinho) entrou na carteira — agora são 78 bairros.** Antes `BELENZINHO` e `BELEM` estavam como FORA na tabela revisada à mão
+(`bairros_mercado_preenchido.csv`); `scripts/bairros_mercado_extra.csv` (que sobrescreve a tabela) agora manda `BELENZINHO`, `BELEM`, `BELEMZINHO` e
+`SMART STUDIOS BELEM` para o bairro **Belém** (NOVO_BAIRRO). As demais grafias (edifícios, erros de digitação) entram pela votação da quadra/endereço/CEP, como nos outros bairros.
+`CHACARA BELENZINHO`, `PQ BELEM`, `JD BELEM` etc. continuam FORA (são outros lugares). `normalize.py` agora exige 78. O painel "Carteira 77" virou **"Carteira de bairros"** (o id interno
+`carteira-77` e os nomes dos campos do `data.json` não mudaram) e os textos não trazem mais o número fixo.
+
+**B. A Calculadora acha qualquer endereço de São Paulo.** Fora da carteira, cada revenda ganha uma **região** (`scripts/regioes_fora.py`): o nome do bairro que o cadastro do IPTU mais usa no CEP de 5 dígitos
+daquela venda, separado por sub-região do CEP (3 dígitos) e com "(fora da carteira)" no nome. Essas vendas passam pela MESMA camada limpa (`build_clean_layer`) e entram só no `calculadora.json`
+(`calculadora_preco.preparar_dados(..., fora_records=...)`; `n_carteira` marca onde acabam os bairros da carteira; o índice de correção de tempo cai no da cidade). Nenhum painel muda.
+Nos endereços de fora a estimativa usa o prédio, a rua ou a região (sem anúncios da rede nonStop) e a tela/PDF avisam. O arquivo passou de ~5 MB para ~9,4 MB (carrega só ao abrir a aba; a Cloudflare comprime).
+Sugestões de endereço: cada trecho da mesma rua aparece com o seu bairro (antes um escondia o outro); o trecho "sem vendas neste número" só é oferecido quando NENHUM prédio com esse número tem vendas.
+Validação (`validate_build.check_calculadora`) confere que o arquivo = revenda limpa da carteira + do resto da cidade e que os primeiros bairros são exatamente os da carteira.
+`scripts/atualizar_token_local.py` troca o NONSTOP_TOKEN dos `.env` do Mac (pede o token escondido e testa antes de gravar).
+Observação (já existia): `tradutor_bairro._cep5` erra o CEP que chega do ITBI como número com ".0" (ex.: `1103020.0` → `11030`); a votação por CEP do ITBI usa o texto cru, então só fica fragmentada. `regioes_fora.cep8` trata certo.
