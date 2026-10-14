@@ -1,15 +1,15 @@
 {
-  "gerado_em": "Wed Oct 14 17:01:16 2026 UTC",
+  "gerado_em": "Wed Oct 14 18:26:05 2026 UTC",
   "camada_limpa_preco": {
-    "total_entrada": 161878,
-    "excluidos_predio_inteiro_uso_21_22": 59362,
+    "total_entrada": 167950,
+    "excluidos_predio_inteiro_uso_21_22": 63759,
     "excluidos_natureza_nao_compra_venda": 0,
     "excluidos_natureza_nao_compra_venda_por_tipo": {},
-    "excluidos_transferencia_parcial": 1806,
-    "excluidos_valor_irreal": 1017,
-    "excluidos_subdeclarado": 3135,
+    "excluidos_transferencia_parcial": 1804,
+    "excluidos_valor_irreal": 1042,
+    "excluidos_subdeclarado": 3190,
     "subdeclaracao_limite": 0.6,
-    "limpos_sem_area_valida": 714,
-    "total_saida_clean_sale": 96558
+    "limpos_sem_area_valida": 715,
+    "total_saida_clean_sale": 98155
   }
 }
