@@ -2,10 +2,10 @@ name: Atualizar dados do dashboard
 
 on:
   schedule:
-    # 08:00 horário de São Paulo. O cron do GitHub Actions só entende UTC,
+    # 08:17 horário de São Paulo. O cron do GitHub Actions só entende UTC,
     # e o Brasil não tem mais horário de verão desde 2019, então
-    # America/Sao_Paulo é fixo em UTC-3 o ano todo -> 08:00 BRT = 11:00 UTC.
-    - cron: "0 11 * * *"
+    # America/Sao_Paulo é fixo em UTC-3 o ano todo -> 08:17 BRT = 11:17 UTC.
+    - cron: "17 11 * * *"
   workflow_dispatch: # permite rodar manualmente pela aba Actions
     inputs:
       testar_alerta:
