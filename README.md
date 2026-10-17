@@ -2705,3 +2705,7 @@ Sugestões de endereço: cada trecho da mesma rua aparece com o seu bairro (ante
 Validação (`validate_build.check_calculadora`) confere que o arquivo = revenda limpa da carteira + do resto da cidade e que os primeiros bairros são exatamente os da carteira.
 `scripts/atualizar_token_local.py` troca o NONSTOP_TOKEN dos `.env` do Mac (pede o token escondido e testa antes de gravar).
 Observação (já existia): `tradutor_bairro._cep5` erra o CEP que chega do ITBI como número com ".0" (ex.: `1103020.0` → `11030`); a votação por CEP do ITBI usa o texto cru, então só fica fragmentada. `regioes_fora.cep8` trata certo.
+
+**Deduplicação de anúncios da nonStop, agora idempotente (17/10/2026).** A atualização de 17/10 travou ("anúncios duplicados no estoque depois da limpeza"): `deduplicar_registros` comparava cada anúncio só com o primeiro do grupo (±3%) e mantinha o MAIS RECENTE, cujo preço podia ser outro;
+depois da passada, dois representantes (ex.: 103 e 106 mil) ficavam a menos de 3% um do outro, e a checagem 9/19 (reaplicar a função tem que remover 0) pegou isso. Agora a função repete as passadas até estabilizar
+(`_deduplicar_uma_passada` + laço, máx. 20). Teste: `python3 scripts/test_dedup_nonstop.py` (o caso 100/103/106 mil, a data de cadastro mais antiga preservada, o que não pode juntar, cadeia de preços).

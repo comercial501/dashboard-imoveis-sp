@@ -157,8 +157,8 @@ def card_to_record(card):
 DEDUP_TOLERANCIA_PRECO = 0.03  # +-3%
 
 
-def deduplicar_registros(records, tolerancia_preco=DEDUP_TOLERANCIA_PRECO, log=print):
-    """Passo 3b (2026-10-01), achado da auditoria: o mesmo imóvel às
+def _deduplicar_uma_passada(records, tolerancia_preco=DEDUP_TOLERANCIA_PRECO):
+    """UMA passada da deduplicação (ver deduplicar_registros, que repete até estabilizar). Passo 3b (2026-10-01), achado da auditoria: o mesmo imóvel às
     vezes aparece mais de uma vez no estoque (republicado, ou corretores
     diferentes anunciando a mesma unidade) — nenhum painel filtrava isso
     antes (só o export de conteúdo tinha essa regra). Mesmo endereço
@@ -214,9 +214,24 @@ def deduplicar_registros(records, tolerancia_preco=DEDUP_TOLERANCIA_PRECO, log=p
                 representante["created_at_mais_antigo"] = min((_cadastro(x) for x in cluster if _cadastro(x)), default=None)
                 dedupados.append(representante)
                 n_removidos += len(cluster) - 1
-    if n_removidos:
-        log(f"[nonstop] deduplicação: {len(records)} -> {len(dedupados)} anúncios únicos (removidos {n_removidos} republicados/duplicados)")
     return dedupados, n_removidos
+
+
+def deduplicar_registros(records, tolerancia_preco=DEDUP_TOLERANCIA_PRECO, log=print):
+    """Deduplica até ESTABILIZAR (17/10/2026): uma passada só compara cada anúncio com o primeiro do grupo (±3% do preço dele). O representante
+    mantido é o MAIS RECENTE, cujo preço pode ser outro — então, depois da passada, dois representantes de grupos diferentes podem ficar a ±3% um
+    do outro (ex.: 100, 103 e 106 mil: o grupo {100, 103} fica com o 103 e o 106 fica sozinho, a 2,9% do 103). A checagem do build (reaplicar a função
+    num conjunto já deduplicado tem que remover 0) pegou isso e travou a atualização. Repetir as passadas até não sair mais nenhum deixa a função
+    idempotente de verdade. Retorna (records_deduplicados, n_removidos)."""
+    atual, removidos = records, 0
+    for _ in range(20):   # estabiliza em 2-3 passadas; o limite é só um cinto de segurança
+        atual, n = _deduplicar_uma_passada(atual, tolerancia_preco)
+        removidos += n
+        if n == 0:
+            break
+    if removidos:
+        log(f"[nonstop] deduplicação: {len(records)} -> {len(atual)} anúncios únicos (removidos {removidos} republicados/duplicados)")
+    return atual, removidos
 
 
 def fetch_all_records(token, available_for="VENDA"):
